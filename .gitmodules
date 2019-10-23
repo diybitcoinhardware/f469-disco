@@ -1,12 +1,6 @@
 [submodule "micropython"]
 	path = micropython
 	url = git@github.com:diybitcoinhardware/micropython.git
-[submodule "usermods/secp256k1"]
-	path = usermods/secp256k1
-	url = https://github.com/diybitcoinhardware/secp256k1.git
-[submodule "usermods/mpy-secp256k1"]
-	path = usermods/mpy-secp256k1
-	url = https://github.com/stepansnigirev/mpy-secp256k1.git
-[submodule "usermods/mpy-bitcoin"]
-	path = usermods/mpy-bitcoin
-	url = https://github.com/stepansnigirev/mpy-bitcoin.git
+[submodule "usermods/usecp256k1/secp256k1"]
+	path = usermods/usecp256k1/secp256k1
+	url = git@github.com:bitcoin-core/secp256k1.git
