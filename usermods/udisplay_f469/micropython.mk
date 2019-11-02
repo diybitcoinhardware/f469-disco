@@ -19,9 +19,6 @@ SRC_USERMOD += $(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/Components/otm800
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/STM32469I-Discovery/stm32469i_discovery_ts.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/Components/ft6x06/ft6x06.c
 
-# Sample extra functions
-SRC_USERMOD += $(DISPLAY_MOD_DIR)/nanogui/logo.c
-
 # FIXME: this should be included automatically 
 # as these files are in micropython repo as well
 # Probably changes in mpboardconfigport.mk or some #defines can help
@@ -30,8 +27,20 @@ SRC_USERMOD += $(DISPLAY_MOD_DIR)/STM32F4xx_HAL_Driver/stm32f4xx_hal_ltdc.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/STM32F4xx_HAL_Driver/stm32f4xx_hal_ltdc_ex.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/STM32F4xx_HAL_Driver/stm32f4xx_hal_dma2d.c
 
+# lvgl support
+LVGL_DIR := $(DISPLAY_MOD_DIR)
+include $(LVGL_DIR)/lvgl/lvgl.mk
+SRC_USERMOD += $(CSRCS)
+CFLAGS_USERMOD += $(CFLAGS)
+
+# display driver
+SRC_USERMOD += $(DISPLAY_MOD_DIR)/lv_stm_hal/lv_stm_hal.c
+
 # Dirs with header files
+CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)
+CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lvgl
+CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lv_stm_hal
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/STM32469I-Discovery
-CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/nanogui
+
 endif
