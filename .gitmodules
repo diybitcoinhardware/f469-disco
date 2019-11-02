@@ -4,6 +4,6 @@
 [submodule "usermods/usecp256k1/secp256k1"]
 	path = usermods/usecp256k1/secp256k1
 	url = https://github.com/bitcoin-core/secp256k1.git
-[submodule "usermods/lvgl"]
+[submodule "usermods/udisplay_f469/lvgl"]
 	path = usermods/udisplay_f469/lvgl
 	url = https://github.com/littlevgl/lvgl.git
