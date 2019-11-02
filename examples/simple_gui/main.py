@@ -62,7 +62,7 @@ class CounterScreen:
 
 def set_theme():
     # setup theme
-    th = lv.theme_material_init(210, lv.font_roboto_28)
+    th = lv.theme_material_init(210, lv.font_roboto_22)
     lv.theme_set_current(th)
 
 def ioloop(dt):
@@ -73,14 +73,17 @@ def ioloop(dt):
 # in global scope such that it is accessible from REPL
 counter_scr = CounterScreen()
 
-def main():
+def init():
     display.init()
+
+def main():
     set_theme()
     counter_scr.draw()
+    time.sleep(0.1)
     ioloop(30)
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+    # main()
 
 
 
