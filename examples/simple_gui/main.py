@@ -82,8 +82,10 @@ def main():
     time.sleep(0.1)
     ioloop(30)
 
-# if __name__ == '__main__':
-    # main()
+if __name__ == '__main__':
+    init()
+    time.sleep(0.1)
+    main()
 
 
 
