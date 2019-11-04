@@ -1,0 +1,24 @@
+// This is a template file for Visual Studio Code debugger configuration.
+// To use, copy into your .vscode directory and modify paths if needed.
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug MicroPython VM",
+            "cwd": "${workspaceRoot}",
+            "executable": "./micropython/ports/stm32/build-STM32F469DISC/firmware.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "svdFile": "./debug/STM32F469.svd",
+            // Path to board configuration file stored within OpenOCD installation directory
+            "configFiles": [
+                "/usr/local/share/openocd/scripts/board/stm32f429discovery.cfg" // Mac OS X
+                // "/usr/share/openocd/scripts/board/stm32f429discovery.cfg" // Linux
+            ]            
+        }
+    ]
+}
