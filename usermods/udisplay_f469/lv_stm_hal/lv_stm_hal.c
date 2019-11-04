@@ -40,6 +40,19 @@ void tft_init(){
 }
 
 static void tft_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_p){
+
+#if LV_COLOR_DEPTH == 32
+    /* Copy pixed data line by line using DMA */
+    uint8_t result = LCD_ERROR;
+
+    if(area->x2 >= area->x1 && area->y2 >= area->y1 && color_p) {
+      result = BSP_LCD_DrawBitmapRaw( area->x1, area->y1, 
+                                      area->x2 - area->x1 + 1, 
+                                      area->y2 - area->y1 + 1,
+                                      LV_COLOR_DEPTH, color_p );
+    }
+    if(result != LCD_OK) return;
+#else
     /*The most simple case (but also the slowest) to put all pixels to the screen one-by-one*/
     uint16_t x, y;
     for(y = area->y1; y <= area->y2; y++) {
@@ -49,6 +62,7 @@ static void tft_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * 
             color_p++;
         }
     }
+#endif    
 
     /* IMPORTANT!!!
      * Inform the graphics library that you are ready with the flushing*/

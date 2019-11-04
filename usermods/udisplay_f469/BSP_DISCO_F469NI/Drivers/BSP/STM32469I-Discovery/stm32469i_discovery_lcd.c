@@ -1630,6 +1630,68 @@ static void LL_ConvertLineToARGB8888(void *pSrc, void *pDst, uint32_t xSize, uin
 }
 
 /**
+  * @brief  Draws a raw bitmap in currently active layer.
+  * 
+  * Pixel data must be aligned to 16-bit or 32-bit boundary depending on color depth.
+  * @param  Xpos: Bitmap X position in the LCD
+  * @param  Ypos: Bitmap Y position in the LCD
+  * @param  Width: Bitmap width in pixels
+  * @param  Height: Bitmap height in pixels
+  * @param  ColorBits: Color depth in bits, acceptable values: 16, 24, 32
+  * @param  pPixelData: Pointer to raw pixel data
+  */
+uint8_t BSP_LCD_DrawBitmapRaw(uint32_t Xpos, uint32_t Ypos, uint32_t Width, uint32_t Height, 
+                              uint32_t ColorBits, const void *pPixelData)
+{
+  uint32_t Address;
+  uint32_t InputColorMode = 0;
+  const uint8_t *src_buf = (const uint8_t*)pPixelData;
+  uint32_t src_increment = Width * (ColorBits >> 3);
+  uint32_t dst_increment = BSP_LCD_GetXSize() * 4;
+
+  /* Validate parameters */
+  if( !Width || !Height || !ColorBits || !pPixelData ||
+      Xpos + Width > BSP_LCD_GetXSize() || Ypos + Height > BSP_LCD_GetYSize() ) 
+  {
+    return LCD_ERROR;
+  }
+
+  /* Set the address */
+  Address = hltdc_eval.LayerCfg[ActiveLayer].FBStartAdress + (((BSP_LCD_GetXSize()*Ypos) + Xpos)*(4));
+
+  /* Get the layer pixel format and check buffer alignment*/
+  if (ColorBits == 32)
+  {
+    InputColorMode = CM_ARGB8888;
+    if((uint32_t)pPixelData & 0x3) return LCD_ERROR;
+  }
+  else if (ColorBits == 16)
+  {
+    InputColorMode = CM_RGB565;
+    if((uint32_t)pPixelData & 0x1) return LCD_ERROR;
+  }
+  else if (ColorBits == 24)
+  {
+    InputColorMode = CM_RGB888;
+    if((uint32_t)pPixelData & 0x3) return LCD_ERROR;
+  }
+  else return LCD_ERROR;
+
+  /* Convert picture to ARGB8888 pixel format */
+  while(Height--)
+  {
+    /* Pixel format conversion */
+    LL_ConvertLineToARGB8888((uint32_t *)src_buf, (uint32_t *)Address, Width, InputColorMode);
+
+    /* Increment the source and destination buffers */
+    Address += dst_increment;
+    src_buf += src_increment;
+  }
+
+  return LCD_OK;
+}
+
+/**
   * @}
   */
 
