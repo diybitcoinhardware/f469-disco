@@ -3,10 +3,10 @@
  * Auto-Generated file, DO NOT EDIT!
  *
  * Command line:
- * gen_mpy.py -MD lv_mpy_example.json -M lvgl -MP lv -I../../berkeley-db-1.xx/PORT/include -I../../lv_bindings -I. -I../.. -Ibuild -I../../mp-readline -I ../../lv_bindings/pycparser/utils/fake_libc_include ../../lv_bindings/lvgl/lvgl.h
+ * ../../lib/lv_bindings/gen/gen_mpy.py -M lvgl -MP lv -MD build/lvgl/lv_mpy.json -E build/lvgl/lvgl.pp.c ../../lib/lv_bindings/lvgl/lvgl.h
  *
  * Preprocessing command:
- * gcc -E -std=c99 -DPYCPARSER  -I ../../berkeley-db-1.xx/PORT/include -I ../../lv_bindings -I . -I ../.. -I build -I ../../mp-readline -I ../../lv_bindings/pycparser/utils/fake_libc_include -include ../../lv_bindings/lvgl/lvgl.h ../../lv_bindings/lvgl/lvgl.h
+ * Preprocessing was disabled.
  *
  * Generating Objects: obj(None), cont(obj), btn(obj), imgbtn(obj), label(obj), img(obj), line(obj), page(obj), list(obj), chart(obj), table(obj), cb(obj), bar(obj), slider(obj), led(obj), btnm(obj), kb(obj), ddlist(obj), roller(obj), ta(obj), canvas(obj), win(obj), tabview(obj), tileview(obj), mbox(obj), lmeter(obj), gauge(obj), sw(obj), arc(obj), preload(obj), calendar(obj), spinbox(obj)
  */
@@ -29956,6 +29956,7 @@ STATIC mp_obj_t mp_lv_draw_img(size_t mp_n_args, const mp_obj_t *mp_args)
 STATIC MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_draw_img_obj, 5, mp_lv_draw_img, lv_draw_img);
 
  
+
 /*
  * lvgl lv_font_roboto_12 global definitions
  */
@@ -29964,6 +29965,7 @@ STATIC const mp_lv_struct_t mp_lv_font_roboto_12 = {
     { &mp_lv_font_t_type },
     (lv_font_t*)&lv_font_roboto_12
 };
+    
 
 /*
  * lvgl lv_font_roboto_16 global definitions
@@ -29973,6 +29975,7 @@ STATIC const mp_lv_struct_t mp_lv_font_roboto_16 = {
     { &mp_lv_font_t_type },
     (lv_font_t*)&lv_font_roboto_16
 };
+    
 
 /*
  * lvgl lv_font_roboto_22 global definitions
@@ -29982,6 +29985,7 @@ STATIC const mp_lv_struct_t mp_lv_font_roboto_22 = {
     { &mp_lv_font_t_type },
     (lv_font_t*)&lv_font_roboto_22
 };
+    
 
 /*
  * lvgl lv_font_roboto_28 global definitions
@@ -29990,6 +29994,76 @@ STATIC const mp_lv_struct_t mp_lv_font_roboto_22 = {
 STATIC const mp_lv_struct_t mp_lv_font_roboto_28 = {
     { &mp_lv_font_t_type },
     (lv_font_t*)&lv_font_roboto_28
+};
+    
+
+/*
+ * lvgl lv_font_unscii_8 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_lv_font_unscii_8 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&lv_font_unscii_8
+};
+    
+
+/*
+ * lvgl square10 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square10 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square10
+};
+    
+
+/*
+ * lvgl square7 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square7 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square7
+};
+    
+
+/*
+ * lvgl square5 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square5 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square5
+};
+    
+
+/*
+ * lvgl square3 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square3 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square3
+};
+    
+
+/*
+ * lvgl square2 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square2 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square2
+};
+    
+
+/*
+ * lvgl square1 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square1 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square1
 };
     
 
@@ -30954,6 +31028,13 @@ STATIC const mp_rom_map_elem_t lvgl_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_font_roboto_16), MP_ROM_PTR(&mp_lv_font_roboto_16) },
     { MP_ROM_QSTR(MP_QSTR_font_roboto_22), MP_ROM_PTR(&mp_lv_font_roboto_22) },
     { MP_ROM_QSTR(MP_QSTR_font_roboto_28), MP_ROM_PTR(&mp_lv_font_roboto_28) },
+    { MP_ROM_QSTR(MP_QSTR_font_unscii_8), MP_ROM_PTR(&mp_lv_font_unscii_8) },
+    { MP_ROM_QSTR(MP_QSTR_square10), MP_ROM_PTR(&mp_square10) },
+    { MP_ROM_QSTR(MP_QSTR_square7), MP_ROM_PTR(&mp_square7) },
+    { MP_ROM_QSTR(MP_QSTR_square5), MP_ROM_PTR(&mp_square5) },
+    { MP_ROM_QSTR(MP_QSTR_square3), MP_ROM_PTR(&mp_square3) },
+    { MP_ROM_QSTR(MP_QSTR_square2), MP_ROM_PTR(&mp_square2) },
+    { MP_ROM_QSTR(MP_QSTR_square1), MP_ROM_PTR(&mp_square1) },
     { MP_ROM_QSTR(MP_QSTR_style_scr), MP_ROM_PTR(&mp_lv_style_scr) },
     { MP_ROM_QSTR(MP_QSTR_style_transp), MP_ROM_PTR(&mp_lv_style_transp) },
     { MP_ROM_QSTR(MP_QSTR_style_transp_fit), MP_ROM_PTR(&mp_lv_style_transp_fit) },

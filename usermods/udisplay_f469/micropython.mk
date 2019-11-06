@@ -35,6 +35,8 @@ CFLAGS_USERMOD += $(CFLAGS)
 
 # display driver
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/lv_stm_hal/lv_stm_hal.c
+# square font
+SRC_USERMOD += $(DISPLAY_MOD_DIR)/square.c
 
 # Dirs with header files
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)
