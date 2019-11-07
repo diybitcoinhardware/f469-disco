@@ -1,4 +1,4 @@
-# DIY Bitcoin Hardware Wallet with Touchscreen & QR Scanner in Micropython
+# (WIP) DIY Bitcoin Hardware Wallet with Touchscreen & QR Scanner in Micropython
 
 ## Run Unittests
 
