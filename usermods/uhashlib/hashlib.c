@@ -256,7 +256,7 @@ STATIC const mp_obj_type_t hashlib_ripemd160_type = {
 /************************** pbkdf2_hmac_sha512 **************************/
 
 STATIC mp_obj_t hashlib_pbkdf2_hmac_sha512(mp_uint_t n_args, const mp_obj_t *args){
-    //mp_obj_t password, mp_obj_t salt, mp_obj_t iterations, mp_obj_t len){
+    //mp_obj_t password, mp_obj_t salt, mp_obj_t iterations, mp_obj_t len_to_read
     mp_buffer_info_t pwdbuf;
     mp_get_buffer_raise(args[0], &pwdbuf, MP_BUFFER_READ);
     mp_buffer_info_t saltbuf;
@@ -274,7 +274,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR(hashlib_pbkdf2_hmac_sha512_obj, 4, hashlib_pb
 /************************** hmac_sha512 **************************/
 
 STATIC mp_obj_t hashlib_hmac_sha512(mp_uint_t n_args, const mp_obj_t *args){
-    //mp_obj_t password, mp_obj_t salt, mp_obj_t iterations, mp_obj_t len){
+    //mp_obj_t key, mp_obj_t msg
     mp_buffer_info_t keybuf;
     mp_get_buffer_raise(args[0], &keybuf, MP_BUFFER_READ);
     mp_buffer_info_t msgbuf;
