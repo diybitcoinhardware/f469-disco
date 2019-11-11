@@ -68,6 +68,12 @@ class Script:
             raise ValueError("Cant read %d bytes" % l)
         return cls(data)
 
+    def __eq__(self, other):
+        return self.data == other.data
+
+    def __ne__(self, other):
+        return self.data != other.data
+
 class Witness:
     def __init__(self, items):
         self.items = items[:]

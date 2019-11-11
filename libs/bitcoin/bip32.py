@@ -179,6 +179,9 @@ class HDKey:
         else:
             return self.key.verify(sig, msg_hash)
 
+    def __hash__(self):
+        return hash(self.serialize())
+
 def _parse_path(path:str):
     """converts derivation path of the form m/44h/1'/0'/0/32 to int array"""
     arr = path.split("/")

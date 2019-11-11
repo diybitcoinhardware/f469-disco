@@ -32,6 +32,15 @@ class PublicKey:
     def __repr__(self):
         return "PublicKey(%s)" % hexlify(self.serialize()).decode('utf-8')
 
+    def __eq__(self, other):
+        return self._point == other._point
+
+    def __ne__(self, other):
+        return self._point != other._point
+
+    def __hash__(self):
+        return hash(self._point)
+
 class PrivateKey:
     def __init__(self, secret, compressed:bool=True):
         """Creates a private key from 32-byte array"""
