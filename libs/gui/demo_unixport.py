@@ -1,5 +1,6 @@
 import lvgl as lv
 import SDL
+import time
 
 styles = {}
 
@@ -128,6 +129,8 @@ def show_counter_screen():
 def main():
     init()
     show_counter_screen()
+    while True:
+        time.sleep_ms(30)
 
 if __name__ == '__main__':
     main()

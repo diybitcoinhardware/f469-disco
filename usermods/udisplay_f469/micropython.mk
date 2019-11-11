@@ -48,8 +48,9 @@ CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/STM32469I-Di
 
 endif
 
+ifeq ($(CMSIS_MCU),)
 # unixport (mac / linux)
-ifeq ($(UNAME_S),$(filter $(UNAME_S),Darwin Linux))
+
 # The module itself
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/display_unix.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/display_unix_sdl.c
