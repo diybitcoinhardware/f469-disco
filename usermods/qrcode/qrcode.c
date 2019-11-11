@@ -3,6 +3,7 @@
 #include "py/runtime.h"
 #include "py/builtin.h"
 #include "qrcodegen.h"
+#include "string.h"
 
 STATIC mp_obj_t qrcode_encode(mp_obj_t text_obj){
     mp_buffer_info_t bufinfo;

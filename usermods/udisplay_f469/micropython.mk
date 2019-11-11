@@ -1,5 +1,6 @@
 DISPLAY_MOD_DIR := $(USERMOD_DIR)
 
+# stm32f469
 ifeq ($(CMSIS_MCU),STM32F469xx)
 # The module itself
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/display.c
@@ -44,5 +45,29 @@ CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lvgl
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lv_stm_hal
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/STM32469I-Discovery
+
+endif
+
+# unixport (mac / linux)
+ifeq ($(UNAME_S),$(filter $(UNAME_S),Darwin Linux))
+# The module itself
+SRC_USERMOD += $(DISPLAY_MOD_DIR)/display_unix.c
+SRC_USERMOD += $(DISPLAY_MOD_DIR)/display_unix_sdl.c
+SRC_USERMOD += $(DISPLAY_MOD_DIR)/lv_sdl_hal/SDL/SDL_monitor.c
+SRC_USERMOD += $(DISPLAY_MOD_DIR)/lv_sdl_hal/SDL/SDL_mouse.c
+
+# lvgl support
+LVGL_DIR := $(DISPLAY_MOD_DIR)
+include $(LVGL_DIR)/lvgl/lvgl.mk
+SRC_USERMOD += $(CSRCS)
+CFLAGS_USERMOD += $(CFLAGS)
+
+# square font
+SRC_USERMOD += $(DISPLAY_MOD_DIR)/square.c
+
+# Dirs with header files
+CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)
+CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lvgl
+CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lv_sdl_hal/SDL
 
 endif
