@@ -77,6 +77,14 @@ class PrivateKey:
                 raise ValueError("Wrong WIF compressed flag")
         return cls(secret, compressed)
 
+    # to unify API
+    def to_base58(self, network=NETWORKS["main"]):
+        return self.wif(network)
+
+    @classmethod
+    def from_base58(cls, s):
+        return cls.from_wif(s)
+
     def get_public_key(self):
         return PublicKey(secp256k1.ec_pubkey_create(self._secret), self.compressed)
 
