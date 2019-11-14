@@ -182,6 +182,25 @@ class HDKey:
     def __hash__(self):
         return hash(self.serialize())
 
+def detect_version(path:str, default="xprv"):
+    """Trying to be smart, use if you want, but with care"""
+    key = default
+    network = NETWORKS["main"]
+    arr = _parse_path(path)
+    if arr[0] == 0x80000000+84:
+        key = "z"+default[1:]
+    elif arr[0] == 0x80000000+49:
+        key = "y"+default[1:]
+    elif arr[0] == 0x80000000+48:
+        if len(arr) >= 4:
+            if arr[3] == 0x80000000+1:
+                key = "Y"+default[1:]
+            elif arr[3] == 0x80000000+2:
+                key = "Z"+default[1:]
+    if len(arr)>1 and arr[1]==0x80000000+1:
+        network = NETWORKS["test"]
+    return network[key]
+
 def _parse_path(path:str):
     """converts derivation path of the form m/44h/1'/0'/0/32 to int array"""
     arr = path.split("/")
