@@ -2,6 +2,7 @@ from micropython import const
 
 NETWORKS = {
 	"main": {
+		"name":   "Mainnet",
 	    "wif":    b'\x80',
 	    "p2pkh":  b'\x00',
 	    "p2sh":   b'\x05',
@@ -19,6 +20,7 @@ NETWORKS = {
 	    "bip32":  const(0) # coin type for bip32 derivation
 	},
 	"test": {
+		"name":   "Testnet",
 	    "wif":    b'\xEF',
 	    "p2pkh":  b'\x6F',
 	    "p2sh":   b'\xC4',
@@ -36,6 +38,7 @@ NETWORKS = {
 	    "bip32":  const(1)
 	},
 	"regtest": {
+		"name":   "Regtest",
 	    "wif":    b'\xEF',
 	    "p2pkh":  b'\x6F',
 	    "p2sh":   b'\xC4',
@@ -53,6 +56,7 @@ NETWORKS = {
 	    "bip32":  const(1)
 	},
 	"signet": {
+		"name":   "Signet",
 	    "wif":    b'\xD9',
 	    "p2pkh":  b'\x7D',
 	    "p2sh":   b'\x57',
