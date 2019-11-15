@@ -161,7 +161,7 @@ class HDKey:
         """ path: int array or a string starting with m/ """
         if "/" in path:
             # string of the form m/44h/0'/ind
-            path = _parse_path(path)
+            path = parse_path(path)
         child = self
         for idx in path:
             child = child.child(idx)
@@ -186,7 +186,7 @@ def detect_version(path:str, default="xprv"):
     """Trying to be smart, use if you want, but with care"""
     key = default
     network = NETWORKS["main"]
-    arr = _parse_path(path)
+    arr = parse_path(path)
     if arr[0] == 0x80000000+84:
         key = "z"+default[1:]
     elif arr[0] == 0x80000000+49:
@@ -201,7 +201,7 @@ def detect_version(path:str, default="xprv"):
         network = NETWORKS["test"]
     return network[key]
 
-def _parse_path(path:str):
+def parse_path(path:str):
     """converts derivation path of the form m/44h/1'/0'/0/32 to int array"""
     arr = path.split("/")
     if arr[0] == "m":
