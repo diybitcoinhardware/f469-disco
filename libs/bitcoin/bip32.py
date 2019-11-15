@@ -171,7 +171,7 @@ class HDKey:
         """signs a hash of the message with the private key"""
         if not self.is_private:
             raise RuntimeError("HD public key can't sign")
-        return self.key.sign(h)
+        return self.key.sign(msg_hash)
 
     def verify(self, sig, msg_hash):
         if self.is_private:
