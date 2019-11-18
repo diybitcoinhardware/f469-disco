@@ -182,6 +182,14 @@ class HDKey:
     def __hash__(self):
         return hash(self.serialize())
 
+    def __eq__(self, other):
+        # skip version
+        return self.serialize()[4:]==other.serialize()[4:]
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
 def detect_version(path:str, default="xprv"):
     """Trying to be smart, use if you want, but with care"""
     key = default

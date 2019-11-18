@@ -121,9 +121,10 @@ class PSBT:
                         sc = inp.witness_utxo.script_pubkey
                         if inp.redeem_script is not None:
                             sc = inp.redeem_script
-                        if sc.script_type() != "p2wpkh":
-                            raise NotImplementedError("Multisig is not implemented yet")
-                        sc = script.p2pkh_from_p2wpkh(sc)
+                        if inp.witness_script is not None:
+                            sc = inp.witness_script
+                        if sc.script_type() == "p2wpkh":
+                            sc = script.p2pkh_from_p2wpkh(sc)
                         h = self.tx.sighash_segwit(i, sc, value)
                         sig = hdkey.key.sign(h)
                     if sig is not None:
