@@ -2,6 +2,16 @@
 
 ## Compile
 
+To compile the firmware you will need `arm-none-eabi-gcc` compiler.
+
+On MacOS install it using brew: `brew install arm-none-eabi-gcc`
+
+On Linux: `sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
+
+Run `./build_f469.sh` script, if everything goes well you will get a `upy-f469disco.bin` file in the root folder.
+
+Run `./build_unixport.sh` to get unix version of micropython. You may need to install SDL2 library to work with the GUI (`sudo apt install libsdl2-dev` or `brew install sdl2`).
+
 ### STM32F469-Discovery board:
 
 ```
