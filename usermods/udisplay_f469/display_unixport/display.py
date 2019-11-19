@@ -36,5 +36,6 @@ def init(*args, **kwargs):
     scr = lv.obj()
     lv.scr_load(scr)
 
+# unify the API
 def update(*args, **kwargs):
     pass
