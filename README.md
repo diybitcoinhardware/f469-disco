@@ -1,5 +1,11 @@
 # (WIP) DIY Bitcoin Hardware Wallet with Touchscreen & QR Scanner in Micropython
 
+## Quick start
+
+Check out the [documentation](./docs) folder for a tutorial and API of crypto modules.
+
+Some examples are located in the [examples](./examples) folder.
+
 ## Compile
 
 To compile the firmware you will need `arm-none-eabi-gcc` compiler.
