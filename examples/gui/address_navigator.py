@@ -11,7 +11,6 @@ mnemonic = "poverty august total basket pool print promote august piece squirrel
 seed = bip39.mnemonic_to_seed(mnemonic)
 # root key
 root = bip32.HDKey.from_seed(seed)
-account = root.derive("m/49h/0h/0h").to_public()
 
 class AddressNavigator(lv.obj):
     def __init__(self, account, *args, 
@@ -69,9 +68,9 @@ class AddressNavigator(lv.obj):
             self._index -= 1
             self.show_address(self._index)
 
-scr = AddressNavigator(account, 
-                script_fn=lambda pub: script.p2sh(script.p2wpkh(pub)),
-                network=NETWORKS["test"]
+scr = AddressNavigator(root.derive("m/49h/1h/0h").to_public(),         # bip-49 account xpub
+                script_fn=lambda pub: script.p2sh(script.p2wpkh(pub)), # p2sh-p2wpkh
+                network=NETWORKS["test"]                               # testnet
                 )
 
 lv.scr_load(scr)

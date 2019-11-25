@@ -366,7 +366,7 @@
 				var num_url_chars = (window.location.href.indexOf('?'));
 				var base_url = window.location.href.substr(0, (num_url_chars == -1) ? undefined : num_url_chars);
 				var newPathname = base_url.substr(0, base_url.lastIndexOf('/'));
-				newPathname += "/lvgl.html?7" /*+ '?' + "env=dev"*/;
+				newPathname += "/lvgl.html" /*+ '?' + "env=dev"*/;
 				return newPathname;
 			}
 			function processScriptArg(url, lzstring){
