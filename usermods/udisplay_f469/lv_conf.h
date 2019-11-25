@@ -300,12 +300,16 @@ typedef void * lv_indev_drv_user_data_t;            /*Type of user data in the i
  *                                LV_FONT_DECLARE(my_font_2)
  */
 #define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(square10) \
+							   LV_FONT_DECLARE(square9) \
+							   LV_FONT_DECLARE(square8) \
 							   LV_FONT_DECLARE(square7) \
+							   LV_FONT_DECLARE(square6) \
 							   LV_FONT_DECLARE(square5) \
+							   LV_FONT_DECLARE(square4) \
 							   LV_FONT_DECLARE(square3) \
 							   LV_FONT_DECLARE(square2) \
 							   LV_FONT_DECLARE(square1) \
-
+							   
 /*Always set a default font from the built-in fonts*/
 #define LV_FONT_DEFAULT        &lv_font_roboto_22
 

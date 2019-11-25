@@ -30018,6 +30018,26 @@ STATIC const mp_lv_struct_t mp_square10 = {
     
 
 /*
+ * lvgl square9 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square9 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square9
+};
+    
+
+/*
+ * lvgl square8 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square8 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square8
+};
+    
+
+/*
  * lvgl square7 global definitions
  */
 
@@ -30028,12 +30048,32 @@ STATIC const mp_lv_struct_t mp_square7 = {
     
 
 /*
+ * lvgl square6 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square6 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square6
+};
+    
+
+/*
  * lvgl square5 global definitions
  */
 
 STATIC const mp_lv_struct_t mp_square5 = {
     { &mp_lv_font_t_type },
     (lv_font_t*)&square5
+};
+    
+
+/*
+ * lvgl square4 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_square4 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&square4
 };
     
 
@@ -31030,8 +31070,12 @@ STATIC const mp_rom_map_elem_t lvgl_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_font_roboto_28), MP_ROM_PTR(&mp_lv_font_roboto_28) },
     { MP_ROM_QSTR(MP_QSTR_font_unscii_8), MP_ROM_PTR(&mp_lv_font_unscii_8) },
     { MP_ROM_QSTR(MP_QSTR_square10), MP_ROM_PTR(&mp_square10) },
+    { MP_ROM_QSTR(MP_QSTR_square9), MP_ROM_PTR(&mp_square9) },
+    { MP_ROM_QSTR(MP_QSTR_square8), MP_ROM_PTR(&mp_square8) },
     { MP_ROM_QSTR(MP_QSTR_square7), MP_ROM_PTR(&mp_square7) },
+    { MP_ROM_QSTR(MP_QSTR_square6), MP_ROM_PTR(&mp_square6) },
     { MP_ROM_QSTR(MP_QSTR_square5), MP_ROM_PTR(&mp_square5) },
+    { MP_ROM_QSTR(MP_QSTR_square4), MP_ROM_PTR(&mp_square4) },
     { MP_ROM_QSTR(MP_QSTR_square3), MP_ROM_PTR(&mp_square3) },
     { MP_ROM_QSTR(MP_QSTR_square2), MP_ROM_PTR(&mp_square2) },
     { MP_ROM_QSTR(MP_QSTR_square1), MP_ROM_PTR(&mp_square1) },
