@@ -1,0 +1,558 @@
+<!doctype html>
+<!-- Updated for 6.0, trigger update -->
+<html>
+	<head>
+		<!-- <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600"> -->
+		<link rel="stylesheet" href="css/bootstrap.min.css"/>
+		<link rel="stylesheet" href="css/xterm.min.css" />
+		<link rel="stylesheet" href="css/common.css"/>
+		<link rel="stylesheet" href="css/all.min.css"/>
+		<title>MicroPython Simulator</title>
+		<style>
+			* {
+				font-size: normal;
+			}
+			html, body {
+				width: 100%;
+				height: 100%;
+				min-width: 100%;
+				min-height: 100%;
+				margin: 0;
+				padding: 0;
+			}
+			#mp_js_stdout {
+				display: inline-block;
+				vertical-align: top;
+			}
+			#editor {
+				position: relative;
+			}
+			iframe {
+				width: 0;
+				height: 0;
+				display: inline-block;
+				position: absolute;
+				top: 0;
+				left: 0;
+				border: none;
+			}
+			#canvas {
+				/*border: 4px black solid;*/
+				box-sizing: content-box;
+				vertical-align: top;
+				display: inline-block;
+				flex: none;
+ 				min-width: 0;
+			};
+			a { white-space: nowrap; }
+			.flex-container {
+				display: flex;
+				flex-direction: row;
+			}
+			#editor {
+				flex: 1 1 50%;
+			}
+			.display-objects {
+				display: flex;
+				flex-direction: column;
+			}
+			#mp_js_stdout_wrapper {
+				flex: 1 1 auto;
+                position: relative;
+				height: 100%;
+				width: 400px;
+				background-color: black;
+				padding: 20px;
+			}
+            #mp_js_stdout {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+            }
+			.ace_editor * {
+				font-size: 12px;
+				line-height: normal;
+			}
+			a.disabled {
+				/* Make the disabled links grayish*/
+				color: gray;
+			}
+			a.disabled:hover {
+				text-decoration: none;
+				color: gray;
+				pointer-events: none;
+			}
+			.sliderticks {
+			display: flex;
+			justify-content: space-between;
+			padding-left: 15px;
+			padding-right: 20px;
+			width: 100%;
+			position: absolute;
+			top: 1em;
+			left: 0;
+			z-index: 0;
+			}
+
+			.sliderticks option {
+			position: relative;
+			display: none;
+			justify-content: center;
+			text-align: center;
+			width: 0.1em;
+			background: #D3D3D3;
+			height: 0.3em;
+			margin: 0 0 0.5em 0;
+			}
+			#link {
+				max-width: 510px;
+			}
+			#link[href=""] {
+				display: none;
+			}
+			.controls {
+				display: inline-flex;
+				align-items: center;
+				align-content: center;
+				height: 100%;
+				margin: 0 1em;
+			}
+			.no-iframe {
+				flex: 1 1 33.3%;
+			}
+			button {
+				margin: 4px;
+			}
+			#save-button > * {
+				pointer-events: none;
+			}
+			.header-container {
+				display: flex;
+				width: 100%;
+				height: 100%;
+				flex-direction: column;
+			}
+			.lvgl-header {
+				flex: 0 0 auto;
+				height: 3.5em;
+			}
+			.flex-container {
+				flex: 1 1 auto;
+			}
+			.slider-container {
+				height: 1.5em;
+				position: relative;
+				display: inline-flex;
+				justify-content: center;
+				align-items: center;
+			}
+			.modal {
+				text-align: center;
+			}
+
+			@media screen and (min-width: 768px) { 
+				.modal:before {
+					display: inline-block;
+					vertical-align: middle;
+					content: " ";
+					height: 100%;
+				}
+			}
+
+			.modal-dialog {
+				display: inline-block;
+				text-align: left;
+				vertical-align: middle;
+			}
+/*			#display-objects{
+				width: 480px;
+			}
+*/
+			#board-wrapper{
+				width: 350px;
+				padding: 10px;
+			}
+			#board{
+				position: absolute;
+				right: 10px;
+				height: 650px;
+			}
+			#canvas{
+				position: relative;
+				width: 275px;
+				height: 459px;
+				top: 100px;
+				left: 20px;
+				z-index: 100;
+				border: 0;
+				/*background: #fff;*/
+			}
+			#term_wrapper{
+				padding:10px;
+				background: #000;
+			}
+		</style>
+		<script src="js/jquery-1.12.4.js"></script>
+		<script src="js/bootstrap.min.js"></script>
+		<script src="js/ace.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/mode-python.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/xterm.min.js"></script>
+		<script src="js/fit.min.js"></script>
+		<script src="js/lz-string.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/axios.min.js"></script>
+		<script src="query.js"></script>
+		<script src="snippetbin.js"></script>
+	</head>
+	<body>
+		<!-- The modal -->
+		<div class="modal fade" id="about-modal" tabindex="-1" role="dialog" aria-labelledby="modalLabel" aria-hidden="true">
+			<div class="modal-dialog" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+						<h4 class="modal-title" id="modalLabel">About the simulator</h4>
+					</div>
+					<div class="modal-body">
+						This is the JavaScript version of MicroPython, plus the <a href="https://github.com/littlevgl/lv_binding_micropython">LittlevGL bindings for MicroPython</a>, plus secp256k1, extended hashlib and bitcoin library.
+						<p></p>
+						You can type your own Python code into the prompt in the usual way, or by using the editor. When you want to run your customized script, click Restart. 
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="header-container">
+			<nav class="lvgl-header navbar navbar-default">
+				<div class="container-fluid" style="height: 100%;">
+					<!-- Brand and toggle get grouped for better mobile display -->
+					<div class="navbar-header">
+						<span class="navbar-brand">MicroPython simulator</span>
+					</div>
+					<div class="controls navbar-left">
+						<button type="button" class="btn btn-primary" disabled="disabled" id="run-button" onclick="runScript();"><span>Restart</span></button>
+						<button type="button" class="btn btn-primary" id="save-button" onclick="save(event);"><span>Save</span></button>
+						<a target="_blank" href="" id="link"></a>
+					</div>
+					<div class="controls navbar-right">
+						<div style="display: inline-flex; justify-content: center; align-items: center; height: 100%;">
+							<span style="font-weight: 700;">Revision History</span>
+							<div class="slider-container">
+								<input class="slider" id="history" type="range" list="history_data" name="history" step="1"
+										min="0" max="0" value="0" onchange="load_revision(this.list.children[this.value].dataset['value'], false)"/>
+								<datalist class="sliderticks" id="history_data">
+									<option value="0"/>
+								</datalist>
+							</div>
+						</div>
+						<ul class="nav navbar-nav">
+							<li><a target="_blank" href="https://github.com/littlevgl/lv_binding_micropython/tree/master/examples">Examples</a></li>
+							<li><a href="#" role="button" data-toggle="modal" data-target="#about-modal">Help</a></li>
+						</ul>
+					</div>
+				</div>
+			</nav>
+			<div class="flex-container">
+				<div id="editor">print("Hello world")</div>
+				<div id="term_wrapper">
+					<div id="mp_js_stdout_wrapper">
+							<div id="mp_js_stdout"></div>
+					</div>								
+				</div>
+				<div id="board-wrapper">
+					<img src="board.png" id="board"/>
+					<canvas id="canvas" data-toggle="tooltip" title="This is the virtual screen" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+				</div>
+			</div>
+		</div>
+		<iframe src="about:blank" id="emscripten-iframe"></iframe>
+        
+		<script>
+			var external_link = null;
+			var external_script_value = null;
+			var editor, iframe, term;
+			var script_passed = false;
+			var current_revision = null;
+			// Ctrl+L is mandatory ! need xterm.js 3.14+
+		    function xterm_helper(term, key) {
+				function ESC(data) {
+					return String.fromCharCode(27)+data
+				}
+				if ( key.charCodeAt(0)==12 ) {
+					var cy = 0+term.buffer.cursorY
+					if ( cy > 0) {
+					if (cy <= term.rows) {
+						term.write( ESC("[B") )
+						term.write( ESC("[J") )
+						term.write( ESC("[A") )
+					}
+
+					term.write( ESC("[A") )
+					term.write( ESC("[K") )
+					term.write( ESC("[1J"))
+
+					for (var i=1;i<cy;i++) {
+						term.write( ESC("[A") )
+						term.write( ESC("[M") )
+					}
+					term.write( ESC("[M") )
+					}
+					return false
+				}
+				return true
+		    }
+			function forward_event(event) {
+				if(iframe !== undefined && iframe !== null) {
+					if(iframe.contentWindow !== null)
+						iframe.contentWindow.document.dispatchEvent(new MouseEvent('mouseup'));
+				}
+			}
+			/* From https://stackoverflow.com/a/1634841 */
+			function removeURLParameter(url, parameter) {
+				//prefer to use l.search if you have a location/link object
+				var urlparts = url.split('?');   
+				if (urlparts.length >= 2) {
+
+					var prefix = encodeURIComponent(parameter) + '=';
+					var pars = urlparts[1].split(/[&;]/g);
+
+					//reverse iteration as may be destructive
+					for (var i = pars.length; i-- > 0;) {    
+						//idiom for string.startsWith
+						if (pars[i].lastIndexOf(prefix, 0) !== -1) {  
+							pars.splice(i, 1);
+						}
+					}
+
+					return urlparts[0] + (pars.length > 0 ? '?' + pars.join('&') : '');
+				}
+				return url;
+			}
+			document.onmouseup = forward_event;
+			function editor_change() {
+			}
+			function runScript() {
+				var $this = $("#run-button");
+				$this.prop("disabled", "disabled");
+				term.write('\x1bc');
+				
+
+				const context = document.getElementById("canvas").getContext('2d');
+
+				context.clearRect(0, 0, canvas.width, canvas.height);
+
+
+				iframe.setAttribute("data-cscript", LZString.compressToEncodedURIComponent(editor.getValue()));
+
+				clear_iframe(iframe);
+				iframe.src = get_iframe_url() /*+ "&timestamp=" + new Date().getTime()*/;
+				iframe.contentWindow.location.href = iframe.src;
+				console.log("Iframe src: " + iframe.src);
+				term.setOption('disableStdin', true);
+				term.write('Loading...\r');
+			}
+			function reenableButton() {
+				$("#run-button").removeProp('disabled');
+				if(term != undefined && term != null)
+					term.setOption('disableStdin', false);
+			}
+			function get_iframe_url() {
+				/* Assemble the URL */
+				var num_url_chars = (window.location.href.indexOf('?'));
+				var base_url = window.location.href.substr(0, (num_url_chars == -1) ? undefined : num_url_chars);
+				var newPathname = base_url.substr(0, base_url.lastIndexOf('/'));
+				newPathname += "/lvgl.html?7" /*+ '?' + "env=dev"*/;
+				return newPathname;
+			}
+			function processScriptArg(url, lzstring){
+				var script_passed_handler = function() {
+					console.log("Script passed: " + script_passed);
+					runScript();
+					script_passed = false;
+				};
+				if(!lzstring) {
+					// if url is a single url we convert it to array
+					if(!Array.isArray(url)){
+						url = [{"url": url}];
+					}
+					var prev_external_link = external_link;
+					var request = null;
+
+					var error_handler = function() {
+						if(prev_external_link != null) {
+							external_link = prev_external_link;
+						}
+						if(request != null)
+							alert("Failed to load script due to error " + request.status + ": " + request.statusText + "\nThe contents of the external link box have been reverted.");
+						else
+							alert("The URL you passed is invalid.");
+					};
+
+					try {
+						url.forEach(e=>{
+							new URL(e.url);
+						});
+					} catch(e) {
+						error_handler();
+						return;
+					}
+
+					// last url is probably the important one
+					external_link = url[url.length-1].url;
+					// read text from URL location
+					url.forEach(e=>{
+						let request = new XMLHttpRequest();
+						console.log("GET " + e.url);
+						request.overrideMimeType("text/plain");
+						request.open('GET', e.url, true);
+						request.send(null);
+						request.onerror = error_handler;
+						request.onreadystatechange = function () {
+							if (request.readyState === 4) {
+								if(request.status == 200) {
+									console.log(request.reponseText);
+									if(request.responseText === undefined)
+										return;
+									e.content = request.responseText;
+									// check if all of them have content
+									total = url.reduce((total, el) => total+("content" in el) ,0);
+									console.log(total+" of "+url.length+" loaded");
+									if(total==url.length){
+										final_script = "";
+										url.forEach(e=>{
+											if("comment" in e){
+												final_script += "##### "+e.comment+" #####\n\n";
+											}
+											final_script += e.content + "\n\n";
+										})
+										editor.session.getUndoManager().reset();
+										editor.session.setValue(final_script, -1);
+										script_passed_handler();
+									}
+								} else {
+									error_handler();
+								}
+							}
+						}
+					});
+				} else {
+					external_link = null;
+					// decompress LZString
+					current_revision = url;
+					load_revision(current_revision, true, function() {
+						script_passed_handler();
+					});
+				}
+				
+			}
+			function getSearchArg(argname) {
+				/* Run custom script if passed */
+				var custom = undefined;
+				try {
+					custom = new URL(window.location.href).searchParams.get(argname);
+				} catch (e) {
+					console.log(e + ": URL seems to be unsupported");
+				}
+				return custom;
+			}
+			function clear_iframe(iframe) {
+				iframe.contentWindow.document.open();
+				iframe.contentWindow.document.write("");
+				iframe.contentWindow.document.close();
+			}
+			$(window).load(function() {
+				$(document).on('shown.bs.tooltip', function (e) {
+					setTimeout(function () {
+						$(e.target).tooltip('hide');
+					}, 5000);
+				});
+				clear_dirty();
+				/* Enable tooltips */
+				$('[data-toggle="tooltip"]').tooltip(); 
+
+			    editor = ace.edit("editor");
+				editor.getSession().setUseWrapMode(true);
+				editor.setAutoScrollEditorIntoView(true);
+				var PythonMode = ace.require("ace/mode/python").Mode;
+				editor.session.setMode(new PythonMode());
+				iframe = document.getElementById("emscripten-iframe");
+				iframe.src = "about:blank";
+				iframe.contentWindow.location.href = iframe.src;
+				clear_iframe(iframe);
+				
+
+				
+				Terminal.applyAddon(fit);
+				term = new Terminal({
+					tabStopWidth : 8,
+				        cursorBlink : true,
+				        cursorStyle : 'block',
+				        applicationCursor : true
+				});
+				mp_js_stdout = document.getElementById('mp_js_stdout');
+			    mp_js_stdout.value = "";
+				term.open(mp_js_stdout);
+				term.fit();
+				term.on('data', function(key, e) {
+					if ( xterm_helper(term, key) ) {
+						for(var i = 0; i < key.length; i++) {
+							if(iframe.contentWindow !== null)
+								iframe.contentWindow.mp_js_process_char(key.charCodeAt(i));
+						}
+					}
+				});
+				
+				mp_js_stdout.addEventListener('print', function(e) {
+					text = e.data;
+                                        term.write(text);
+				}, false);
+				editor.getSession().on('change', editor_change);
+				editor.on("input", function(e) {
+					if (editor_cmd) editor_cmd--;
+					else set_dirty();
+				});
+				editor.resize();
+				term.fit();
+				var script = getSearchArg("script");
+				var script_direct = getSearchArg("script_direct");
+				var script_startup = getSearchArg("script_startup");
+				if(script_direct !== undefined && script_direct !== null) {
+					script_passed = true;
+					processScriptArg(script_direct, true);
+				} else if(script_startup !== undefined && script_startup !== null) {
+					// both startup script and normal script are passed
+					if(script !== undefined && script !== null) {
+						script_passed = true;
+						// pass an array of objects
+						processScriptArg([
+							{
+								"comment": "startup script",
+								"url": script_startup
+							},
+							{
+								"comment": "main script",
+								"url": script
+							}
+						]);
+					}else{
+						script_passed = true;
+						processScriptArg(script_startup);
+					}
+				} else if(script !== undefined && script !== null) {
+					script_passed = true;
+					processScriptArg(script);
+				} else
+					runScript();
+			});
+			$(window).resize(function() {
+				editor.resize();
+				term.fit();
+			});
+		</script>
+	</body>
+</html>
