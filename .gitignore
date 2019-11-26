@@ -2,4 +2,5 @@
 .vscode
 micropython_unix
 upy-f469disco.bin
+upy-f469disco-empty.bin
 .ipynb_checkpoints

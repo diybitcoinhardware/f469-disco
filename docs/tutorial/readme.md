@@ -2,13 +2,13 @@
 
 This is a step-by-step tutorial that will guide you through the process of setting up the board, working with hardware peripherals, display and bitcoin library.
 
-Every step of the tutorial contains a final `main.py` script that you can upload to the board and see how it works. There is also a jupyter notebook that explains what is happening and allows you to communicate with the board interactively.
+We will start with an [online simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html) so at first there is no need in real hardware, then we will continue with the real board and unix emulator.
 
-We recommend to start with jupyter notebooks and then look at the final `main.py` file.
+Every step of the tutorial contains a final `main.py` script that you can upload to the board and see how it works. There are also jupyter notebooks that explain what is happening and allow you to communicate with the board interactively.
 
-# Setup
+We recommend to start with online emulator, then proceed to jupyter notebooks and look at the final `main.py` files.
 
-Download the latest release from the 
+# Jupyter notebook setup
 
 Setup jupyter notebook MicroPython kernel ([instructions](https://github.com/goatchurchprime/jupyter_micropython_kernel)).
 

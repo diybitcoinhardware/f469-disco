@@ -1,1 +1,1 @@
-micropython/ports/unix/micropython libs/run_tests.py
+./micropython_unix tests/run_tests.py
