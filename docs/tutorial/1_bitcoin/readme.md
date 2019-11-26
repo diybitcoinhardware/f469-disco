@@ -117,6 +117,8 @@ for i in range(5):
     print("Address %i: %s" % (i, sc.address(network)))
 ```
 
-Great! Enough for now, let's move on and make a GUI for what we just did: a simple screen where we could navigate between addresses and display them as QR codes.
+Great! Check out the result of our work [in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/1_bitcoin/main.py).
+
+Let's move on and make a GUI for what we just did: a simple screen where we could navigate between addresses and display them as QR codes.
 
 Continue to the [next part](../2_addresses_gui)
