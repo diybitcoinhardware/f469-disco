@@ -2,11 +2,13 @@
 
 Check out our step-by-step [tutorial](./tutorial) that will guide you through the process of setting up the board, working with hardware peripherals, display and bitcoin library:
 
-- [1_blinky](./tutorial/1_blinky) - board setup and blinking with LEDs
-- [2_gui](./tutorial/2_gui) - how to work with a display and [littlevgl](https://littlevgl.com/) library
-- [3_bitcoin](./tutorial/3_bitcoin) - generating a recovery phrase, deriving keys from HD wallet and printing addresses
-- [4_addresses](./tutorial/4_addresses) - a small app that displays addresses, navigates through them and stores the last shown address
-- [5_psbt](./tutorial/5_psbt) - parding, displaying and signing psbt transactions
+## Simulator
+
+You can also try out this micropython build in [online simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html). You can also load the scripts to the emulator by providing a `script` parameter, for example: https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/gui/address_navigator.py.
+
+## API documentation
+
+TBD.
 
 [API](./api) folder contains documentation on different modules included in the distribution:
 
