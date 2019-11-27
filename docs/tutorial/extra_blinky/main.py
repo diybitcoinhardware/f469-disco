@@ -28,7 +28,7 @@ def schedule(t):
     except:
         pass
 
-timer = pyb.Timer(4) # timer 4
+timer = pyb.Timer(3) # timer 4
 timer.init(freq=10)# 10Hz - 100 ms per tick
 timer.callback(schedule)
 

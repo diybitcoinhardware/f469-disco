@@ -16,7 +16,7 @@ On Linux: `sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm
 
 Run `./build_f469.sh` script, if everything goes well you will get a `upy-f469disco.bin` file in the root folder.
 
-Run `./build_f469_empty.sh` script, if you want to make micropython without frozen modules - you can copy content of the `libs` folder to your flash later and edit them without reflashing the board.
+Run `./build_f469_empty.sh` script, if you want to make micropython without frozen modules (only `display` module is frozen there) - you can copy content of the `libs` folder to your flash later and edit them without reflashing the board.
 
 Run `./build_unixport.sh` to get unix version of micropython. You may need to install SDL2 library to work with the GUI (`sudo apt install libsdl2-dev` or `brew install sdl2`).
 

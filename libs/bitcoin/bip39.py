@@ -104,10 +104,10 @@ def mnemonic_from_bytes(b):
         mnemonic.append(WORDLIST[idx])
     return " ".join(mnemonic)
 
-def find_candidates(word, nmax=5):
+def find_candidates(word_part, nmax=5):
     candidates = []
     for w in WORDLIST:
-        if w.startswith(word):
+        if w.startswith(word_part):
             candidates.append(w)
         if len(candidates) >= nmax:
             break

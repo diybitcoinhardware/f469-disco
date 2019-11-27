@@ -15,7 +15,6 @@ Setup jupyter notebook MicroPython kernel ([instructions](https://github.com/goa
 # Table of contents
 
 - [1. Bitcoin](./1_bitcoin) - getting started with `bitcoin` module [(try online)](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/1_bitcoin/main.py)
-- [2. Addresses](./2_addresses_gui) - create a simple screen that navigates between addresses derived from bip32 recovery phrase [(try online)](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/gui/address_navigator.py)
-- [3. Blinky](./3_blinky) - blink with LEDs on the board (hardware only, jupyter notebook)
-- [4. GUI on hardware](./4_gui) - work with a display and a GUI library
-- [5. Psbt](./5_psbt) - parsing, displaying and signing psbt transactions
+- [2. Addresses](./2_addresses_gui) - create a simple screen that navigates between addresses derived from bip32 recovery phrase [(try online)](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/2_addresses_gui/main.py)
+- [3. PSBT](./3_psbt) - parse PSBT transaction, show it and sign [(try online)](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/3_psbt/main.py)
+- [4. Mini wallet](./4_miniwallet) - create a minimal hardware wallet that can sign transactions, show addresses and master public key [(try online)](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/4_miniwallet/main.py)

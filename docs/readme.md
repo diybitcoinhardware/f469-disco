@@ -1,6 +1,6 @@
 # MicroPython + Bitcoin documentation
 
-Check out our step-by-step [tutorial](./tutorial) that will guide you through the process of setting up the board, working with hardware peripherals, display and bitcoin library:
+Check out our step-by-step [tutorial](./tutorial) that will guide you through the process of writing a minimal hardware wallet.
 
 ## Simulator
 
