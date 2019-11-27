@@ -1,4 +1,8 @@
-# (WIP) DIY Bitcoin Hardware Wallet with Touchscreen & QR Scanner in Micropython
+# (WIP) MicroPython Bitcoin bundle for microcontrollers
+
+Focusing on F469-Discovery board from STMicroelectronics, possibly other boards later as well.
+
+Build includes: secp256k1 bindings, bitcoin library, LittlevGL GUI library
 
 ## Quick start
 
