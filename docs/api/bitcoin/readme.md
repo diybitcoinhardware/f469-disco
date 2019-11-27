@@ -50,9 +50,32 @@ This module relies on the [bindings](../secp256k1) of `secp256k1` library from [
 
 In most cases you don't want to call constructors explicitly - use `.parse(bytes)` and `.from_base58(str)` class methods when possible.
 
+Example:
+
+```python
+from bitcoin import ec
+from ubinascii import hexlify, unhexlify
+import hashlib
+
+# create a 32-byte secret
+secret = hashlib.sha256("my super secret").digest()
+# create private key from a secret
+pk = ec.PrivateKey(secret)
+print(pk.to_base58())
+# get public key from private key
+pub = pk.get_public_key()
+
+msg = "Hello!"
+msg_hash = hashlib.sha256(msg).digest()
+
+# sign a message
+sig = pk.sign(msg_hash)
+# verify a signature
+if pub.verify(sig, msg_hash):
+    print("Signature is valid")
+```
+
 ### `ec.PrivateKey` - individual private key
-
-
 
 ### `ec.PublicKey` - individual public key
 
@@ -91,6 +114,28 @@ Returns `True` if the signature is valid, otherwise `False`.
 
 Functions to manage recovery phrases defined in [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
 
+Example:
+
+```python
+from bitcoin import bip39
+from ubinascii import hexlify
+import hashlib
+
+# create initial entropy, 16 bytes for example
+entropy = hashlib.sha256("my very random entropy").digest()[:16]
+
+# convert it to bip39 mnemonic
+phrase = bip39.mnemonic_from_bytes(entropy)
+print(phrase)
+# >> lab blade movie crater bulb only prize cloth unfold smile boring talent
+
+# convert it to 64-byte seed
+seed = bip39.mnemonic_to_seed(phrase, password="super secure password111")
+print(hexlify(seed))
+# >> d6aeb152aab2acb374299afe7058bc95ead89bad5daaae57d804dd10c926249f
+#    1088778ee95e78a9caea4981b9459cb1048648a73387598606854fb4121bd610
+```
+
 #### `bip39.mnemonic_from_bytes(bytes)`
 
 Converts a byte array with entropy to a recovery phrase (mnemonic). Minimal entropy length is 16 bytes that returns 12 words phrase. Every 4 extra bytes add 3 more words to the phrase, maximum is 32 bytes - 24 words.
@@ -117,13 +162,50 @@ Classes for HD wallets defined in [BIP-32](https://github.com/bitcoin/bips/blob/
 
 Both HD private key and HD master key share the same class - `bip32.HDKey`.
 
+Example:
+
+```python
+from bitcoin import bip32, bip39
+from bitcoin.networks import NETWORKS
+
+seed = bip39.mnemonic_to_seed("lab blade movie crater bulb only prize cloth unfold smile boring talent")
+
+root = bip32.HDKey.from_seed(seed)
+print(root.to_base58())
+# >> xprv9s21ZrQH143K3pq9NL6GJNTTwwRfqLy8ckXXbzki8yrKd1rad2UdYsNu9oftEZ
+#    Gf2Hj9B5WAaZrwE4WqM3jp8fTrUQhifhq2t9BVRyqtQjV
+
+print("\nBIP-84 - native segwit")
+# derive account according to bip44
+bip84_xprv = root.derive("m/84h/1h/0h")
+# customize version if you want to
+bip84_xprv.version = NETWORKS["test"]["zprv"]
+print(bip84_xprv.to_base58())
+# >> vprv9LMG32yessLFzJtt9VKN9oZZppxGyrrmZ8V81LyqXtYxvD2ncVHjUahwzqNmNM
+#    8SwC7w81UZzqUTYbBvAXi1YJKmWNPK8sYRwTgXwELxbmS
+
+# corresponding master public key:
+bip84_xpub = bip84_xprv.to_public()
+print(bip84_xpub.to_base58())
+# >> vpub5ZLcSYWYiEtZCnyMFWrNWwWJNrnmPKacvMQiojPT6E5wo1MwA2bz2P2Rr8Zt9E
+#    VrZtdZMM4kAyhyyWLryV9r4UpqAvYVzrDiB4CoheUwiou
+```
+
 ## `bitcoin.script`
+
+Example: [source code](../examples/addresses.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/addresses.py)
 
 ## `bitcoin.transaction`
 
-## `bitcoin.networks` - a few network constants
+Example: [source code](../examples/transactions.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/transactions.py)
 
 ## `bitcoin.psbt` - Partially Signed Bitcoin Transactions
+
+Example: [source code](../examples/psbt.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/psbt.py)
+
+# Helpers
+
+## `bitcoin.networks` - a few network constants
 
 ## `bitcoin.hashes` - one-line hash functions
 
