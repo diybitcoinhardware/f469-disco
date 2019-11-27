@@ -179,4 +179,4 @@ lv.scr_load(scr)
 
 Great! Check out the result of our work [in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/2_addresses_gui/main.py).
 
-Now let's continue and work with [PSBT transactions](./3_psbt)
+Now let's continue and work with [PSBT transactions](../3_psbt)

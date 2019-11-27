@@ -187,4 +187,4 @@ bitcoin-cli -regtest sendrawtransaction 02000000000101c022aa74faeb085b96b032fac4
 
 Yey! We did it! Check it out in the [in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/3_psbt/main.py).
 
-Let's put everything we learned together in a minimal hardware wallet in the [last part](./4_miniwallet) of the tutorial.
+Let's put everything we learned together in a minimal hardware wallet in the [last part](../4_miniwallet) of the tutorial.
