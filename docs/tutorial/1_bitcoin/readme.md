@@ -1,6 +1,6 @@
 # Working with Bitcoin in MicroPython
 
-Getting started with hardware can be pretty annoying. You need to buy a board, wait for delivery, figure out how to set up the environment, compile the firmware, upload it to the board... We will postpone all that for now and start with the [online simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html) instead.
+Getting started with hardware can be pretty annoying. You need to buy a board, wait for delivery, figure out how to set up the environment, compile the firmware, upload it to the board... We will postpone all that for now and start with the [online simulator](https://diybitcoinhardware.com/f469-disco/simulator/) instead.
 
 It allows you to write programs in MicroPython and see how it will work on the board. It is not perfect and missing a few features, but it is pretty close to what you will experiense with the real hardware.
 
@@ -8,7 +8,7 @@ Let's start with the most interesting stuff right away - bitcoin.
 
 In this part of the tutorial we will take our recovery phrase ([BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)), convert it to HD key ([BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki)) and derive first 5 native segwit addresses from it ([bip84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)). We can check that we did everything correctly using this [great tool from Ian Coleman](https://iancoleman.io/bip39/).
 
-**TL;DR**: Check out the [result in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/1_bitcoin/main.py).
+**TL;DR**: Check out the [result in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/1_bitcoin/main.py).
 
 ## Recovery phrase: BIP-39
 
@@ -117,7 +117,7 @@ for i in range(5):
     print("Address %i: %s" % (i, sc.address(network)))
 ```
 
-Great! Check out the result of our work [in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/1_bitcoin/main.py).
+Great! Check out the result of our work [in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/1_bitcoin/main.py).
 
 Let's move on and make a GUI for what we just did: a simple screen where we could navigate between addresses and display them as QR codes.
 

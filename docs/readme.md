@@ -4,7 +4,7 @@ Check out our step-by-step [tutorial](./tutorial) that will guide you through th
 
 ## Simulator
 
-You can also try out this micropython build in [online simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html). You can also load the scripts to the emulator by providing a `script` parameter, for example: [https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/gui/address_navigator.py](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/gui/address_navigator.py).
+You can also try out this micropython build in [online simulator](https://diybitcoinhardware.com/f469-disco/simulator/). You can also load the scripts to the emulator by providing a `script` parameter, for example: [https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/gui/address_navigator.py](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/gui/address_navigator.py).
 
 ## API documentation
 

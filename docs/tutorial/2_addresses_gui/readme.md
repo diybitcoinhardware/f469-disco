@@ -4,7 +4,7 @@
 
 In the [previous part](../1_bitcoin) of the tutorial we were able to derive addresses from the recovery phrase, now it's time to write a small GUI that would display these addresses.
 
-**TL;DR**: Check out the [result in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/2_addresses_gui/main.py).
+**TL;DR**: Check out the [result in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/2_addresses_gui/main.py).
 
 ## Hello lvgl
 
@@ -177,6 +177,6 @@ lv.scr_load(scr)
 
 ```
 
-Great! Check out the result of our work [in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/2_addresses_gui/main.py).
+Great! Check out the result of our work [in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/2_addresses_gui/main.py).
 
 Now let's continue and work with [PSBT transactions](./3_psbt)
