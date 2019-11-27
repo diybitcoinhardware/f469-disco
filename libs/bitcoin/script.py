@@ -100,7 +100,7 @@ class Witness:
 
 def p2pkh(pubkey):
     """Return Pay-To-Pubkey-Hash ScriptPubkey"""
-    return Script(b'\x76\xa9\x14'+hashes.hash160(pubkey.serialize())+b'\x88\xac')
+    return Script(b'\x76\xa9\x14'+hashes.hash160(pubkey.sec())+b'\x88\xac')
 
 def p2sh(script):
     """Return Pay-To-Script-Hash ScriptPubkey"""
@@ -108,7 +108,7 @@ def p2sh(script):
 
 def p2wpkh(pubkey):
     """Return Pay-To-Witness-Pubkey-Hash ScriptPubkey"""
-    return Script(b'\x00\x14'+hashes.hash160(pubkey.serialize()))
+    return Script(b'\x00\x14'+hashes.hash160(pubkey.sec()))
 
 def p2wsh(script):
     """Return Pay-To-Witness-Pubkey-Hash ScriptPubkey"""
@@ -126,7 +126,7 @@ def multisig(m:int, pubkeys):
         raise ValueError("Number of pubkeys must be between %d and 16" % m)
     data = bytes([80+m])
     for pubkey in pubkeys:
-        sec = pubkey.serialize()
+        sec = pubkey.sec()
         data += bytes([len(sec)])+sec
     # OP_m <len:pubkey> ... <len:pubkey> OP_n OP_CHECKMULTISIG
     data += bytes([80+n, 0xae])
@@ -136,7 +136,7 @@ def address_to_scriptpubkey(addr):
     pass
 
 def script_sig_p2pkh(signature, pubkey):
-    sec = pubkey.serialize()
+    sec = pubkey.sec()
     der = signature.serialize()+bytes([SIGHASH_ALL])
     data = compact.to_bytes(len(der))+der+compact.to_bytes(len(sec))+sec
     return Script(data)
@@ -149,5 +149,5 @@ def script_sig_p2sh(redeem_script):
 def witness_p2wpkh(signature, pubkey):
     return Witness([
             signature.serialize()+bytes([SIGHASH_ALL]),
-            pubkey.serialize()
+            pubkey.sec()
         ])

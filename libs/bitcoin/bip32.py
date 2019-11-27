@@ -117,6 +117,10 @@ class HDKey:
                  fingerprint=self.fingerprint,
                  child_number=self.child_number)
 
+    def sec(self):
+        """Sec serialization of the public key"""
+        return self.key.sec()
+
     def child(self, index, hardened=False):
         if index > 0xFFFFFFFF:
             raise ValueError("Index should be less then 2^32")
@@ -128,10 +132,7 @@ class HDKey:
             raise ValueError("Can't do hardened with public key")
 
         # we need pubkey for fingerprint anyways
-        if self.is_private:
-            sec = self.key.get_public_key().serialize()
-        else:
-            sec = self.key.serialize()
+        sec = self.sec()
         fingerprint = hashes.hash160(sec)[:4]
         if hardened:
             data = b'\x00' + self.key.serialize() + index.to_bytes(4, 'big')

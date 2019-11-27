@@ -14,9 +14,13 @@ class PublicKey:
         compressed = (sec[0]!=0x04)
         return cls(point, compressed)
 
-    def serialize(self):
+    def sec(self):
+        """Sec representation of the key"""
         flag = secp256k1.EC_COMPRESSED if self.compressed else secp256k1.EC_UNCOMPRESSED
         return secp256k1.ec_pubkey_serialize(self._point, flag)
+
+    def serialize(self):
+        return self.sec()
 
     def verify(self, sig, msg_hash):
         return secp256k1.ecdsa_verify(sig._sig, msg_hash, self._point)
@@ -61,6 +65,10 @@ class PrivateKey:
         if self.compressed:
             b += bytes([0x01])
         return base58.encode_check(b)
+
+    def sec(self):
+        """Sec representation of the corresponding public key"""
+        return self.get_public_key().sec()
 
     @classmethod
     def from_wif(cls, s):
