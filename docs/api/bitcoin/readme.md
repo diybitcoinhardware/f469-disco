@@ -193,15 +193,15 @@ print(bip84_xpub.to_base58())
 
 ## `bitcoin.script`
 
-Example: [source code](../examples/addresses.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/addresses.py)
+Example: [source code](../../../examples/addresses.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/addresses.py)
 
 ## `bitcoin.transaction`
 
-Example: [source code](../examples/transactions.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/transactions.py)
+Example: [source code](../../../examples/transactions.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/transactions.py)
 
 ## `bitcoin.psbt` - Partially Signed Bitcoin Transactions
 
-Example: [source code](../examples/psbt.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/psbt.py)
+Example: [source code](../../../examples/psbt.py), [try online](https://diybitcoinhardware.com/f469-disco/simulator/index.html?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/psbt.py)
 
 # Helpers
 
