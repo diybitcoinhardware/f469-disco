@@ -8,6 +8,8 @@ PSBT transaction is basically a raw bitcoin transaction with additional metadata
 
 We will create our PSBT transactions with Bitcoin Core. I strongly recommend using `regtest` as it allows you to create your own toy bitcoin blockchain and you have full control over blocks generation and all the funds. But `testnet` is fine as well.
 
+There is also a python-based desktop app running on top of Bitcoin Core and providing a convenient GUI for watch-only functionality and PSBTs - [specter-desktop](https://github.com/cryptoadvance/specter-desktop), it might make sense to look at it. But here we will focus on pure Bitcoin Core without any extensions.
+
 To create PSBT we first need to create a new watch-only wallet, import our master keys to it and receive some funds. Bitcoin Core uses a descriptor language to import new addresses to the wallet.
 
 Descriptor for native segwit addresses looks like this: `wpkh([fingerprint/<derivation/path>]xpub/0/*)` for receiving addresses and `.../1/*` for change addresses. Let's get this descriptor from our wallet:
