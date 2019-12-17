@@ -6,6 +6,11 @@ Check out our step-by-step [tutorial](./tutorial) that will guide you through th
 
 You can also try out this micropython build in [online simulator](https://diybitcoinhardware.com/f469-disco/simulator/). You can also load the scripts to the emulator by providing a `script` parameter, for example: [https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/gui/address_navigator.py](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/examples/gui/address_navigator.py).
 
+## Jupyter notebook
+
+Install the MicroPython kernel [jupyter_kernel](../jupyter_kernel) folder. 
+Then you should be able to work both with unixport version and with hardware device over serial.
+
 ## API documentation
 
 [API](./api) folder contains documentation on different modules included in the distribution:
