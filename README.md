@@ -57,6 +57,10 @@ Now you can run `./micropython`
 ./run_tests.sh
 ```
 
+## IDE Configuration
+
+[Visual Studio Code configuration](/debug/vscode.md)
+
 ## TODO:
 
 refactor build scripts with Makefiles

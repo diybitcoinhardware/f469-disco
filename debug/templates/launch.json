@@ -14,11 +14,7 @@
             "type": "cortex-debug",
             "servertype": "openocd",
             "svdFile": "./debug/STM32F469.svd",
-            // Path to board configuration file stored within OpenOCD installation directory
-            "configFiles": [
-                "/usr/local/share/openocd/scripts/board/stm32f429discovery.cfg" // Mac OS X
-                // "/usr/share/openocd/scripts/board/stm32f429discovery.cfg" // Linux
-            ]            
+            "configFiles": [ "board/stm32f469discovery.cfg" ]
         }
     ]
 }
