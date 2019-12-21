@@ -171,7 +171,10 @@
 			}
 */
 			#board-wrapper{
-				width: 350px;
+				background: url(board.png) top left no-repeat;
+    			background-size: 313px;
+    			background-position: 13px 8px;
+   				width: 350px;
 				padding: 10px;
 			}
 			#board{
@@ -233,14 +236,14 @@
 					<!-- Brand and toggle get grouped for better mobile display -->
 					<div class="navbar-header">
 						<span class="navbar-brand">MicroPython simulator</span>
-					</div>
-					<div class="controls navbar-left">
 						<button type="button" class="btn btn-primary" disabled="disabled" id="run-button" onclick="runScript();"><span>Restart</span></button>
 						<!-- FIXME: implement save functionality with our own backend -->
 						<!-- <button type="button" class="btn btn-primary" id="save-button" onclick="save(event);"><span>Save</span></button> -->
 						<a target="_blank" href="" id="link"></a>
 					</div>
-					<div class="controls navbar-right">
+<!-- 					<div class="controls navbar-left">
+					</div>
+ --><!-- 					<div class="controls navbar-right">
 						<div style="display: inline-flex; justify-content: center; align-items: center; height: 100%;">
 							<span style="font-weight: 700;">Revision History</span>
 							<div class="slider-container">
@@ -255,7 +258,7 @@
 							<li><a target="_blank" href="https://github.com/littlevgl/lv_binding_micropython/tree/master/examples">Examples</a></li>
 							<li><a href="#" role="button" data-toggle="modal" data-target="#about-modal">Help</a></li>
 						</ul>
-					</div>
+					</div> -->
 				</div>
 			</nav>
 			<div class="flex-container">
@@ -266,7 +269,6 @@
 					</div>								
 				</div>
 				<div id="board-wrapper">
-					<img src="board.png" id="board"/>
 					<canvas id="canvas" data-toggle="tooltip" title="This is the virtual screen" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
 				</div>
 			</div>
