@@ -50,4 +50,6 @@ Now you can run `./micropython`
 # Run unittests in unix firmware
 ./run_tests.sh
 ```
+## IDE Configuration
 
+[Visual Studio Code configuration](/debug/vscode.md)
