@@ -1,0 +1,50 @@
+// This is a template file for Visual Studio Code task configuration.
+// To use, copy into your .vscode directory and modify paths if needed.
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Clean device build directory",
+            "type": "shell",
+            "command": "make BOARD=STM32F469DISC USER_C_MODULES=../../../usermods clean",
+            "options": {
+                "cwd": "${workspaceFolder}/micropython/ports/stm32"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Debug build for device",
+            "type": "shell",
+            "command": "make BOARD=STM32F469DISC USER_C_MODULES=../../../usermods DEBUG=1",
+            "options": {
+                "cwd": "${workspaceFolder}/micropython/ports/stm32"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Release build for device",
+            "type": "shell",
+            "command": "make BOARD=STM32F469DISC USER_C_MODULES=../../../usermods",
+            "options": {
+                "cwd": "${workspaceFolder}/micropython/ports/stm32"
+            },
+            "group": "build",
+        },
+        {
+            "label": "Erase internal Flash (unbrick)",
+            "type": "shell",
+            "command": "openocd -f board/stm32f469discovery.cfg -c \"init\" -c \"reset halt\" -c \"flash erase_sector 0 0 last\" -c \"shutdown\"",
+            "problemMatcher": []
+        }
+    ]
+}
