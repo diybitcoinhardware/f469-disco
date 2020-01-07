@@ -12,7 +12,7 @@
 #define free gc_free
 
 // global context
-#define PREALLOCATED_CTX_SIZE 440
+#define PREALLOCATED_CTX_SIZE 880 // 440 for 32-bit. FIXME: autodetect
 
 STATIC unsigned char preallocated_ctx[PREALLOCATED_CTX_SIZE];
 STATIC secp256k1_context * ctx = NULL;
