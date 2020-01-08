@@ -48,7 +48,7 @@ CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/STM32469I-Di
 
 endif
 
-ifeq ($(CMSIS_MCU),)
+ifneq ($(UNAME_S),)
 # unixport (mac / linux)
 
 # The module itself
