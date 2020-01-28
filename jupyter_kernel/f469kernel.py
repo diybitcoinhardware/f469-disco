@@ -1,6 +1,7 @@
 from ipykernel.kernelbase import Kernel
 import pexpect
 import time
+import serial
 
 class MPYBinary:
     def __init__(self, path, timeout=0.1):
@@ -36,7 +37,6 @@ class MPYBinary:
         self.proc.kill(9)
         time.sleep(0.1)
 
-import serial
 class MPYSerial:
     def __init__(self, port, baudrate=115200, timeout=2):
         self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
@@ -45,31 +45,39 @@ class MPYSerial:
         time.sleep(0.1)
         self.timeout=timeout
 
-    def readlines(self):
+    def readlines(self, end=b">>> "):
         res = b""
         t = time.time()
-        while not res.endswith(b">>> "):
+        while not res.endswith(end):
             res += self.ser.read(self.ser.in_waiting)#.decode("utf-8")
             if time.time() > t+self.timeout:
                 break
         return (b">>> "+res).split(b"\r\n")
 
     def exec(self, code):
-        if len(code.split("\n")) == 2:
-            self.ser.write(code.encode("utf-8"))
-            lines = [line for line in self.readlines() if not line.startswith(b">>> ")]
-            res = b"\n".join(lines)
+        self.ser.read(self.ser.in_waiting)
+        code_lines = code.split("\n")
+        if len(code_lines) <= 2: # onleliners
+            res = b""
+            for line in code_lines:
+                self.ser.write(line.encode("utf-8")+b"\r")
+                lines = [line for line in self.readlines() if not line.startswith(b">>> ")]
+                res += b"\n".join(lines)
         else:
             self.ser.write(b"\r\x05")
-            self.ser.write(code.encode("utf-8")+b"\r\n")
+            self.ser.read_until(b"=== ")
+            for line in code_lines:
+                self.ser.write(line.encode("utf-8")+b"\r")
+                self.ser.read_until(b"===")
+            self.ser.write(b"\r")
+            self.ser.read_until(b"===")
             self.ser.write(b"\r\x04")
-            time.sleep(0.1)
-            lines = self.readlines()[2:]
-            res = b""
-            res = b"\n".join([line for line in lines if not line.startswith(b"=== ") and not line.startswith(b">>> ") and not line.startswith(b"paste mode; Ctrl-C to cancel, Ctrl-D to finish")])
+            lines = [line for line in self.readlines() if not line.startswith(b">>> ")]
+            res = b"\n".join(lines)
         if res.endswith(b"\n>>> "):
             res = res[:-5]
-        return res.decode("utf-8")
+        lines = res.decode("utf-8").split("\n")
+        return "\n".join([line for line in lines if (not line.startswith(">>> ")) and (not line.startswith("=== "))])
 
     def kill(self):
         try:

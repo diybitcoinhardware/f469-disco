@@ -16,6 +16,12 @@ Kernel:
 jupyter kernelspec install f469kernel
 ```
 
+Add module to python (development mode):
+
+```
+pip3 install -e .
+```
+
 ## Connection
 
 Use lsmagic string. 
