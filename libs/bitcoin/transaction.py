@@ -1,4 +1,4 @@
-import uio as io
+import io
 from . import compact
 from .script import Script, Witness
 from . import hashes
@@ -19,14 +19,13 @@ def _parse(cls, b):
     return r
 
 # API similar to bitcoin-cli decoderawtransaction
-
 class Transaction:
     def __init__(self, version=2, vin=[], vout=[], locktime=0):
         self.version = version
         self.locktime = locktime
         # should we copy these?
-        self.vin = vin[:]
-        self.vout = vout[:]
+        self.vin = vin
+        self.vout = vout
 
     @property    
     def is_segwit(self):
@@ -86,37 +85,62 @@ class Transaction:
         for inp in self.vin:
             h.update(bytes(reversed(inp.txid)))
             h.update(inp.vout.to_bytes(4, 'little'))
-        return hashlib.sha256(h.digest()).digest()
+        return h.digest()
 
     def hash_sequence(self):
         h = hashlib.sha256()
         for inp in self.vin:
             h.update(inp.sequence.to_bytes(4, 'little'))
-        return hashlib.sha256(h.digest()).digest()
+        return h.digest()
+
+    def hash_amounts(self, amounts):
+        h = hashlib.sha256()
+        for amount in amounts:
+            h.update(amount.to_bytes(8, 'little'))
+        return h.digest()
 
     def hash_outputs(self):
         h = hashlib.sha256()
         for out in self.vout:
             h.update(out.serialize())
-        return hashlib.sha256(h.digest()).digest()
+        return h.digest()
 
     def sighash_segwit(self, input_index, script_pubkey, value):
         '''check out bip-143'''
-        # FIXME: refactor with hashlib.sha256() to reduce memory allocation
         inp = self.vin[input_index]
         h = hashlib.sha256()
         h.update(self.version.to_bytes(4, 'little'))
-        h.update(self.hash_prevouts())
-        h.update(self.hash_sequence())
+        h.update(hashlib.sha256(self.hash_prevouts()).digest())
+        h.update(hashlib.sha256(self.hash_sequence()).digest())
         h.update(bytes(reversed(inp.txid)))
         h.update(inp.vout.to_bytes(4, 'little'))
         h.update(script_pubkey.serialize())
         h.update(int(value).to_bytes(8, 'little'))
         h.update(inp.sequence.to_bytes(4, 'little'))
-        h.update(self.hash_outputs())
+        h.update(hashlib.sha256(self.hash_outputs()).digest())
         h.update(self.locktime.to_bytes(4, 'little'))
         h.update(SIGHASH_ALL.to_bytes(4, 'little'))
         return hashlib.sha256(h.digest()).digest()
+
+    def sighash_taproot(self, input_index, script_pubkey, values):
+        if len(values) != len(self.vin):
+            raise ValueError("Provide values for every input")
+        inp = self.vin[input_index]
+        h = hashlib.sha256()
+        tag_hash = hashlib.sha256(b"TapSighash").digest()
+        h.update(tag_hash)
+        h.update(tag_hash)
+        h.update(b'\x00\x00') # ?? + sighash all
+        h.update(self.version.to_bytes(4, 'little'))
+        h.update(self.locktime.to_bytes(4, 'little'))
+        h.update(self.hash_prevouts())
+        h.update(self.hash_amounts(values))
+        h.update(self.hash_sequence())
+        h.update(self.hash_outputs())
+        h.update(b'\x00') # spend time
+        h.update(script_pubkey.serialize())
+        h.update(input_index.to_bytes(4, 'little'))
+        return h.digest()
 
     def sighash_legacy(self, input_index, script_pubkey):
         h = hashlib.sha256()

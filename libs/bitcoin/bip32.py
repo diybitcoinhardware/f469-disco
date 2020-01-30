@@ -2,7 +2,7 @@ from . import ec
 from .networks import NETWORKS
 from . import base58
 import hashlib
-import uio as io
+import io
 import secp256k1
 from . import hashes
 
@@ -120,6 +120,10 @@ class HDKey:
     def sec(self):
         """Sec serialization of the public key"""
         return self.key.sec()
+
+    def xonly(self):
+        """x-only representation of the key"""
+        return self.key.xonly()
 
     def child(self, index, hardened=False):
         if index > 0xFFFFFFFF:

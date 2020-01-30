@@ -1,7 +1,7 @@
 import secp256k1
 from . import base58
 from .networks import NETWORKS
-from ubinascii import hexlify
+from binascii import hexlify
 
 class PublicKey:
     def __init__(self, point, compressed:bool=True):
@@ -19,11 +19,26 @@ class PublicKey:
         flag = secp256k1.EC_COMPRESSED if self.compressed else secp256k1.EC_UNCOMPRESSED
         return secp256k1.ec_pubkey_serialize(self._point, flag)
 
+    def _to_xonly(self):
+        return secp256k1.xonly_pubkey_from_pubkey(self._point)
+
+    def xonly(self):
+        """x-only representation of the key"""
+        return secp256k1.xonly_pubkey_serialize(self._to_xonly())
+
+    @classmethod
+    def from_xonly(self, xonly):
+        return cls(secp256k1.xonly_pubkey_parse(xonly))
+
     def serialize(self):
         return self.sec()
 
     def verify(self, sig, msg_hash):
         return secp256k1.ecdsa_verify(sig._sig, msg_hash, self._point)
+
+    def schnorr_verify(self, sig, msg_hash, tweak=None):
+        # TODO: add tweak processing here
+        return secp256k1.schnorrsig_verify(sig._sig, msg_hash, self._to_xonly())
 
     def __lt__(self, other):
         # for lexagraphic ordering
@@ -70,6 +85,10 @@ class PrivateKey:
         """Sec representation of the corresponding public key"""
         return self.get_public_key().sec()
 
+    def xonly(self):
+        """X-only representation of the corresponding public key"""
+        return self.get_public_key().xonly()
+
     @classmethod
     def from_wif(cls, s):
         """Import private key from Wallet Import Format string."""
@@ -99,6 +118,10 @@ class PrivateKey:
     def sign(self, msg_hash):
         return Signature(secp256k1.ecdsa_sign(msg_hash, self._secret))
 
+    def schnorr_sign(self, msg_hash, tweak=None):
+        # TODO: add tweak processing here
+        return SchnorrSignature(secp256k1.schnorrsig_sign(msg_hash, self._secret))
+
     def serialize(self):
         # return a copy of the secret
         return self._secret[:]
@@ -115,7 +138,7 @@ class PrivateKey:
 
 class Signature:
     def __init__(self, sig):
-        self._sig = sig[:]
+        self._sig = sig[:1]+sig[1:] # ugly copy
 
     def serialize(self):
         return secp256k1.ecdsa_signature_serialize_der(self._sig)
@@ -124,3 +147,13 @@ class Signature:
     def parse(cls, der):
         return cls(secp256k1.ecdsa_signature_parse_der(der))
 
+class SchnorrSignature:
+    def __init__(self, sig):
+        self._sig = sig[:1]+sig[1:]
+
+    def serialize(self):
+        return secp256k1.schnorrsig_serialize(self._sig)
+
+    @classmethod
+    def parse(cls, data):
+        return cls(secp256k1.schnorrsig_parse(data))

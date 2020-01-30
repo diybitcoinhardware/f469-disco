@@ -3,7 +3,9 @@ from . import base58
 from . import bech32
 from . import hashes
 from . import compact
-import uio as io
+from . import ec
+import io
+import secp256k1
 
 SIGHASH_ALL = 1
 
@@ -29,6 +31,13 @@ class Script:
         if script_type=="p2wpkh" or script_type=="p2wsh":
             return bech32.encode(network["bech32"], data[0], data[2:])
 
+        if script_type in ["p2wpkh", "p2wsh", "p2taproot"]:
+            ver = data[0]
+            # FIXME: should be one of OP_N
+            if ver > 0:
+                ver = ver % 0x50
+            return bech32.encode(network["bech32"], ver, data[2:])
+
         # we should never get here
         raise ValueError("Unsupported script type")
 
@@ -46,6 +55,9 @@ class Script:
         # 0 <32:sha256(script)>
         if len(data)==34 and data[:2]==b'\x00\x20':
             return "p2wsh"
+        # 1 <32:pubkey>
+        if len(data)==34 and data[:2]==b'\x51\x20':
+            return "p2taproot"
         # unknown type
         return None
 
@@ -86,7 +98,11 @@ class Witness:
 
     @classmethod
     def parse(cls, b):
-        return _parse(cls, b)
+        stream = io.BytesIO(b)
+        r = cls.read_from(stream)
+        if len(stream.read(1)) > 0:
+            raise ValueError("Byte array is too long")
+        return r
 
     @classmethod
     def read_from(cls, stream):
@@ -131,6 +147,15 @@ def multisig(m:int, pubkeys):
     # OP_m <len:pubkey> ... <len:pubkey> OP_n OP_CHECKMULTISIG
     data += bytes([80+n, 0xae])
     return Script(data)
+
+def p2taproot(pubkey, tweak=None):
+    pub = pubkey.xonly()
+    # if tweak is not None:
+    #     p = secp256k1.xonly_pubkey_parse(pub)
+    #     t = hashes.tagged_hash("TapTweak", pub + tweak)
+    #     secp256k1.xonly_pubkey_tweak_add(p,t)
+    #     pub = secp256k1.xonly_pubkey_serialize(p)
+    return Script(b'\x51\x20'+pub)
 
 def address_to_scriptpubkey(addr):
     pass

@@ -4,7 +4,7 @@ from .transaction import Transaction, TransactionOutput, _parse
 from . import compact
 from . import bip32
 from . import ec
-from .script import Script
+from .script import Script, Witness
 from . import script
 
 def ser_string(s):
@@ -116,17 +116,24 @@ class PSBT:
                         # sc = inp.non_witness_utxo
                         raise NotImplementedError("Legacy signing is not implemented")
                     elif inp.witness_utxo is not None:
-                        # segwit
-                        value = inp.witness_utxo.value
-                        sc = inp.witness_utxo.script_pubkey
-                        if inp.redeem_script is not None:
-                            sc = inp.redeem_script
-                        if inp.witness_script is not None:
-                            sc = inp.witness_script
-                        if sc.script_type() == "p2wpkh":
-                            sc = script.p2pkh_from_p2wpkh(sc)
-                        h = self.tx.sighash_segwit(i, sc, value)
-                        sig = hdkey.key.sign(h)
+                        # for now only single key, no taproot
+                        if inp.witness_utxo.script_pubkey.script_type() == "p2taproot":
+                            values = [inpt.witness_utxo.value for inpt in self.inputs]
+                            h = self.tx.sighash_taproot(i, inp.witness_utxo.script_pubkey, values)
+                            sig_schnorr = pk.schnorr_sign(h)
+                            inp.final_scriptwitness = Witness([sig_schnorr.serialize()])
+                        else:
+                            # segwit
+                            value = inp.witness_utxo.value
+                            sc = inp.witness_utxo.script_pubkey
+                            if inp.redeem_script is not None:
+                                sc = inp.redeem_script
+                            if inp.witness_script is not None:
+                                sc = inp.witness_script
+                            if sc.script_type() == "p2wpkh":
+                                sc = script.p2pkh_from_p2wpkh(sc)
+                            h = self.tx.sighash_segwit(i, sc, value)
+                            sig = hdkey.key.sign(h)
                     if sig is not None:
                         # sig plus sighash_all
                         inp.partial_sigs[mypub] = sig.serialize()+b"\x01"
@@ -203,6 +210,8 @@ class InputScope(PSBTScope):
         self.redeem_script = None
         self.witness_script = None
         self.bip32_derivations = {}
+        self.final_scriptsig = None
+        self.final_scriptwitness = None
         self.parse_unknowns()
 
     def parse_unknowns(self):
@@ -248,10 +257,18 @@ class InputScope(PSBTScope):
                     raise ValueError("Duplicated derivation path")
                 else:
                     self.bip32_derivations[pub] = DerivationPath.parse(self.unknown.pop(k))
-            # keys 0x07 (PSBT_IN_FINAL_SCRIPTSIG)
-            #      0x08 (PSBT_IN_FINAL_SCRIPTWITNESS),
-            #      0x09 (PSBT_IN_POR_COMMITMENT)
-            # are not implemented yet
+            elif k == b'\x07':
+                if self.final_scriptsig is None:
+                    self.final_scriptsig = Script(self.unknown.pop(k))
+                else:
+                    raise ValueError("Duplicated final scriptsig")
+            elif k == b'\x08':
+                if self.final_scriptwitness is None:
+                    self.final_scriptwitness = Witness.parse(self.unknown.pop(k))
+                else:
+                    raise ValueError("Duplicated final scriptwitness")
+            # key 0x09 (PSBT_IN_POR_COMMITMENT)
+            # is not implemented yet
 
     def serialize(self):
         r = b''
@@ -276,6 +293,12 @@ class InputScope(PSBTScope):
         for pub in self.bip32_derivations:
             r += ser_string(b'\x06'+pub.serialize())
             r += ser_string(self.bip32_derivations[pub].serialize())
+        if self.final_scriptsig is not None:
+            r += b'\x01\x07'
+            r += self.final_scriptsig.serialize()
+        if self.final_scriptwitness is not None:
+            r += b'\x01\x08'
+            r += ser_string(self.final_scriptwitness.serialize())
         # unknown
         for key in self.unknown:
             r += ser_string(key)
