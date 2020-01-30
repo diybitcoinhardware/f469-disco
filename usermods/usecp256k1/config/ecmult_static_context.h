@@ -1,6 +1,6 @@
 #ifndef _SECP256K1_ECMULT_STATIC_CONTEXT_
 #define _SECP256K1_ECMULT_STATIC_CONTEXT_
-#include "../secp256k1/src/group.h"
+#include "../secp256k1schnorr/src/group.h"
 #define SC SECP256K1_GE_STORAGE_CONST
 static const secp256k1_ge_storage secp256k1_ecmult_static_context[64][16] = {
 {
