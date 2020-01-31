@@ -120,7 +120,7 @@ class PSBT:
                         if inp.witness_utxo.script_pubkey.script_type() == "p2taproot":
                             values = [inpt.witness_utxo.value for inpt in self.inputs]
                             h = self.tx.sighash_taproot(i, inp.witness_utxo.script_pubkey, values)
-                            sig_schnorr = pk.schnorr_sign(h)
+                            sig_schnorr = hdkey.key.schnorr_sign(h)
                             inp.final_scriptwitness = Witness([sig_schnorr.serialize()])
                         else:
                             # segwit
