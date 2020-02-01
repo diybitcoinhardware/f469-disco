@@ -2,7 +2,7 @@ from . import ec
 from .networks import NETWORKS
 from . import base58
 import hashlib
-import uio as io
+import io
 import secp256k1
 from . import hashes
 

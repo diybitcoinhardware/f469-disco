@@ -1,7 +1,7 @@
 import secp256k1
 from . import base58
 from .networks import NETWORKS
-from ubinascii import hexlify
+from binascii import hexlify
 
 class PublicKey:
     def __init__(self, point, compressed:bool=True):

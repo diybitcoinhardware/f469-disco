@@ -3,7 +3,7 @@ from . import base58
 from . import bech32
 from . import hashes
 from . import compact
-import uio as io
+import io
 
 SIGHASH_ALL = 1
 
