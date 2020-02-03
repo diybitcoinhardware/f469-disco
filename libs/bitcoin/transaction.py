@@ -86,19 +86,19 @@ class Transaction:
         for inp in self.vin:
             h.update(bytes(reversed(inp.txid)))
             h.update(inp.vout.to_bytes(4, 'little'))
-        return hashlib.sha256(h.digest()).digest()
+        return h.digest()
 
     def hash_sequence(self):
         h = hashlib.sha256()
         for inp in self.vin:
             h.update(inp.sequence.to_bytes(4, 'little'))
-        return hashlib.sha256(h.digest()).digest()
+        return h.digest()
 
     def hash_outputs(self):
         h = hashlib.sha256()
         for out in self.vout:
             h.update(out.serialize())
-        return hashlib.sha256(h.digest()).digest()
+        return h.digest()
 
     def sighash_segwit(self, input_index, script_pubkey, value):
         '''check out bip-143'''
@@ -106,14 +106,14 @@ class Transaction:
         inp = self.vin[input_index]
         h = hashlib.sha256()
         h.update(self.version.to_bytes(4, 'little'))
-        h.update(self.hash_prevouts())
-        h.update(self.hash_sequence())
+        h.update(hashlib.sha256(self.hash_prevouts()).digest())
+        h.update(hashlib.sha256(self.hash_sequence()).digest())
         h.update(bytes(reversed(inp.txid)))
         h.update(inp.vout.to_bytes(4, 'little'))
         h.update(script_pubkey.serialize())
         h.update(int(value).to_bytes(8, 'little'))
         h.update(inp.sequence.to_bytes(4, 'little'))
-        h.update(self.hash_outputs())
+        h.update(hashlib.sha256(self.hash_outputs()).digest())
         h.update(self.locktime.to_bytes(4, 'little'))
         h.update(SIGHASH_ALL.to_bytes(4, 'little'))
         return hashlib.sha256(h.digest()).digest()
