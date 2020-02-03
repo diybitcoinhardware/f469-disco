@@ -203,6 +203,8 @@ class InputScope(PSBTScope):
         self.redeem_script = None
         self.witness_script = None
         self.bip32_derivations = {}
+        self.final_scriptsig = None
+        self.final_scriptwitness = None
         self.parse_unknowns()
 
     def parse_unknowns(self):
@@ -248,9 +250,17 @@ class InputScope(PSBTScope):
                     raise ValueError("Duplicated derivation path")
                 else:
                     self.bip32_derivations[pub] = DerivationPath.parse(self.unknown.pop(k))
-            # keys 0x07 (PSBT_IN_FINAL_SCRIPTSIG)
-            #      0x08 (PSBT_IN_FINAL_SCRIPTWITNESS),
-            #      0x09 (PSBT_IN_POR_COMMITMENT)
+            elif k == b'\x07':
+                if self.final_scriptsig is None:
+                    self.final_scriptsig = Script(self.unknown.pop(k))
+                else:
+                    raise ValueError("Duplicated final scriptsig")
+            elif k == b'\x08':
+                if self.final_scriptwitness is None:
+                    self.final_scriptwitness = Witness.parse(self.unknown.pop(k))
+                else:
+                    raise ValueError("Duplicated final scriptwitness")
+            # key 0x09 (PSBT_IN_POR_COMMITMENT)
             # are not implemented yet
 
     def serialize(self):
@@ -276,6 +286,12 @@ class InputScope(PSBTScope):
         for pub in self.bip32_derivations:
             r += ser_string(b'\x06'+pub.serialize())
             r += ser_string(self.bip32_derivations[pub].serialize())
+        if self.final_scriptsig is not None:
+            r += b'\x01\x07'
+            r += self.final_scriptsig.serialize()
+        if self.final_scriptwitness is not None:
+            r += b'\x01\x08'
+            r += ser_string(self.final_scriptwitness.serialize())
         # unknown
         for key in self.unknown:
             r += ser_string(key)
