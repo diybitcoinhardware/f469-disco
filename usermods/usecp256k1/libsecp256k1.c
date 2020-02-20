@@ -25,6 +25,24 @@ void maybe_init_ctx(){
     ctx = secp256k1_context_preallocated_create((void *)preallocated_ctx, SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
 }
 
+// randomize context using 32-byte seed
+STATIC mp_obj_t usecp256k1_context_randomize(const mp_obj_t seed){
+    maybe_init_ctx();
+    mp_buffer_info_t seedbuf;
+    mp_get_buffer_raise(seed, &seedbuf, MP_BUFFER_READ);
+    if(seedbuf.len != 32){
+        mp_raise_ValueError("Seed should be 32 bytes long");
+        return mp_const_none;
+    }
+    int res = secp256k1_context_randomize(ctx, seedbuf.buf);
+    if(!res){
+        mp_raise_ValueError("Failed to randomize context");
+        return mp_const_none;
+    }
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(usecp256k1_context_randomize_obj, usecp256k1_context_randomize);
+
 // create public key from private key
 STATIC mp_obj_t usecp256k1_ec_pubkey_create(const mp_obj_t arg){
     maybe_init_ctx();
@@ -185,7 +203,7 @@ STATIC mp_obj_t usecp256k1_ecdsa_signature_serialize_der(const mp_obj_t arg){
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(usecp256k1_ecdsa_signature_serialize_der_obj, usecp256k1_ecdsa_signature_serialize_der);
 
-// serialize der ecdsa signature
+// serialize compact ecdsa signature
 STATIC mp_obj_t usecp256k1_ecdsa_signature_serialize_compact(const mp_obj_t arg){
     maybe_init_ctx();
     mp_buffer_info_t buf;
@@ -204,7 +222,7 @@ STATIC mp_obj_t usecp256k1_ecdsa_signature_serialize_compact(const mp_obj_t arg)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(usecp256k1_ecdsa_signature_serialize_compact_obj, usecp256k1_ecdsa_signature_serialize_compact);
 
-// serialize der ecdsa signature
+// verify ecdsa signature
 STATIC mp_obj_t usecp256k1_ecdsa_verify(const mp_obj_t sigarg, const mp_obj_t msgarg, const mp_obj_t pubkeyarg){
     maybe_init_ctx();
     mp_buffer_info_t buf;
@@ -505,6 +523,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR(usecp256k1_ec_pubkey_combine_obj, 2, usecp256
 
 STATIC const mp_rom_map_elem_t secp256k1_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_secp256k1) },
+    { MP_ROM_QSTR(MP_QSTR_context_randomize), MP_ROM_PTR(&usecp256k1_context_randomize_obj) },
     { MP_ROM_QSTR(MP_QSTR_ec_pubkey_create), MP_ROM_PTR(&usecp256k1_ec_pubkey_create_obj) },
     { MP_ROM_QSTR(MP_QSTR_ec_pubkey_parse), MP_ROM_PTR(&usecp256k1_ec_pubkey_parse_obj) },
     { MP_ROM_QSTR(MP_QSTR_ec_pubkey_serialize), MP_ROM_PTR(&usecp256k1_ec_pubkey_serialize_obj) },
