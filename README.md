@@ -18,41 +18,29 @@ On MacOS install it using brew: `brew install arm-none-eabi-gcc`
 
 On Linux: `sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
 
-Run `./build_f469.sh` script, if everything goes well you will get a `upy-f469disco.bin` file in the root folder.
+We have a set of small shell scripts that compile micropython for discovery board or unix/mac. Feel free to check out content of these scripts and tune it if you want:
 
-Run `./build_f469_empty.sh` script, if you want to make micropython without frozen modules (only `display` module is frozen there) - you can copy content of the `libs` folder to your flash later and edit them without reflashing the board.
+### `./build_f469.sh` 
 
-Run `./build_unixport.sh` to get unix version of micropython. You may need to install SDL2 library to work with the GUI (`sudo apt install libsdl2-dev` or `brew install sdl2`).
+It will compile micropython with frozen bitcoin library. `secp256k1` and `lvgl` are still there though. You should see a `upy-f469disco.bin` file in the root folder when the script is done.
 
-### STM32F469-Discovery board:
+Freezing python files saves a lot of RAM, but then they can't be edited without rebuilding the firmware.
 
-```
-cd micropython/ports/stm32
-make BOARD=STM32F469DISC USER_C_MODULES=../../../usermods
-arm-none-eabi-objcopy -O binary build-STM32F469DISC/firmware.elf upy-f469disco.bin
-```
+### `./build_f469_empty.sh`
 
-Copy `upy-f469disco.bin` to the board (volume `DIS_469NI`, mini-usb port).
+This script does roughly the same as previous but doesn't freeze python bitcoin files - you can copy content of the `libs` folder to your board later and edit them without reflashing the board every time you change the library.
 
-Micropython is now available over MiniUSB port (another one).
+### `./build_unixport.sh`
 
-Recommended to work with SD card inserted. Micropython loads files from SD card first, so if you screwed up with the `main.py` file you can just remove SD card and fix it on your computer.
+Compiles unix version of micropython. You may need to install SDL2 library to work with the GUI (`sudo apt install libsdl2-dev` or `brew install sdl2`).
 
-### Unix/Mac (requires SDL2 library):
+### `./clean_all.sh`
 
-```
-cd micropython/ports/unix
-make USER_C_MODULES=../../../usermods FROZEN_MANIFEST=../../../usermods/udisplay_f469/manifest.py
-```
-
-Now you can run `./micropython`
+If you are having problems with the build try running this script - it will to `make clean` in all folders used in `build_...` scripts.
 
 ## Run Unittests
 
 ```
-# Build unix firmware
-./make_unix.sh
-
 # Run unittests in unix firmware
 ./run_tests.sh
 ```
