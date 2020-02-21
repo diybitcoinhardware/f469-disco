@@ -280,25 +280,138 @@ STATIC mp_obj_t usecp256k1_ecdsa_signature_normalize(const mp_obj_t arg){
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(usecp256k1_ecdsa_signature_normalize_obj, usecp256k1_ecdsa_signature_normalize);
 
-// sign
-STATIC mp_obj_t usecp256k1_ecdsa_sign(const mp_obj_t msgarg, const mp_obj_t secarg){
-    maybe_init_ctx();
+// same as secp256k1_nonce_function_rfc6979
+STATIC mp_obj_t usecp256k1_nonce_function_default(mp_uint_t n_args, const mp_obj_t *args){
     mp_buffer_info_t msgbuf;
-    mp_get_buffer_raise(msgarg, &msgbuf, MP_BUFFER_READ);
+    mp_get_buffer_raise(args[0], &msgbuf, MP_BUFFER_READ);
+    if(msgbuf.len != 32){
+        mp_raise_ValueError("Message should be 32 bytes long");
+        return mp_const_none;
+    }
+    mp_buffer_info_t secbuf;
+    mp_get_buffer_raise(args[1], &secbuf, MP_BUFFER_READ);
+    if(secbuf.len != 32){
+        mp_raise_ValueError("Secret should be 32 bytes long");
+        return mp_const_none;
+    }
+    unsigned char *algo16 = NULL;
+    void *data = NULL;
+    int attempt = 0;
+    // result
+    vstr_t nonce;
+    vstr_init_len(&nonce, 32);
+    if(n_args > 2){
+        if(args[2] != mp_const_none){
+            mp_buffer_info_t algbuf;
+            mp_get_buffer_raise(args[0], &algbuf, MP_BUFFER_READ);
+            algo16 = algbuf.buf;
+        }
+        if(n_args > 3 && args[3]!=mp_const_none){
+            mp_buffer_info_t databuf;
+            if (!mp_get_buffer(args[3], &databuf, MP_BUFFER_READ)) {
+                data = (void*) args[3];
+            }else{
+                data = (void*) databuf.buf;
+            }
+        }
+        if(n_args > 4){
+            attempt = mp_obj_get_int(args[4]);
+        }
+    }
+    int res = secp256k1_nonce_function_default((unsigned char*)nonce.buf, msgbuf.buf, secbuf.buf, algo16, data, attempt);
+    if(!res){
+        mp_raise_ValueError("Failed to calculate nonce");
+        return mp_const_none;
+    }
+    return mp_obj_new_str_from_vstr(&mp_type_bytes, &nonce);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR(usecp256k1_nonce_function_default_obj, 2, usecp256k1_nonce_function_default);
+
+STATIC mp_obj_t mp_nonce_callback = NULL;
+STATIC mp_obj_t mp_nonce_data = NULL;
+
+STATIC int usecp256k1_nonce_function(
+    unsigned char *nonce32,
+    const unsigned char *msg32,
+    const unsigned char *key32,
+    const unsigned char *algo16,
+    void *data,
+    unsigned int attempt
+    ){
+    if(attempt > 100){
+        mp_raise_ValueError("Too many attempts... Invalid function?");
+        // not sure it will ever get here, but just in case
+        return secp256k1_nonce_function_default(nonce32, msg32, key32, algo16, data, attempt);
+    }
+    mp_obj_t mp_args[5];
+    mp_args[0] = mp_obj_new_bytes(msg32, 32);
+    mp_args[1] = mp_obj_new_bytes(key32, 32);
+    if(algo16!=NULL){
+        mp_args[2] = mp_obj_new_bytes(key32, 16);
+    }else{
+        mp_args[2] = mp_const_none;
+    }
+    if(mp_nonce_data!=NULL){
+        mp_args[3] = mp_nonce_data;
+    }else{
+        mp_args[3] = mp_const_none;
+    }
+    mp_args[4] = mp_obj_new_int_from_uint(attempt);
+
+    mp_obj_t mp_res = mp_call_function_n_kw(mp_nonce_callback , 5, 0, mp_args);
+    if(mp_res == mp_const_none){
+        return 0;
+    }
+    mp_buffer_info_t buffer_info;
+    if (!mp_get_buffer(mp_res, &buffer_info, MP_BUFFER_READ)) {
+        return 0;
+    }
+    if(buffer_info.len < 32){
+        mp_raise_ValueError("Returned nonce is less than 32 bytes");
+        return 0;
+    }
+    memcpy(nonce32, (byte*)buffer_info.buf, 32);
+    return 1;
+}
+
+// msg, secret, [callback, data]
+STATIC mp_obj_t usecp256k1_ecdsa_sign(mp_uint_t n_args, const mp_obj_t *args){
+    maybe_init_ctx();
+    mp_nonce_data = NULL;
+    if(n_args < 2){
+        mp_raise_ValueError("Function requires at least two arguments: message and private key");
+        return mp_const_none;
+    }
+    mp_buffer_info_t msgbuf;
+    mp_get_buffer_raise(args[0], &msgbuf, MP_BUFFER_READ);
     if(msgbuf.len != 32){
         mp_raise_ValueError("Message should be 32 bytes long");
         return mp_const_none;
     }
 
     mp_buffer_info_t secbuf;
-    mp_get_buffer_raise(secarg, &secbuf, MP_BUFFER_READ);
+    mp_get_buffer_raise(args[1], &secbuf, MP_BUFFER_READ);
     if(secbuf.len != 32){
         mp_raise_ValueError("Secret key should be 32 bytes long");
         return mp_const_none;
     }
-
     secp256k1_ecdsa_signature sig;
-    int res = secp256k1_ecdsa_sign(ctx, &sig, msgbuf.buf, secbuf.buf, NULL, NULL);
+    int res=0;
+    if(n_args == 2){
+        res = secp256k1_ecdsa_sign(ctx, &sig, msgbuf.buf, secbuf.buf, NULL, NULL);
+    }else if(n_args >= 3){
+        mp_nonce_callback = args[2];
+        if(!mp_obj_is_callable(mp_nonce_callback)){
+            mp_raise_ValueError("None callback should be callable...");
+            return mp_const_none;
+        }
+        if(n_args > 3){
+            mp_nonce_data = args[3];
+        }else{
+            mp_nonce_data = NULL;
+        }
+        res = secp256k1_ecdsa_sign(ctx, &sig, msgbuf.buf, secbuf.buf, usecp256k1_nonce_function, mp_nonce_data);
+    }
     if(!res){
         mp_raise_ValueError("Failed to sign");
         return mp_const_none;
@@ -310,8 +423,40 @@ STATIC mp_obj_t usecp256k1_ecdsa_sign(const mp_obj_t msgarg, const mp_obj_t seca
 
     return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
 }
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR(usecp256k1_ecdsa_sign_obj, 2, usecp256k1_ecdsa_sign);
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(usecp256k1_ecdsa_sign_obj, usecp256k1_ecdsa_sign);
+// sign
+// STATIC mp_obj_t usecp256k1_ecdsa_sign(const mp_obj_t msgarg, const mp_obj_t secarg){
+//     maybe_init_ctx();
+//     mp_buffer_info_t msgbuf;
+//     mp_get_buffer_raise(msgarg, &msgbuf, MP_BUFFER_READ);
+//     if(msgbuf.len != 32){
+//         mp_raise_ValueError("Message should be 32 bytes long");
+//         return mp_const_none;
+//     }
+
+//     mp_buffer_info_t secbuf;
+//     mp_get_buffer_raise(secarg, &secbuf, MP_BUFFER_READ);
+//     if(secbuf.len != 32){
+//         mp_raise_ValueError("Secret key should be 32 bytes long");
+//         return mp_const_none;
+//     }
+
+//     secp256k1_ecdsa_signature sig;
+//     int res = secp256k1_ecdsa_sign(ctx, &sig, msgbuf.buf, secbuf.buf, NULL, NULL);
+//     if(!res){
+//         mp_raise_ValueError("Failed to sign");
+//         return mp_const_none;
+//     }
+
+//     vstr_t vstr;
+//     vstr_init_len(&vstr, 64);
+//     memcpy((byte*)vstr.buf, sig.data, 64);
+
+//     return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
+// }
+
+// STATIC MP_DEFINE_CONST_FUN_OBJ_2(usecp256k1_ecdsa_sign_obj, usecp256k1_ecdsa_sign);
 
 // verify secret key
 STATIC mp_obj_t usecp256k1_ec_seckey_verify(const mp_obj_t arg){
@@ -534,6 +679,10 @@ STATIC const mp_rom_map_elem_t secp256k1_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_ecdsa_signature_normalize), MP_ROM_PTR(&usecp256k1_ecdsa_signature_normalize_obj) },
     { MP_ROM_QSTR(MP_QSTR_ecdsa_verify), MP_ROM_PTR(&usecp256k1_ecdsa_verify_obj) },
     { MP_ROM_QSTR(MP_QSTR_ecdsa_sign), MP_ROM_PTR(&usecp256k1_ecdsa_sign_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_nonce_function_default), MP_ROM_PTR(&usecp256k1_nonce_function_default_obj) },
+    { MP_ROM_QSTR(MP_QSTR_nonce_function_rfc6979), MP_ROM_PTR(&usecp256k1_nonce_function_default_obj) },
+
     { MP_ROM_QSTR(MP_QSTR_ec_seckey_verify), MP_ROM_PTR(&usecp256k1_ec_seckey_verify_obj) },
     { MP_ROM_QSTR(MP_QSTR_ec_privkey_negate), MP_ROM_PTR(&usecp256k1_ec_privkey_negate_obj) },
     { MP_ROM_QSTR(MP_QSTR_ec_pubkey_negate), MP_ROM_PTR(&usecp256k1_ec_pubkey_negate_obj) },
