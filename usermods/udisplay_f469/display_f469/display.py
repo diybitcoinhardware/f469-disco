@@ -1,4 +1,4 @@
-from udisplay import update
+from udisplay import update, on, off
 
 def init(autoupdate=True):
     import udisplay

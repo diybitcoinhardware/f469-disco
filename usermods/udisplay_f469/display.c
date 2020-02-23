@@ -4,6 +4,7 @@
 #include "py/builtin.h"
 #include "lvgl.h"
 #include "lv_stm_hal.h"
+#include "stm32469i_discovery_lcd.h"
 
 STATIC mp_obj_t display_init(){
     lv_init();
@@ -21,12 +22,27 @@ STATIC mp_obj_t display_update(mp_obj_t dt_obj){
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(display_update_obj, display_update);
 
+STATIC mp_obj_t display_on(){
+    BSP_LCD_DisplayOn();
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_0(display_on_obj, display_on);
+
+STATIC mp_obj_t display_off(){
+    BSP_LCD_DisplayOff();
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_0(display_off_obj, display_off);
+
 /****************************** MODULE ******************************/
 
 STATIC const mp_rom_map_elem_t display_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_display) },
     { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&display_init_obj) },
     { MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&display_update_obj) },
+    { MP_ROM_QSTR(MP_QSTR_on), MP_ROM_PTR(&display_on_obj) },
+    { MP_ROM_QSTR(MP_QSTR_off), MP_ROM_PTR(&display_off_obj) },
 };
 STATIC MP_DEFINE_CONST_DICT(display_module_globals, display_module_globals_table);
 
