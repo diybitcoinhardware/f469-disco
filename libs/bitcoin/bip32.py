@@ -5,6 +5,7 @@ import hashlib
 import io
 import secp256k1
 from . import hashes
+from binascii import hexlify
 
 class HDKey:
     """ HD Private or Public key """
@@ -224,3 +225,12 @@ def parse_path(path:str):
         else:
             arr[i] = int(e)
     return arr
+
+def path_to_str(path, fingerprint=None):
+    s = "m" if fingerprint is None else hexlify(fingerprint).decode()
+    for el in path:
+        if el >= 0x80000000:
+            s += "/%dh" % (el-0x80000000)
+        else:
+            s += "/%d" % el
+    return s
