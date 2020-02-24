@@ -192,11 +192,15 @@ class HDKey:
         return not self.__eq__(other)
 
 
-def detect_version(path:str, default="xprv"):
+def detect_version(path:str, default="xprv", network=None):
     """Trying to be smart, use if you want, but with care"""
     key = default
-    network = NETWORKS["main"]
+    net = network
+    if network is None:
+        net = NETWORKS["main"]
     arr = parse_path(path)
+    if len(arr) == 0:
+        return network[key]
     if arr[0] == 0x80000000+84:
         key = "z"+default[1:]
     elif arr[0] == 0x80000000+49:
@@ -207,9 +211,9 @@ def detect_version(path:str, default="xprv"):
                 key = "Y"+default[1:]
             elif arr[3] == 0x80000000+2:
                 key = "Z"+default[1:]
-    if len(arr)>1 and arr[1]==0x80000000+1:
-        network = NETWORKS["test"]
-    return network[key]
+    if network is None and len(arr)>1 and arr[1]==0x80000000+1:
+        net = NETWORKS["test"]
+    return net[key]
 
 def parse_path(path:str):
     """converts derivation path of the form m/44h/1'/0'/0/32 to int array"""
