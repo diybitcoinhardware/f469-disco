@@ -287,10 +287,32 @@ STATIC mp_obj_t hashlib_hmac_sha512(mp_uint_t n_args, const mp_obj_t *args){
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR(hashlib_hmac_sha512_obj, 2, hashlib_hmac_sha512);
 
+STATIC mp_obj_t hashlib_new(size_t n_args, const mp_obj_t *args) {
+    mp_buffer_info_t typebuf;
+    mp_get_buffer_raise(args[0], &typebuf, MP_BUFFER_READ);
+    if(strcmp(typebuf.buf, "ripemd160") == 0){
+        return hashlib_ripemd160_make_new(&hashlib_ripemd160_type, n_args-1, 0, args+1);
+    }
+    if(strcmp(typebuf.buf, "sha256") == 0){
+        return hashlib_sha256_make_new(&hashlib_sha256_type, n_args-1, 0, args+1);
+    }
+    if(strcmp(typebuf.buf, "sha512") == 0){
+        return hashlib_sha512_make_new(&hashlib_sha512_type, n_args-1, 0, args+1);
+    }
+    if(strcmp(typebuf.buf, "sha1") == 0){
+        return hashlib_sha1_make_new(&hashlib_sha1_type, n_args-1, 0, args+1);
+    }
+    mp_raise_ValueError("Unsupported hash type");
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR(hashlib_new_obj, 1, hashlib_new);
+
+
 /****************************** MODULE ******************************/
 
 STATIC const mp_rom_map_elem_t hashlib_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_hashlib) },
+    { MP_ROM_QSTR(MP_QSTR_new), MP_ROM_PTR(&hashlib_new_obj) },
     { MP_ROM_QSTR(MP_QSTR_sha1), MP_ROM_PTR(&hashlib_sha1_type) },
     { MP_ROM_QSTR(MP_QSTR_sha256), MP_ROM_PTR(&hashlib_sha256_type) },
     { MP_ROM_QSTR(MP_QSTR_sha512), MP_ROM_PTR(&hashlib_sha512_type) },
