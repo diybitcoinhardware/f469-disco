@@ -30106,6 +30106,22 @@ STATIC const mp_lv_struct_t mp_square1 = {
     (lv_font_t*)&square1
 };
     
+STATIC const mp_lv_struct_t mp_font_roboto_mono_12 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&font_roboto_mono_12
+};
+STATIC const mp_lv_struct_t mp_font_roboto_mono_16 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&font_roboto_mono_16
+};
+STATIC const mp_lv_struct_t mp_font_roboto_mono_22 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&font_roboto_mono_22
+};
+STATIC const mp_lv_struct_t mp_font_roboto_mono_28 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&font_roboto_mono_28
+};
 
 /*
  * lvgl lv_style_scr global definitions
@@ -31079,6 +31095,10 @@ STATIC const mp_rom_map_elem_t lvgl_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_square3), MP_ROM_PTR(&mp_square3) },
     { MP_ROM_QSTR(MP_QSTR_square2), MP_ROM_PTR(&mp_square2) },
     { MP_ROM_QSTR(MP_QSTR_square1), MP_ROM_PTR(&mp_square1) },
+    { MP_ROM_QSTR(MP_QSTR_font_roboto_mono_12), MP_ROM_PTR(&mp_font_roboto_mono_12) },
+    { MP_ROM_QSTR(MP_QSTR_font_roboto_mono_16), MP_ROM_PTR(&mp_font_roboto_mono_16) },
+    { MP_ROM_QSTR(MP_QSTR_font_roboto_mono_22), MP_ROM_PTR(&mp_font_roboto_mono_22) },
+    { MP_ROM_QSTR(MP_QSTR_font_roboto_mono_28), MP_ROM_PTR(&mp_font_roboto_mono_28) },
     { MP_ROM_QSTR(MP_QSTR_style_scr), MP_ROM_PTR(&mp_lv_style_scr) },
     { MP_ROM_QSTR(MP_QSTR_style_transp), MP_ROM_PTR(&mp_lv_style_transp) },
     { MP_ROM_QSTR(MP_QSTR_style_transp_fit), MP_ROM_PTR(&mp_lv_style_transp_fit) },
