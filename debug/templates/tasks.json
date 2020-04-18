@@ -8,7 +8,7 @@
         {
             "label": "Clean device build directory",
             "type": "shell",
-            "command": "make BOARD=STM32F469DISC USER_C_MODULES=../../../usermods clean",
+            "command": "make clean",
             "options": {
                 "cwd": "${workspaceFolder}/micropython/ports/stm32"
             },
@@ -19,7 +19,7 @@
         {
             "label": "Debug build for device",
             "type": "shell",
-            "command": "make BOARD=STM32F469DISC USER_C_MODULES=../../../usermods DEBUG=1",
+            "command": "make DEBUG=1 BOARD=STM32F469DISC USER_C_MODULES=../../../usermods FROZEN_MANIFEST=../../../manifest_f469.py",
             "options": {
                 "cwd": "${workspaceFolder}/micropython/ports/stm32"
             },
@@ -34,7 +34,7 @@
         {
             "label": "Release build for device",
             "type": "shell",
-            "command": "make BOARD=STM32F469DISC USER_C_MODULES=../../../usermods",
+            "command": "make BOARD=STM32F469DISC USER_C_MODULES=../../../usermods FROZEN_MANIFEST=../../../manifest_f469.py",
             "options": {
                 "cwd": "${workspaceFolder}/micropython/ports/stm32"
             },
