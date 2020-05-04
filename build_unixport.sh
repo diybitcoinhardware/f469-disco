@@ -1,11 +1,7 @@
 #!/bin/bash
 # mpy cross-compiler
-pushd micropython/mpy-cross
-make
-popd
+make -C micropython/mpy-cross
 # unixport
-pushd micropython/ports/unix
-make submodules
-make USER_C_MODULES=../../../usermods FROZEN_MANIFEST=../../../manifest_unixport.py
-cp ./micropython ../../../micropython_unix
-popd
+make -C micropython/ports/unix submodules
+make -C micropython/ports/unix USER_C_MODULES=../../../usermods FROZEN_MANIFEST=../../../manifest_unixport.py
+cp micropython/ports/unix/micropython micropython_unix

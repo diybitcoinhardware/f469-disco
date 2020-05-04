@@ -4,3 +4,6 @@
 [submodule "usermods/udisplay_f469/lvgl"]
 	path = usermods/udisplay_f469/lvgl
 	url = https://github.com/littlevgl/lvgl.git
+[submodule "usermods/secp256k1"]
+	path = usermods/secp256k1
+	url = https://github.com/diybitcoinhardware/secp256k1-embedded.git
