@@ -220,6 +220,8 @@ def parse_path(path:str):
     arr = path.split("/")
     if arr[0] == "m":
         arr = arr[1:]
+    if len(arr) == 0:
+        return []
     if arr[-1] == "":
         # trailing slash
         arr = arr[:-1]
