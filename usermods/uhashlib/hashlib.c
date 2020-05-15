@@ -253,23 +253,49 @@ STATIC const mp_obj_type_t hashlib_ripemd160_type = {
     .locals_dict = (void*)&hashlib_ripemd160_locals_dict,
 };
 
-/************************** pbkdf2_hmac_sha512 **************************/
+/************************** pbkdf2_hmac **************************/
 
-STATIC mp_obj_t hashlib_pbkdf2_hmac_sha512(mp_uint_t n_args, const mp_obj_t *args){
-    //mp_obj_t password, mp_obj_t salt, mp_obj_t iterations, mp_obj_t len_to_read
+// hashlib.pbkdf2_hmac(hash_name, password, salt, iterations, dklen=None)
+STATIC mp_obj_t hashlib_pbkdf2_hmac(size_t n_args, const mp_obj_t *args) {
+    // hash_name
+    mp_buffer_info_t typebuf;
+    mp_get_buffer_raise(args[0], &typebuf, MP_BUFFER_READ);
+    // password
     mp_buffer_info_t pwdbuf;
-    mp_get_buffer_raise(args[0], &pwdbuf, MP_BUFFER_READ);
+    mp_get_buffer_raise(args[1], &pwdbuf, MP_BUFFER_READ);
+    // salt
     mp_buffer_info_t saltbuf;
-    mp_get_buffer_raise(args[1], &saltbuf, MP_BUFFER_READ);
-    mp_int_t iter = mp_obj_get_int(args[2]);
-    mp_int_t l = mp_obj_get_int(args[3]);
-    vstr_t vstr;
-    vstr_init_len(&vstr, l);
-    pbkdf2_hmac_sha512(pwdbuf.buf, pwdbuf.len, saltbuf.buf, saltbuf.len, iter, (byte*)vstr.buf, l);
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
-}
+    mp_get_buffer_raise(args[2], &saltbuf, MP_BUFFER_READ);
+    // number of iterations
+    mp_int_t iter = mp_obj_get_int(args[3]);
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR(hashlib_pbkdf2_hmac_sha512_obj, 4, hashlib_pbkdf2_hmac_sha512);
+    // only sha256 or sha512 are supported
+    if(strcmp(typebuf.buf, "sha256") == 0){
+        // output length (dklen) if available
+        mp_int_t l = SHA256_DIGEST_LENGTH;
+        if(n_args > 4){
+            l = mp_obj_get_int(args[4]);
+        }
+        vstr_t vstr;
+        vstr_init_len(&vstr, l);
+        pbkdf2_hmac_sha256(pwdbuf.buf, pwdbuf.len, saltbuf.buf, saltbuf.len, iter, (byte*)vstr.buf, l);
+        return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
+    }
+    if(strcmp(typebuf.buf, "sha512") == 0){
+        // output length (dklen) if available
+        mp_int_t l = SHA512_DIGEST_LENGTH;
+        if(n_args > 4){
+            l = mp_obj_get_int(args[4]);
+        }
+        vstr_t vstr;
+        vstr_init_len(&vstr, l);
+        pbkdf2_hmac_sha512(pwdbuf.buf, pwdbuf.len, saltbuf.buf, saltbuf.len, iter, (byte*)vstr.buf, l);
+        return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
+    }
+    mp_raise_ValueError("Unsupported hash type");
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR(hashlib_pbkdf2_hmac_obj, 4, hashlib_pbkdf2_hmac);
 
 /************************** hmac_sha512 **************************/
 
@@ -317,7 +343,7 @@ STATIC const mp_rom_map_elem_t hashlib_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_sha256), MP_ROM_PTR(&hashlib_sha256_type) },
     { MP_ROM_QSTR(MP_QSTR_sha512), MP_ROM_PTR(&hashlib_sha512_type) },
     { MP_ROM_QSTR(MP_QSTR_ripemd160), MP_ROM_PTR(&hashlib_ripemd160_type) },
-    { MP_ROM_QSTR(MP_QSTR_pbkdf2_hmac_sha512), MP_ROM_PTR(&hashlib_pbkdf2_hmac_sha512_obj) },
+    { MP_ROM_QSTR(MP_QSTR_pbkdf2_hmac), MP_ROM_PTR(&hashlib_pbkdf2_hmac_obj) },
     { MP_ROM_QSTR(MP_QSTR_hmac_sha512), MP_ROM_PTR(&hashlib_hmac_sha512_obj) },
 };
 

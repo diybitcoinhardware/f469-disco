@@ -1,9 +1,7 @@
 # Mnemonic convertion to seed and to/from bytes
-
 import hashlib
-from micropython import const
 
-PBKDF2_ROUNDS = const(2048)
+PBKDF2_ROUNDS = 2048
 
 def mnemonic_to_bytes(mnemonic:str):
     # this function is copied from Jimmy Song's HDPrivateKey.from_mnemonic() method
@@ -74,7 +72,7 @@ def mnemonic_to_seed(mnemonic:str, password:str=""):
     mnemonic_to_bytes(mnemonic)
     # from hashlib.c usermodule
     # mp_obj_t password, mp_obj_t salt, mp_obj_t iterations, mp_obj_t len
-    return hashlib.pbkdf2_hmac_sha512(
+    return hashlib.pbkdf2_hmac('sha512',
         mnemonic.encode('utf-8'),
         ('mnemonic' + password).encode('utf-8'),
         PBKDF2_ROUNDS,
