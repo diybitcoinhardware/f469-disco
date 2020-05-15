@@ -28,7 +28,7 @@ Freezing python files saves a lot of RAM, but then they can't be edited without 
 
 ### `./build_f469_empty.sh`
 
-This script does roughly the same as previous but doesn't freeze python bitcoin files - you can copy content of the `libs` folder to your board later and edit them without reflashing the board every time you change the library.
+This script does roughly the same as previous but doesn't freeze python bitcoin files - you can copy content of the `lib` folder to your board later and edit them without reflashing the board every time you change the library.
 
 You should see a `upy-f469disco_empty.bin` file in the root folder when the script is done. Copy this file to the board connected with miniUSB (appearing as `DIS_F469NI` volume in your system)
 
