@@ -20,7 +20,7 @@ class Pin:
 class UART(TCPHost):
     def __init__(self, name, *args, **kwargs):
         # port will be 5941 for YA
-        port = int.from_bytex(name.encode())
+        port = int.from_bytes(name.encode(), 'big')
         super().__init__(port)
         print("Running TCP-UART on 127.0.0.1 port %d - connect with telnet" % port)
 
