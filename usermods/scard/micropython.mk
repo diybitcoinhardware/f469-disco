@@ -1,5 +1,8 @@
 SCARD_IO_MOD_DIR := $(USERMOD_DIR)
 
+# disable for simulator
+ifeq ($(UNAME_S),)
+
 # Reduce FIFO size for T=1 protocol
 CFLAGS_USERMOD += -DT1_TX_FIFO_SIZE=600
 
@@ -29,3 +32,5 @@ else # MCU_SERIES == [f0, f4, f7, l0, l4, wb]
 $(error Unsupported platform)
 
 endif # MCU_SERIES == [f0, f4, f7, l0, l4, wb]
+
+endif
