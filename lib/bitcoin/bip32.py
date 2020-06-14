@@ -161,7 +161,7 @@ class HDKey:
 
     def derive(self, path):
         """ path: int array or a string starting with m/ """
-        if "/" in path:
+        if isinstance(path, str):
             # string of the form m/44h/0'/ind
             path = parse_path(path)
         child = self
