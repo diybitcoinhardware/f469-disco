@@ -60,6 +60,9 @@ class TCPHost:
         else:
             buf = self.buf[:nbytes]
             self.buf = self.buf[nbytes:]
+        # uart.read() returns None if there is nothing
+        if len(buf)==0:
+            return None
         return buf
 
     def readinto(self, data):

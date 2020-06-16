@@ -46,10 +46,24 @@ class USB_HID:
         can be an integer, which is the number of bytes to receive, 
         or a mutable buffer, which will be filled with received bytes
         """
+        # simulating weird behaviour of hid class
+        # can receive only one packet at a time
+        # rest is dropped
+        chunk = self._host.read(64)
         if isinstance(data, int):
-            return self._host.read(data)
+            return chunk[:data]
         else:
-            return self._host.readinto(data)
+            l = min([len(chunk), len(data)])
+            for i in range(l):
+                data[i] = chunk[i]
+            return l
 
     def send(self, data):
-        return self._host.write(data)
+        # simulating weird behaviour of hid class
+        # can send only exactly one packet
+        # rest is dropped, smaller is dropped completely
+        # returns len(data) no matter what...
+        if len(data) < 64:
+            return len(data)
+        self._host.write(data[:64])
+        return len(data)
