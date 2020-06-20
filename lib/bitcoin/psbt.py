@@ -21,10 +21,12 @@ class PSBT:
     def __init__(self, tx=None):
         if tx is not None:
             self.tx = tx
+            self.inputs = [InputScope() for i in range(len(tx.vin))]
+            self.outputs = [OutputScope() for i in range(len(tx.vout))]
         else:
             self.tx = Transaction()
-        self.inputs = []
-        self.outputs = []
+            self.inputs = []
+            self.outputs = []
         self.unknown = {}
         self.xpubs = {}
 
@@ -94,10 +96,10 @@ class PSBT:
         psbt.xpubs = xpubs
         # input scopes
         for i in range(len(tx.vin)):
-            psbt.inputs.append(InputScope.read_from(stream))
+            psbt.inputs[i] = InputScope.read_from(stream)
         # output scopes
         for i in range(len(tx.vout)):
-            psbt.outputs.append(OutputScope.read_from(stream))
+            psbt.outputs[i] = OutputScope.read_from(stream)
         return psbt
 
     def sign_with(self, root):
