@@ -67,3 +67,12 @@ class USB_HID:
             return len(data)
         self._host.write(data[:64])
         return len(data)
+
+_USB_MODE = None
+
+def usb_mode(*args, **kwargs):
+    global _USB_MODE
+    if len(args)==0:
+        return _USB_MODE
+    mode = args[0]
+    _USB_MODE = mode
