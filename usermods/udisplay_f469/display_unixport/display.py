@@ -36,12 +36,15 @@ def init(*args, **kwargs):
     scr = lv.obj()
     lv.scr_load(scr)
 
+# unify the API
 def on():
     pass
 
 def off():
     pass
 
-# unify the API
 def update(*args, **kwargs):
+    pass
+
+def set_rotation(rot):
     pass

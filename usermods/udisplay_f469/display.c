@@ -35,6 +35,26 @@ STATIC mp_obj_t display_off(){
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(display_off_obj, display_off);
 
+STATIC mp_obj_t display_set_rotation(mp_obj_t rot_obj){
+    int rot_int = mp_obj_get_int(rot_obj);
+    if(rot_int < 0 || rot_int > 1){
+        mp_raise_ValueError("Rotation can be 0 or 1");
+        return mp_const_none;
+    }
+    LCD_OrientationTypeDef rot = LCD_ORIENTATION_PORTRAIT;
+    if(rot_int == 1){
+        rot = LCD_ORIENTATION_LANDSCAPE;
+    }
+    BSP_LCD_InitEx(rot);
+    BSP_LCD_LayerDefaultInit(LTDC_ACTIVE_LAYER_BACKGROUND, LCD_FB_START_ADDRESS);
+    BSP_LCD_SelectLayer(LTDC_ACTIVE_LAYER_BACKGROUND);
+    BSP_LCD_Clear(0xFFFFFFFF);
+    BSP_LCD_SetBackColor(0xFFFFFFFF);
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(display_set_rotation_obj, display_set_rotation);
+
 /****************************** MODULE ******************************/
 
 STATIC const mp_rom_map_elem_t display_module_globals_table[] = {
@@ -43,6 +63,7 @@ STATIC const mp_rom_map_elem_t display_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&display_update_obj) },
     { MP_ROM_QSTR(MP_QSTR_on), MP_ROM_PTR(&display_on_obj) },
     { MP_ROM_QSTR(MP_QSTR_off), MP_ROM_PTR(&display_off_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_rotation), MP_ROM_PTR(&display_set_rotation_obj) },
 };
 STATIC MP_DEFINE_CONST_DICT(display_module_globals, display_module_globals_table);
 
