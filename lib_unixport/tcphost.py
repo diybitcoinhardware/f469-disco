@@ -30,7 +30,7 @@ class TCPHost:
             # if b'' is returned on read - disconnected
             try:
                 # large enough to read all
-                b = self.client.recv(4096)
+                b = self.client.recv(10000)
                 if len(b) == 0:
                     self.client.close()
                     self.client = None
@@ -41,7 +41,7 @@ class TCPHost:
                     self.buf += b
             except OSError as e:
                 if "EAGAIN" not in str(e) and "ECONNRESET" not in str(e):
-                    raise
+                    raise e
         else:
             # check if got connected
             try:
@@ -50,7 +50,7 @@ class TCPHost:
                 self._check(last=True)
             except OSError as e:
                 if "EAGAIN" not in str(e):
-                    raise
+                    raise e
 
     def read(self, nbytes=None):
         self._check()
@@ -66,19 +66,18 @@ class TCPHost:
         return buf
 
     def readinto(self, data):
-        # ugly... :(
-        if self.isconnected():
+        try:
             d = self.read(len(data))
             for i in range(len(d)):
                 data[i] = d[i]
             return len(d)
-        else:
+        except:
             return 0
 
     def write(self, data):
-        if self.isconnected():
+        try:
             return self.client.write(data)
-        else:
+        except:
             return 0
 
 if __name__ == '__main__':
