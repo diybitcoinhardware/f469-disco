@@ -25,6 +25,8 @@ class UART(TCPHost):
         print("Running TCP-UART on 127.0.0.1 port %d - connect with telnet" % port)
 
 class USB_VCP(TCPHost):
+    RTS = 1
+    CTS = 2
     def __init__(self, *args, **kwargs):
         port = 8789
         super().__init__(port)
