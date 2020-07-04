@@ -30,6 +30,9 @@ class USB_VCP(TCPHost):
         super().__init__(port)
         print("Running TCP-USB_VCP on 127.0.0.1 port %d - connect with telnet" % port)
 
+    def init(self, *args, **kwargs):
+        pass
+
     def any(self):
         # USB_VCP returns a bool here
         return (super().any() > 0)
