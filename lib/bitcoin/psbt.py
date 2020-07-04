@@ -113,22 +113,25 @@ class PSBT:
                     if mypub != pub:
                         raise ValueError("Derivation path doesn't look right")
                     sig = None
+                    utxo = None
                     if inp.non_witness_utxo is not None:
-                        # legacy
-                        # sc = inp.non_witness_utxo
-                        raise NotImplementedError("Legacy signing is not implemented")
+                        if inp.non_witness_utxo.txid() != self.tx.vin[i].txid:
+                            raise ValueError("Invalid utxo")
+                        utxo = inp.non_witness_utxo.vout[self.tx.vin[i].vout]
                     elif inp.witness_utxo is not None:
-                        # segwit
-                        value = inp.witness_utxo.value
-                        sc = inp.witness_utxo.script_pubkey
-                        if inp.redeem_script is not None:
-                            sc = inp.redeem_script
-                        if inp.witness_script is not None:
-                            sc = inp.witness_script
-                        if sc.script_type() == "p2wpkh":
-                            sc = script.p2pkh_from_p2wpkh(sc)
-                        h = self.tx.sighash_segwit(i, sc, value)
-                        sig = hdkey.key.sign(h)
+                        utxo = inp.witness_utxo
+                    else:
+                        raise ValueError("We need at least one utxo field")
+                    value = utxo.value
+                    sc = utxo.script_pubkey
+                    if inp.redeem_script is not None:
+                        sc = inp.redeem_script
+                    if inp.witness_script is not None:
+                        sc = inp.witness_script
+                    if sc.script_type() == "p2wpkh":
+                        sc = script.p2pkh_from_p2wpkh(sc)
+                    h = self.tx.sighash_segwit(i, sc, value)
+                    sig = hdkey.key.sign(h)
                     if sig is not None:
                         # sig plus sighash_all
                         inp.partial_sigs[mypub] = sig.serialize()+b"\x01"
@@ -214,21 +217,24 @@ class InputScope(PSBTScope):
         for k in self.unknown:
             # legacy utxo
             if k == b'\x00':
-                if self.non_witness_utxo is not None or self.witness_utxo is not None:
+                if self.non_witness_utxo is not None:
                     raise ValueError("Duplicated utxo value")
                 else:
                     self.non_witness_utxo = Transaction.parse(self.unknown.pop(k))
+            # witness utxo
             elif k == b'\x01':
-                if self.non_witness_utxo is not None or self.witness_utxo is not None:
+                if self.witness_utxo is not None:
                     raise ValueError("Duplicated utxo value")
                 else:
                     self.witness_utxo = TransactionOutput.parse(self.unknown.pop(k))
+            # partial signature
             elif k[0] == 0x02:
                 pub = ec.PublicKey.parse(k[1:])
                 if pub in self.partial_sigs:
                     raise ValueError("Duplicated partial sig")
                 else:
                     self.partial_sigs[pub] = self.unknown.pop(k)
+            # hash type
             elif k == b'\x03':
                 if self.sighash_type is None:
                     if len(self.unknown[k])!=4:
@@ -236,34 +242,37 @@ class InputScope(PSBTScope):
                     self.sighash_type = int.from_bytes(self.unknown.pop(k), 'big')
                 else:
                     raise ValueError("Duplicated sighash type")
+            # redeem script
             elif k == b'\x04':
                 if self.redeem_script is None:
                     self.redeem_script = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated redeem script")
+            # witness script
             elif k == b'\x05':
                 if self.witness_script is None:
                     self.witness_script = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated witness script")
+            # bip32 derivation
             elif k[0] == 0x06:
                 pub = ec.PublicKey.parse(k[1:])
                 if pub in self.bip32_derivations:
                     raise ValueError("Duplicated derivation path")
                 else:
                     self.bip32_derivations[pub] = DerivationPath.parse(self.unknown.pop(k))
+            # final scriptsig
             elif k == b'\x07':
                 if self.final_scriptsig is None:
                     self.final_scriptsig = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated final scriptsig")
+            # final script witness
             elif k == b'\x08':
                 if self.final_scriptwitness is None:
                     self.final_scriptwitness = Witness.parse(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated final scriptwitness")
-            # key 0x09 (PSBT_IN_POR_COMMITMENT)
-            # are not implemented yet
 
     def serialize(self):
         r = b''
@@ -313,16 +322,19 @@ class OutputScope(PSBTScope):
     def parse_unknowns(self):
         # go through all the unknowns and parse them
         for k in self.unknown:
+            # redeem script
             if k == b'\x00':
                 if self.redeem_script is None:
                     self.redeem_script = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated redeem script")
+            # witness script
             elif k == b'\x01':
                 if self.witness_script is None:
                     self.witness_script = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated witness script")
+            # bip32 derivation
             elif k[0] == 0x02:
                 pub = ec.PublicKey.parse(k[1:])
                 if pub in self.bip32_derivations:

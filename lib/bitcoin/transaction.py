@@ -53,6 +53,19 @@ class Transaction:
         res += self.locktime.to_bytes(4, 'little')
         return res
 
+    def txid(self):
+        h = hashlib.sha256()
+        h.update(self.version.to_bytes(4, 'little'))
+        h.update(compact.to_bytes(len(self.vin)))
+        for inp in self.vin:
+            h.update(inp.serialize())
+        h.update(compact.to_bytes(len(self.vout)))
+        for out in self.vout:
+            h.update(out.serialize())
+        h.update(self.locktime.to_bytes(4, 'little'))
+        hsh = hashlib.sha256(h.digest()).digest()
+        return bytes(reversed(hsh))
+
     @classmethod
     def parse(cls, b):
         return _parse(cls, b)
