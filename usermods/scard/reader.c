@@ -65,7 +65,6 @@ STATIC mp_obj_t reader_make_new(const mp_obj_type_t* type, size_t n_args,
     ARG_ifaceId = 0, ARG_ioPin, ARG_clkPin, ARG_rstPin, ARG_presPin,
     ARG_pwrPin, ARG_name, ARG_rstPol, ARG_presPol, ARG_pwrPol, ARG_timerId
   };
-  const mp_obj_t def_timer_id = MP_OBJ_NEW_SMALL_INT(-1);
   static const mp_arg_t allowed_args[] = {
     { MP_QSTR_ifaceId,  MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}  },
     { MP_QSTR_ioPin,    MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}  },
@@ -77,7 +76,8 @@ STATIC mp_obj_t reader_make_new(const mp_obj_type_t* type, size_t n_args,
     { MP_QSTR_rstPol,   MP_ARG_KW_ONLY  | MP_ARG_INT, {.u_int = 0}            },
     { MP_QSTR_presPol,  MP_ARG_KW_ONLY  | MP_ARG_INT, {.u_int = 1}            },
     { MP_QSTR_pwrPol,   MP_ARG_KW_ONLY  | MP_ARG_INT, {.u_int = 0}            },
-    { MP_QSTR_timerId,  MP_ARG_KW_ONLY  | MP_ARG_OBJ, {.u_obj = def_timer_id} }
+    { MP_QSTR_timerId,  MP_ARG_KW_ONLY  | MP_ARG_OBJ,
+      {.u_obj = MP_OBJ_NEW_SMALL_INT(-1)} }
   };
   mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
   mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args),
