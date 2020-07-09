@@ -47,6 +47,7 @@ class TCPHost:
             try:
                 res = self.socket.accept()
                 self.client = res[0]
+                self.client.setblocking(False)
                 self._check(last=True)
             except OSError as e:
                 if "EAGAIN" not in str(e):
