@@ -1,7 +1,7 @@
 """ Compact Int parsing / serialization """
 import io
 
-def to_bytes(i:int):
+def to_bytes(i:int) -> bytes:
     '''encodes an integer as a compact int'''
     if i < 0:
         raise ValueError("integer can't be negative: {}".format(i))
@@ -16,15 +16,16 @@ def to_bytes(i:int):
         raise ValueError("integer too large: {}".format(i))
     return bytes([0xfc+order]) + i.to_bytes(2**order, 'little')
 
-def from_bytes(b:bytes):
+def from_bytes(b:bytes) -> int:
+    """Converts bytes with compact int to int"""
     s = io.BytesIO(b)
     res = read_from(s)
     if len(s.read(1)) > 0:
         raise ValueError("Too many bytes")
     return res
 
-def read_from(stream):
-    '''reads a compact integer from a stream'''
+def read_from(stream) -> int:
+    """Reads a compact integer from a stream."""
     i = stream.read(1)[0]
     if i >= 0xfd:
         bytes_to_read = 2**(i-0xfc)

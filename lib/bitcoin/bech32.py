@@ -22,6 +22,7 @@
 
 CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
+
 def bech32_polymod(values):
     """Internal function that computes the Bech32 checksum."""
     generator = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
@@ -120,7 +121,8 @@ def encode(hrp, witver, witprog):
         return None
     return ret
 
-def bc32encode(data:bytes)->str:
+
+def bc32encode(data: bytes)->str:
     """
     bc32 encoding 
     see https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2020-004-bc32.md
@@ -130,7 +132,8 @@ def bc32encode(data:bytes)->str:
     chk = [(polymod >> 5 * (5 - i)) & 31 for i in range(6)]
     return ''.join([CHARSET[d] for d in dd+chk])
 
-def bc32decode(bc32:str)->bytes:
+
+def bc32decode(bc32: str)->bytes:
     """
     bc32 decoding 
     see https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2020-004-bc32.md
@@ -141,6 +144,6 @@ def bc32decode(bc32:str)->bytes:
     if not all([x in CHARSET for x in bc32]):
         return None
     res = [CHARSET.find(c) for c in bc32.lower()]
-    if bech32_polymod([0] + res)!=0x3fffffff:
+    if bech32_polymod([0] + res) != 0x3fffffff:
         return None
-    return bytes(convertbits(res[:-6],5,8,False))
+    return bytes(convertbits(res[:-6], 5, 8, False))

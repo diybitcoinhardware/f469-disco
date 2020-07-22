@@ -3,9 +3,9 @@ import hashlib
 
 PBKDF2_ROUNDS = 2048
 
-def mnemonic_to_bytes(mnemonic:str):
-    # this function is copied from Jimmy Song's HDPrivateKey.from_mnemonic() method
-    
+def mnemonic_to_bytes(mnemonic:str) -> bytes:
+    """Converts bip39 mnemonic to entopy bytes"""
+    # this function is copied from Jimmy Song's HDPrivateKey.from_mnemonic() method    
     words = mnemonic.strip().split()
     if len(words)%3!=0 or len(words)<12:
         raise ValueError('Invalid recovery phrase')
@@ -58,7 +58,7 @@ def mnemonic_to_bytes(mnemonic:str):
         raise ValueError('Checksum verification failed')
     return data
 
-def mnemonic_is_valid(mnemonic:str):
+def mnemonic_is_valid(mnemonic:str) -> bool:
     """Checks if mnemonic is valid (checksum and words)"""
     try:
         mnemonic_to_bytes(mnemonic)
@@ -66,7 +66,7 @@ def mnemonic_is_valid(mnemonic:str):
     except:
         return False
 
-def mnemonic_to_seed(mnemonic:str, password:str=""):
+def mnemonic_to_seed(mnemonic: str, password: str = "") -> bytes:
     # first we try to conver mnemonic to bytes
     # and raise a correct error if it is invalid
     mnemonic_to_bytes(mnemonic)
@@ -87,7 +87,8 @@ def _extract_index(bits, b, n):
             value += 1
     return value;
 
-def mnemonic_from_bytes(b):
+def mnemonic_from_bytes(b: bytes) -> str:
+    """Converts entropy to bip39 mnemonic"""
     if len(b)%4 != 0:
         raise ValueError("Byte array should be multiple of 4 long (16, 20, ..., 32)")
     total_bits = len(b)*8
@@ -102,7 +103,11 @@ def mnemonic_from_bytes(b):
         mnemonic.append(WORDLIST[idx])
     return " ".join(mnemonic)
 
-def find_candidates(word_part, nmax=5):
+def find_candidates(word_part: str, nmax=5) -> list:
+    """
+    Returns first `nmax` words from bip39 dictionary 
+    that strart with `word_part`.
+    """
     candidates = []
     for w in WORDLIST:
         if w.startswith(word_part):

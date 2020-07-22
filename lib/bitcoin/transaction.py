@@ -11,7 +11,7 @@ SIGHASH_SINGLE = 3
 
 # FIXME: better to have a parent class
 #        that has common methods
-def _parse(cls, b):
+def _parse(cls, b: bytes):
     stream = io.BytesIO(b)
     r = cls.read_from(stream)
     if len(stream.read(1)) > 0:

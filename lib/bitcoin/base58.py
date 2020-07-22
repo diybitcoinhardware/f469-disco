@@ -8,7 +8,8 @@ from . import hashes
 
 B58_DIGITS = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
-def encode(b):
+
+def encode(b: bytes) -> str:
     """Encode bytes to a base58-encoded string"""
 
     # Convert big-endian bytes to integer
@@ -29,7 +30,8 @@ def encode(b):
             break
     return B58_DIGITS[0] * pad + res
 
-def decode(s):
+
+def decode(s: str) -> bytes:
     """Decode a base58-encoding string, returning bytes"""
     if not s:
         return b''
@@ -39,7 +41,8 @@ def decode(s):
     for c in s:
         n *= 58
         if c not in B58_DIGITS:
-            raise ValueError('Character %r is not a valid base58 character' % c)
+            raise ValueError(
+                'Character %r is not a valid base58 character' % c)
         digit = B58_DIGITS.index(c)
         n += digit
 
@@ -52,21 +55,26 @@ def decode(s):
     # Add padding back.
     pad = 0
     for c in s[:-1]:
-        if c == B58_DIGITS[0]: pad += 1
-        else: break
+        if c == B58_DIGITS[0]:
+            pad += 1
+        else:
+            break
     return b'\x00' * pad + res
 
 
-def encode_check(b):
+def encode_check(b: bytes) -> str:
     """Encode bytes to a base58-encoded string with a checksum"""
     return encode(b + hashes.double_sha256(b)[0:4])
 
-def decode_check(s):
+
+def decode_check(s: str) -> bytes:
     """Decode a base58-encoding string with checksum check.
     Returns bytes without checksum
     """
     b = decode(s)
     checksum = hashes.double_sha256(b[:-4])[:4]
     if b[-4:] != checksum:
-        raise ValueError('Checksum mismatch: expected %r, calculated %r' % (b[-4:], checksum))
+        raise ValueError(
+            "Checksum mismatch: expected %r"
+            ", calculated %r" % (b[-4:], checksum))
     return b[:-4]

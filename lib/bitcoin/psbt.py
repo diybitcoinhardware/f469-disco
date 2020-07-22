@@ -7,10 +7,10 @@ from . import ec
 from .script import Script
 from . import script
 
-def ser_string(s):
+def ser_string(s: bytes) -> bytes:
     return compact.to_bytes(len(s))+s
 
-def read_string(stream):
+def read_string(stream) -> bytes:
     l = compact.read_from(stream)
     s = stream.read(l)
     if len(s)!=l:
@@ -30,7 +30,7 @@ class PSBT:
         self.unknown = {}
         self.xpubs = {}
 
-    def serialize(self):
+    def serialize(self) -> bytes:
         # magic bytes
         r = b"psbt\xff"
         # unsigned tx flag
@@ -57,11 +57,11 @@ class PSBT:
         return r
 
     @classmethod
-    def parse(cls, b):
+    def parse(cls, b: bytes) -> cls:
         return _parse(cls, b)
 
     @classmethod
-    def read_from(cls, stream):
+    def read_from(cls, stream) -> cls:
         tx = None
         unknown = {}
         xpubs = {}
@@ -102,8 +102,13 @@ class PSBT:
             psbt.outputs[i] = OutputScope.read_from(stream)
         return psbt
 
-    def sign_with(self, root):
+    def sign_with(self, root) -> int:
+        """
+        Signs psbt with root key (HDKey or similar).
+        Returns number of signatures added to PSBT
+        """
         fingerprint = root.child(0).fingerprint
+        counter = 0
         for i, inp in enumerate(self.inputs):
             for pub in inp.bip32_derivations:
                 # check if it is root key
@@ -132,16 +137,18 @@ class PSBT:
                         sc = script.p2pkh_from_p2wpkh(sc)
                     h = self.tx.sighash_segwit(i, sc, value)
                     sig = hdkey.key.sign(h)
+                    counter += 1
                     if sig is not None:
                         # sig plus sighash_all
                         inp.partial_sigs[mypub] = sig.serialize()+b"\x01"
+        return counter
 
 class DerivationPath:
-    def __init__(self, fingerprint, derivation):
+    def __init__(self, fingerprint: bytes, derivation: list):
         self.fingerprint = fingerprint
         self.derivation = derivation
 
-    def serialize(self):
+    def serialize(self) -> bytes:
         r = b''
         r += self.fingerprint
         for idx in self.derivation:
@@ -149,11 +156,11 @@ class DerivationPath:
         return r
 
     @classmethod
-    def parse(cls, b):
+    def parse(cls, b: bytes) -> cls:
         return _parse(cls, b)
 
     @classmethod
-    def read_from(cls, stream):
+    def read_from(cls, stream) -> cls:
         fingerprint = stream.read(4)
         derivation = []
         while True:
@@ -166,10 +173,10 @@ class DerivationPath:
         return cls(fingerprint, derivation)
 
 class PSBTScope:
-    def __init__(self, unknown={}):
+    def __init__(self, unknown: dict = {}):
         self.unknown = unknown
 
-    def serialize(self):
+    def serialize(self) -> bytes:
         # unknown
         r = b''
         for key in self.unknown:
@@ -180,7 +187,7 @@ class PSBTScope:
         return r
 
     @classmethod
-    def parse(cls, b):
+    def parse(cls, b: bytes):
         return _parse(cls, b)
 
     @classmethod
@@ -199,7 +206,7 @@ class PSBTScope:
         return cls(unknown)
 
 class InputScope(PSBTScope):
-    def __init__(self, unknown={}):
+    def __init__(self, unknown: dict = {}):
         self.unknown = unknown
         self.non_witness_utxo = None
         self.witness_utxo = None
@@ -274,7 +281,7 @@ class InputScope(PSBTScope):
                 else:
                     raise ValueError("Duplicated final scriptwitness")
 
-    def serialize(self):
+    def serialize(self) -> bytes:
         r = b''
         if self.non_witness_utxo is not None:
             r += b'\x01\x00'
@@ -312,7 +319,7 @@ class InputScope(PSBTScope):
         return r
 
 class OutputScope(PSBTScope):
-    def __init__(self, unknown={}):
+    def __init__(self, unknown: dict = {}):
         self.unknown = unknown
         self.redeem_script = None
         self.witness_script = None
@@ -342,7 +349,7 @@ class OutputScope(PSBTScope):
                 else:
                     self.bip32_derivations[pub] = DerivationPath.parse(self.unknown.pop(k))
 
-    def serialize(self):
+    def serialize(self) -> bytes:
         r = b''
         if self.redeem_script is not None:
             r += b'\x01\x00'

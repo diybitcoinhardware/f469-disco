@@ -8,10 +8,10 @@ import io
 SIGHASH_ALL = 1
 
 class Script:
-    def __init__(self, data):
+    def __init__(self, data: bytes):
         self.data = data[:]
 
-    def address(self, network=NETWORKS["main"]):
+    def address(self, network=NETWORKS["main"]) -> str:
         script_type = self.script_type()
         data = self.data
 
@@ -49,11 +49,11 @@ class Script:
         # unknown type
         return None
 
-    def serialize(self):
+    def serialize(self) -> bytes:
         return compact.to_bytes(len(self.data))+self.data
 
     @classmethod
-    def parse(cls, b):
+    def parse(cls, b: bytes) -> cls:
         stream = io.BytesIO(b)
         script = cls.read_from(stream)
         if len(stream.read(1)) > 0:
@@ -61,7 +61,7 @@ class Script:
         return script
 
     @classmethod
-    def read_from(cls, stream):
+    def read_from(cls, stream) -> cls:
         l = compact.read_from(stream)
         data = stream.read(l)
         if len(data)!=l:
@@ -78,14 +78,14 @@ class Witness:
     def __init__(self, items):
         self.items = items[:]
 
-    def serialize(self):
+    def serialize(self) -> bytes:
         res = compact.to_bytes(len(self.items))
         for item in self.items:
             res += compact.to_bytes(len(item)) + item
         return res
 
     @classmethod
-    def parse(cls, b):
+    def parse(cls, b: bytes) -> cls:
         stream = io.BytesIO(b)
         r = cls.read_from(stream)
         if len(stream.read(1)) > 0:
@@ -93,7 +93,7 @@ class Witness:
         return r
 
     @classmethod
-    def read_from(cls, stream):
+    def read_from(cls, stream) -> cls:
         num = compact.read_from(stream)
         items = []
         for i in range(num):
@@ -102,27 +102,27 @@ class Witness:
             items.append(data)
         return cls(items)
 
-def p2pkh(pubkey):
+def p2pkh(pubkey) -> Script:
     """Return Pay-To-Pubkey-Hash ScriptPubkey"""
     return Script(b'\x76\xa9\x14'+hashes.hash160(pubkey.sec())+b'\x88\xac')
 
-def p2sh(script):
+def p2sh(script) -> Script:
     """Return Pay-To-Script-Hash ScriptPubkey"""
     return Script(b'\xa9\x14'+hashes.hash160(script.data)+b'\x87')
 
-def p2wpkh(pubkey):
+def p2wpkh(pubkey) -> Script:
     """Return Pay-To-Witness-Pubkey-Hash ScriptPubkey"""
     return Script(b'\x00\x14'+hashes.hash160(pubkey.sec()))
 
-def p2wsh(script):
+def p2wsh(script) -> Script:
     """Return Pay-To-Witness-Pubkey-Hash ScriptPubkey"""
     return Script(b'\x00\x20'+hashes.sha256(script.data))
 
-def p2pkh_from_p2wpkh(script):
+def p2pkh_from_p2wpkh(script) -> Script:
     """Convert p2wpkh to p2pkh script"""
     return Script(b'\x76\xa9'+script.serialize()[2:]+b'\x88\xac')
 
-def multisig(m:int, pubkeys):
+def multisig(m:int, pubkeys) -> Script:
     if m <= 0 or m > 16:
         raise ValueError("m must be between 1 and 16")
     n = len(pubkeys)
@@ -139,18 +139,18 @@ def multisig(m:int, pubkeys):
 def address_to_scriptpubkey(addr):
     pass
 
-def script_sig_p2pkh(signature, pubkey):
+def script_sig_p2pkh(signature, pubkey) -> Script:
     sec = pubkey.sec()
     der = signature.serialize()+bytes([SIGHASH_ALL])
     data = compact.to_bytes(len(der))+der+compact.to_bytes(len(sec))+sec
     return Script(data)
 
-def script_sig_p2sh(redeem_script):
+def script_sig_p2sh(redeem_script) -> Script:
     """Creates scriptsig for p2sh"""
     # FIXME: implement for legacy p2sh as well
     return Script(redeem_script.serialize())
 
-def witness_p2wpkh(signature, pubkey):
+def witness_p2wpkh(signature, pubkey) -> Witness:
     return Witness([
             signature.serialize()+bytes([SIGHASH_ALL]),
             pubkey.sec()
