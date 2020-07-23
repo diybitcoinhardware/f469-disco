@@ -1,8 +1,6 @@
 .DS_Store
 .vscode
-micropython_unix
-upy-f469disco.bin
-upy-f469disco-empty.bin
+bin
 .ipynb_checkpoints
 *.egg-info
 __pycache__

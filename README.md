@@ -10,44 +10,70 @@ Check out the [documentation](./docs) folder for a tutorial and API of crypto mo
 
 Some examples are located in the [examples](./examples) folder.
 
-## Compile
+To get micropython running on the board:
+- Download the latest `upy-f469disco.bin` file from [releases](https://github.com/diybitcoinhardware/f469-disco/releases)
+- Make sure your power jumper on the board is set to STLK position
+- Connect the board to your computer with miniUSB cable
+- Copy the `upy-f469disco.bin` file to mounted `F469NI_DISCO` volume
+- Wait until it unmounts
+- Connect the board with microUSB cable (on the other side of the board)
+- Use `screen` or `miniterm` or whatever you like to connect to a virtual serial port that appears on your system
+- Have fun with MicroPython on the board! Type `help('modules')` there to get information about installed modules.
 
-To compile the firmware you will need `arm-none-eabi-gcc` compiler.
+## Build
 
-On MacOS install it using brew: `brew install arm-none-eabi-gcc`
+### Prerequisities: Board
 
-On Linux: `sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch openocd`
+To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler.
 
-We have a set of small shell scripts that compile micropython for discovery board or unix/mac. Feel free to check out content of these scripts and tune it if you want:
+On **MacOS** install it using brew: 
+```sh
+brew install arm-none-eabi-gcc
+```
 
-### `./build_f469.sh` 
+On **Linux**: 
+```sh
+sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch openocd
+```
 
-It will compile micropython with frozen bitcoin library. `secp256k1` and `lvgl` are still there though. You should see a `upy-f469disco.bin` file in the root folder when the script is done. Copy this file to the board connected with miniUSB (appearing as `DIS_F469NI` volume in your system)
+On **Windows**: Install linux subsystem and follow Linux instructions.
 
-Freezing python files saves a lot of RAM, but then they can't be edited without rebuilding the firmware.
+### Prerequisities: Simulator
 
-### `./build_f469_empty.sh`
+You may need to install SDL2 library to simulate the screen of the device.
 
-This script does roughly the same as previous but doesn't freeze python bitcoin files - you can copy content of the `lib` folder to your board later and edit them without reflashing the board every time you change the library.
+**Linux**: 
+```sh
+sudo apt install libsdl2-dev
+```
 
-You should see a `upy-f469disco_empty.bin` file in the root folder when the script is done. Copy this file to the board connected with miniUSB (appearing as `DIS_F469NI` volume in your system)
+**MacOS**: 
+```sh
+brew install sdl2
+```
 
-### `./build_unixport.sh`
+**Windows**: 
+- `sudo apt install libsdl2-dev` on Linux side 
+- install [Xming](https://sourceforge.net/projects/xming/) on Windows side.
 
-Compiles unix version of micropython. You may need to install SDL2 library to work with the GUI (`sudo apt install libsdl2-dev` or `brew install sdl2`).
+### Compilation
 
-When done you will get `micropython_unix` binary that you can run - it's very convenient to start developing in simulator and then check that everything works on the board.
+We use makefiles. All resulting binaries will end up in the `bin` folder.
 
-### `./clean_all.sh`
+- `make disco` - firmware for the board with frozen bitcoin library `bin/upy-f469disco.bin`
+- `make empty` - firmware for the board without frozen library - `bin/upy-f469disco-empty.bin`
+- `make unix` - compiles a simulator for mac/unix - `bin/micropython_unix`
 
-If you are having problems with the build try running this script - it will to `make clean` in all folders used in `build_...` scripts.
+To launch a simulator either run `bin/micropython_unix` or simly run `make simulate`
+
+If something is not working you can clean up with `make clean`
 
 ## Run Unittests
 
 Currently unittests work only on linuxport, and there are... not many... Contributions are very welcome!
 
 ```
-./run_tests.sh
+make test
 ```
 
 ## IDE Configuration
