@@ -22,6 +22,8 @@ To get micropython running on the board:
 
 ## Build
 
+Clone this repo recursively - we have many submodules. If you forgot - makefile will do it for you, but be patient, submodules are pretty large.
+
 ### Prerequisities: Board
 
 To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler.
@@ -54,7 +56,8 @@ brew install sdl2
 
 **Windows**: 
 - `sudo apt install libsdl2-dev` on Linux side 
-- install [Xming](https://sourceforge.net/projects/xming/) on Windows side.
+- install and launch [Xming](https://sourceforge.net/projects/xming/) on Windows side
+- set `export DISPLAY=:0` on linux part
 
 ### Compilation
 
@@ -64,7 +67,7 @@ We use makefiles. All resulting binaries will end up in the `bin` folder.
 - `make empty` - firmware for the board without frozen library - `bin/upy-f469disco-empty.bin`
 - `make unix` - compiles a simulator for mac/unix - `bin/micropython_unix`
 
-To launch a simulator either run `bin/micropython_unix` or simly run `make simulate`
+To launch a simulator either run `bin/micropython_unix` or simly run `make simulate`.
 
 If something is not working you can clean up with `make clean`
 
