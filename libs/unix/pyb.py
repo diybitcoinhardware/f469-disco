@@ -4,9 +4,17 @@ from micropython import const
 from tcphost import TCPHost
 from io import BytesIO
 
+class CPU:
+    A2 = "A2"
+    A4 = "A4"
+    G10 = "G10"
+    C2 = "C2"
+    C5 = "C5"
+
 class Pin:
     IN = const(0)
     OUT = const(1)
+    cpu = CPU
     # other values?
     def __init__(self, name, *args, **kwargs):
         self._name = name
