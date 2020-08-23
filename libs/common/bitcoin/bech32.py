@@ -120,30 +120,3 @@ def encode(hrp, witver, witprog):
     if decode(hrp, ret) == (None, None):
         return None
     return ret
-
-
-def bc32encode(data: bytes)->str:
-    """
-    bc32 encoding 
-    see https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2020-004-bc32.md
-    """
-    dd = convertbits(data, 8, 5)
-    polymod = bech32_polymod([0] + dd + [0, 0, 0, 0, 0, 0]) ^ 0x3fffffff
-    chk = [(polymod >> 5 * (5 - i)) & 31 for i in range(6)]
-    return ''.join([CHARSET[d] for d in dd+chk])
-
-
-def bc32decode(bc32: str)->bytes:
-    """
-    bc32 decoding 
-    see https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2020-004-bc32.md
-    """
-    if (bc32.lower() != bc32 and bc32.upper() != bc32):
-        return None
-    bc32 = bc32.lower()
-    if not all([x in CHARSET for x in bc32]):
-        return None
-    res = [CHARSET.find(c) for c in bc32.lower()]
-    if bech32_polymod([0] + res) != 0x3fffffff:
-        return None
-    return bytes(convertbits(res[:-6], 5, 8, False))
