@@ -30,6 +30,7 @@ To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler
 
 On **MacOS** install it using brew: 
 ```sh
+brew tap ArmMbed/homebrew-formulae
 brew install arm-none-eabi-gcc
 ```
 
