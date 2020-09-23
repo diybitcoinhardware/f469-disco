@@ -5,6 +5,7 @@ MPY_DIR ?= micropython
 FROZEN_MANIFEST_EMPTY ?= ../../../manifests/empty.py
 FROZEN_MANIFEST_FULL ?= ../../../manifests/disco.py
 FROZEN_MANIFEST_UNIX ?= ../../../manifests/unix.py
+DEBUG ?= 0
 
 $(TARGET_DIR):
 	mkdir -p $(TARGET_DIR)
@@ -16,7 +17,8 @@ $(MPY_DIR)/mpy-cross/Makefile:
 # cross-compiler
 mpy-cross: $(TARGET_DIR) $(MPY_DIR)/mpy-cross/Makefile
 	@echo Building cross-compiler
-	make -C $(MPY_DIR)/mpy-cross && \
+	make -C $(MPY_DIR)/mpy-cross \
+	DEBUG=$(DEBUG) && \
 	cp $(MPY_DIR)/mpy-cross/mpy-cross $(TARGET_DIR)
 
 # disco board without bitcoin frozen library
@@ -25,7 +27,8 @@ empty: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
 		USER_C_MODULES=$(USER_C_MODULES) \
-		FROZEN_MANIFEST=$(FROZEN_MANIFEST) && \
+		FROZEN_MANIFEST=$(FROZEN_MANIFEST) \
+		DEBUG=$(DEBUG) && \
 	arm-none-eabi-objcopy -O binary \
 		$(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
 		$(TARGET_DIR)/upy-f469disco-empty.bin
@@ -36,7 +39,8 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
 		USER_C_MODULES=$(USER_C_MODULES) \
-		FROZEN_MANIFEST=$(FROZEN_MANIFEST_FULL) && \
+		FROZEN_MANIFEST=$(FROZEN_MANIFEST_FULL) \
+		DEBUG=$(DEBUG) && \
 	arm-none-eabi-objcopy -O binary \
 		$(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
 		$(TARGET_DIR)/upy-f469disco.bin
