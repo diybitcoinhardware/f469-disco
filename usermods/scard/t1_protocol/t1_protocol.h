@@ -23,7 +23,7 @@
 #endif
 #ifndef T1_MAX_APDU_SIZE
   /// Maximal size of APDU supported by protocol implementation
-  #define T1_MAX_APDU_SIZE              256
+  #define T1_MAX_APDU_SIZE              255
 #endif
 #ifndef T1_MAX_TIMEOUT_MS
   /// Maximal timeout in milliseconds

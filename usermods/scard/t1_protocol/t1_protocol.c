@@ -36,7 +36,7 @@
 /// S-block: response bit
 #define SB_RESP_BIT                     0x20
 /// S-block: command mask
-#define SB_CMD_MASK                     0x3F
+#define SB_CMD_MASK                     0x1F
 
 /// Maximal length of EDC code in bytes
 #define MAX_EDC_LEN                     2
@@ -982,6 +982,20 @@ static event_t send_pps_request(t1_inst_t* inst) {
 }
 
 /**
+ * Sends IFSD request
+ *
+ * @param inst  protocol instance
+ * @return      event or empty event with event_t::code = t1_ev_none
+ */
+static event_t send_ifsd_request(t1_inst_t* inst) {
+  event_t ev = send_sblock(inst, t1_sblock_cmd_ifs, false, T1_MAX_LEN_VALUE);
+  if(!is_error(ev)) {
+    inst->tmr_response_timeout = inst->config[t1_cfg_tm_response];
+  }
+  return ev;
+}
+
+/**
  * Sends block from FIFO buffer if available
  *
  * @param inst  protocol instance
@@ -1037,8 +1051,8 @@ static void handle_pps_data(t1_inst_t* inst, const uint8_t* buf,
       inst->tmr_response_timeout = 0U;
       if(check_pps_response(inst, inst->rx_buf, inst->rx_buf_idx)) {
         reset_rx(inst);
-        event_add(p_events, event(t1_ev_connect));
-        event_add(p_events, send_block_if_available(inst));
+        event_add(p_events, send_ifsd_request(inst));
+        inst->fsm_state = t1_st_ifsd_setup;
       } else {
         event_add(p_events, event(t1_ev_pps_failed));
       }
@@ -1064,8 +1078,8 @@ void t1_timer_task(t1_inst_t* inst, uint32_t elapsed_ms) {
               event_add(&events, send_pps_request(inst));
               inst->fsm_state = t1_st_pps_exchange;
             } else { // needs_ppsx
-              event_add(&events, event(t1_ev_connect));
-              event_add(&events, send_block_if_available(inst));
+              event_add(&events, send_ifsd_request(inst));
+              inst->fsm_state = t1_st_ifsd_setup;
             }
           } else { // handle_atr(...)
             event_add(&events, event_ext(t1_ev_err_incompatible, &atr_decoded));
@@ -1075,6 +1089,8 @@ void t1_timer_task(t1_inst_t* inst, uint32_t elapsed_ms) {
         }
       } else if (inst->fsm_state == t1_st_pps_exchange) {
         event_add(&events, event(t1_ev_pps_failed));
+      } else if (inst->fsm_state == t1_st_ifsd_setup) {
+        event_add(&events, event(t1_ev_err_comm_failure));
       } else if (inst->fsm_state == t1_st_wait_response) {
         event_add( &events, handle_bad_block( inst, t1_block_unkn,
                                               t1_rblock_ack_err_other ) );
@@ -1087,6 +1103,8 @@ void t1_timer_task(t1_inst_t* inst, uint32_t elapsed_ms) {
     if(timer_elapsed(&inst->tmr_response_timeout, elapsed_ms)) {
       if(inst->fsm_state == t1_st_pps_exchange) {
         event_add(&events, event(t1_ev_pps_failed));
+      } else if (inst->fsm_state == t1_st_ifsd_setup) {
+        event_add(&events, event(t1_ev_err_comm_failure));
       } else {
         event_add( &events, handle_bad_block( inst, t1_block_unkn,
                                               t1_rblock_ack_err_other ) );
@@ -1148,7 +1166,7 @@ static bool save_apdu_data(t1_inst_t* inst, const uint8_t* inf,
     inst->rx_apdu_prm.len = 0;
   }
 
-  if(inst->rx_apdu_prm.len + inf_len <= T1_MAX_APDU_SIZE) {
+  if(inst->rx_apdu_prm.len + inf_len <= sizeof(inst->rx_apdu)) {
     const uint8_t *p_inf = inf;
     uint8_t *p_apdu = inst->rx_apdu + inst->rx_apdu_prm.len;
     for(size_t i = 0; i < inf_len; i++) {
@@ -1290,7 +1308,11 @@ static event_t handle_sblock(t1_inst_t* inst, t1_sblock_cmd_t command,
   if(inst->fsm_state != t1_st_resync) {
     switch(command) {
       case t1_sblock_cmd_ifs:
-        if(!is_response && inf_byte >= IFS_MIN && inf_byte <= IFS_MAX) {
+        if(is_response) {
+          inst->tmr_response_timeout = 0U;
+          event_t ev = send_block_if_available(inst);
+          return is_error(ev) ? ev : event(t1_ev_connect);
+        } else if(inf_byte >= IFS_MIN && inf_byte <= IFS_MAX) {
           inst->config[t1_cfg_ifsc] = inf_byte;
           return send_sblock(inst, t1_sblock_cmd_ifs, true, -1);
         }
@@ -1517,6 +1539,7 @@ void t1_serial_in(t1_inst_t* inst, const uint8_t* buf, size_t len) {
         handle_pps_data(inst, buf, len, &events);
         break;
 
+      case t1_st_ifsd_setup:
       case t1_st_wait_response:
       case t1_st_resync:
         inst->tmr_interbyte_timeout = inst->config[t1_cfg_tm_interbyte];

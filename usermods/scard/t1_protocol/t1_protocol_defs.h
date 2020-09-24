@@ -26,6 +26,7 @@
 typedef enum {
   t1_st_wait_atr = 0,  ///< Waiting for ATR
   t1_st_pps_exchange,  ///< PPS exchange
+  t1_st_ifsd_setup,    ///< IFSD setup
   t1_st_idle,          ///< Idle state, ready to transmit
   t1_st_wait_response, ///< Waiting for response
   t1_st_resync,        ///< Resynchronization
@@ -138,8 +139,8 @@ typedef struct {
   t1_rx_state_t rx_state;
   /// Number of bytes expected by receiver
   int32_t rx_expected_bytes;
-  /// Buffer storing received APDU
-  uint8_t rx_apdu[T1_MAX_APDU_SIZE];
+  /// Buffer storing received APDU + 2 status bytes
+  uint8_t rx_apdu[T1_MAX_APDU_SIZE + 2U];
   /// Parameter of t1_ev_apdu_received event
   t1_apdu_t rx_apdu_prm;
   /// Flag indicating that a new APDU is going to be received
