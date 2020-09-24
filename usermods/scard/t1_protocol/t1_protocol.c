@@ -566,10 +566,11 @@ static event_t send_rblock(t1_inst_t* inst, t1_rblock_ack_t ack_code,
   buf[prologue_nad] = TX_NAD_VALUE;
   buf[prologue_pcb] = RB_MARKER | (seq_number ? RB_NS_BIT : 0) | (int)ack_code;
   buf[prologue_len] = 0;
-  calc_edc(inst, buf, prologue_size, buf + prologue_size, MAX_EDC_LEN);
+  size_t edc_len = calc_edc(inst, buf, prologue_size, buf + prologue_size,
+                            MAX_EDC_LEN);
 
   // Transmit block
-  if(!inst->cb_serial_out(buf, sizeof(buf), inst->p_user_prm)) {
+  if(!inst->cb_serial_out(buf, prologue_size + edc_len, inst->p_user_prm)) {
     return event(t1_ev_err_serial_out);
   }
   inst->tmr_response_timeout = inst->config[t1_cfg_tm_response];
