@@ -1,5 +1,7 @@
 # ref: https://github.com/bitcoin-core/HWI/blob/master/hwilib/serializations.py
 
+from collections import OrderedDict
+
 from .transaction import Transaction, TransactionOutput, _parse
 from . import compact
 from . import bip32
@@ -28,7 +30,7 @@ class PSBT:
             self.inputs = []
             self.outputs = []
         self.unknown = {}
-        self.xpubs = {}
+        self.xpubs = OrderedDict()
 
     def serialize(self) -> bytes:
         # magic bytes
@@ -64,7 +66,7 @@ class PSBT:
     def read_from(cls, stream) -> cls:
         tx = None
         unknown = {}
-        xpubs = {}
+        xpubs = OrderedDict()
         # check magic
         if(stream.read(5)!=b'psbt\xff'):
             raise ValueError("Invalid PSBT")
@@ -210,11 +212,11 @@ class InputScope(PSBTScope):
         self.unknown = unknown
         self.non_witness_utxo = None
         self.witness_utxo = None
-        self.partial_sigs = {}
+        self.partial_sigs = OrderedDict()
         self.sighash_type = None
         self.redeem_script = None
         self.witness_script = None
-        self.bip32_derivations = {}
+        self.bip32_derivations = OrderedDict()
         self.final_scriptsig = None
         self.final_scriptwitness = None
         self.parse_unknowns()
@@ -223,14 +225,18 @@ class InputScope(PSBTScope):
         # go through all the unknowns and parse them
         for k in self.unknown:
             # legacy utxo
-            if k == b'\x00':
-                if self.non_witness_utxo is not None:
+            if k[0] == 0x00:
+                if len(k) != 1:
+                    raise ValueError("Invalid non-witness utxo key")
+                elif self.non_witness_utxo is not None:
                     raise ValueError("Duplicated utxo value")
                 else:
                     self.non_witness_utxo = Transaction.parse(self.unknown.pop(k))
             # witness utxo
-            elif k == b'\x01':
-                if self.witness_utxo is not None:
+            elif k[0] == 0x01:
+                if len(k) != 1:
+                    raise ValueError("Invalid witness utxo key")
+                elif self.witness_utxo is not None:
                     raise ValueError("Duplicated utxo value")
                 else:
                     self.witness_utxo = TransactionOutput.parse(self.unknown.pop(k))
@@ -242,22 +248,28 @@ class InputScope(PSBTScope):
                 else:
                     self.partial_sigs[pub] = self.unknown.pop(k)
             # hash type
-            elif k == b'\x03':
-                if self.sighash_type is None:
+            elif k[0] == 0x03:
+                if len(k) != 1:
+                    raise ValueError("Invalid sighash type key")
+                elif self.sighash_type is None:
                     if len(self.unknown[k])!=4:
                         raise ValueError("Sighash type should be 4 bytes long")
                     self.sighash_type = int.from_bytes(self.unknown.pop(k), 'big')
                 else:
                     raise ValueError("Duplicated sighash type")
             # redeem script
-            elif k == b'\x04':
-                if self.redeem_script is None:
+            elif k[0] == 0x04:
+                if len(k) != 1:
+                    raise ValueError("Invalid redeem script key")
+                elif self.redeem_script is None:
                     self.redeem_script = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated redeem script")
             # witness script
-            elif k == b'\x05':
-                if self.witness_script is None:
+            elif k[0] == 0x05:
+                if len(k) != 1:
+                    raise ValueError("Invalid witness script key")
+                elif self.witness_script is None:
                     self.witness_script = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated witness script")
@@ -269,14 +281,18 @@ class InputScope(PSBTScope):
                 else:
                     self.bip32_derivations[pub] = DerivationPath.parse(self.unknown.pop(k))
             # final scriptsig
-            elif k == b'\x07':
-                if self.final_scriptsig is None:
+            elif k[0] == 0x07:
+                if len(k) != 1:
+                    raise ValueError("Invalid final scriptsig key")
+                elif self.final_scriptsig is None:
                     self.final_scriptsig = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated final scriptsig")
             # final script witness
-            elif k == b'\x08':
-                if self.final_scriptwitness is None:
+            elif k[0] == 0x08:
+                if len(k) != 1:
+                    raise ValueError("Invalid final scriptwitness key")
+                elif self.final_scriptwitness is None:
                     self.final_scriptwitness = Witness.parse(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated final scriptwitness")
@@ -323,21 +339,25 @@ class OutputScope(PSBTScope):
         self.unknown = unknown
         self.redeem_script = None
         self.witness_script = None
-        self.bip32_derivations = {}
+        self.bip32_derivations = OrderedDict()
         self.parse_unknowns()
 
     def parse_unknowns(self):
         # go through all the unknowns and parse them
         for k in self.unknown:
             # redeem script
-            if k == b'\x00':
-                if self.redeem_script is None:
+            if k[0] == 0x00:
+                if len(k) != 1:
+                    raise ValueError("Invalid redeem script key")
+                elif self.redeem_script is None:
                     self.redeem_script = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated redeem script")
             # witness script
-            elif k == b'\x01':
-                if self.witness_script is None:
+            elif k[0] == 0x01:
+                if len(k) != 1:
+                    raise ValueError("Invalid witness script key")
+                elif self.witness_script is None:
                     self.witness_script = Script(self.unknown.pop(k))
                 else:
                     raise ValueError("Duplicated witness script")
