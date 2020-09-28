@@ -137,7 +137,10 @@ class PSBT:
                         sc = inp.witness_script
                     if sc.script_type() == "p2wpkh":
                         sc = script.p2pkh_from_p2wpkh(sc)
-                    h = self.tx.sighash_segwit(i, sc, value)
+                    if inp.witness_script is not None: # TransactionInput::is_segwit doesn't work?
+                        h = self.tx.sighash_segwit(i, sc, value)
+                    else:
+                        h = self.tx.sighash_legacy(i, sc)
                     sig = hdkey.key.sign(h)
                     counter += 1
                     if sig is not None:
