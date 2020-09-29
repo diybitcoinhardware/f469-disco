@@ -137,7 +137,9 @@ class PSBT:
                         sc = inp.witness_script
                     if sc.script_type() == "p2wpkh":
                         sc = script.p2pkh_from_p2wpkh(sc)
-                    if inp.witness_script is not None: # TransactionInput::is_segwit doesn't work?
+                    # detect if it is a segwit input
+                    # tx.input[i] doesn't have any info about that in raw psbt
+                    if inp.witness_script is not None or inp.witness_utxo is not None:
                         h = self.tx.sighash_segwit(i, sc, value)
                     else:
                         h = self.tx.sighash_legacy(i, sc)
