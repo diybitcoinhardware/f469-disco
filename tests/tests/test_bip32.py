@@ -3,7 +3,6 @@
 
 from binascii import unhexlify
 from bitcoin.bip32 import HDKey
-from collections import namedtuple
 from unittest import TestCase
 
 HARD = lambda x: x + 0x80000000
