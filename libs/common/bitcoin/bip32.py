@@ -24,9 +24,9 @@ class HDKey:
             self.version = version[:]
         else:
             if len(key.serialize()) == 32:
-                version = NETWORKS["main"]["xprv"]
+                self.version = NETWORKS["main"]["xprv"]
             else:
-                version = NETWORKS["main"]["xpub"]
+                self.version = NETWORKS["main"]["xpub"]
         self.chain_code = chain_code[:]
         self.depth = depth
         self.fingerprint = fingerprint[:]
