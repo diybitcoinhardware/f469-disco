@@ -9,15 +9,18 @@ from . import ec
 from .script import Script
 from . import script
 
+
 def ser_string(s: bytes) -> bytes:
-    return compact.to_bytes(len(s))+s
+    return compact.to_bytes(len(s)) + s
+
 
 def read_string(stream) -> bytes:
     l = compact.read_from(stream)
     s = stream.read(l)
-    if len(s)!=l:
+    if len(s) != l:
         raise ValueError("Failed to read %d bytes" % l)
     return s
+
 
 class PSBT:
     def __init__(self, tx=None):
@@ -42,7 +45,7 @@ class PSBT:
         r += ser_string(tx)
         # xpubs
         for xpub in self.xpubs:
-            r += ser_string(b'\x01'+xpub.serialize())
+            r += ser_string(b"\x01" + xpub.serialize())
             r += ser_string(self.xpubs[xpub].serialize())
         # unknown
         for key in self.unknown:
@@ -68,7 +71,7 @@ class PSBT:
         unknown = {}
         xpubs = OrderedDict()
         # check magic
-        if(stream.read(5)!=b'psbt\xff'):
+        if stream.read(5) != b"psbt\xff":
             raise ValueError("Invalid PSBT")
         while True:
             key = read_string(stream)
@@ -77,16 +80,18 @@ class PSBT:
                 break
             value = read_string(stream)
             # tx
-            if key == b'\x00':
+            if key == b"\x00":
                 if tx is None:
                     tx = Transaction.parse(value)
                 else:
-                    raise ValueError("Failed to parse PSBT - duplicated transaction field")
+                    raise ValueError(
+                        "Failed to parse PSBT - duplicated transaction field"
+                    )
             else:
                 if key in unknown:
                     raise ValueError("Duplicated key")
                 unknown[key] = value
-        
+
         psbt = cls(tx)
         # now we can go through all the key-values and parse them
         for k in unknown:
@@ -139,10 +144,15 @@ class PSBT:
                         sc = script.p2pkh_from_p2wpkh(sc)
                     # detect if it is a segwit input
                     # tx.input[i] doesn't have any info about that in raw psbt
-                    if (inp.witness_script is not None or
-                        inp.witness_utxo is not None or
-                        utxo.script_pubkey.script_type() in {'p2wpkh', 'p2wsh'} or
-                        (inp.redeem_script is not None and inp.redeem_script.script_type() in {'p2wpkh', 'p2wsh'})):
+                    if (
+                        inp.witness_script is not None
+                        or inp.witness_utxo is not None
+                        or utxo.script_pubkey.script_type() in {"p2wpkh", "p2wsh"}
+                        or (
+                            inp.redeem_script is not None
+                            and inp.redeem_script.script_type() in {"p2wpkh", "p2wsh"}
+                        )
+                    ):
                         h = self.tx.sighash_segwit(i, sc, value)
                     else:
                         h = self.tx.sighash_legacy(i, sc)
@@ -150,8 +160,9 @@ class PSBT:
                     counter += 1
                     if sig is not None:
                         # sig plus sighash_all
-                        inp.partial_sigs[mypub] = sig.serialize()+b"\x01"
+                        inp.partial_sigs[mypub] = sig.serialize() + b"\x01"
         return counter
+
 
 class DerivationPath:
     def __init__(self, fingerprint: bytes, derivation: list):
@@ -159,10 +170,10 @@ class DerivationPath:
         self.derivation = derivation
 
     def serialize(self) -> bytes:
-        r = b''
+        r = b""
         r += self.fingerprint
         for idx in self.derivation:
-            r += idx.to_bytes(4, 'little')
+            r += idx.to_bytes(4, "little")
         return r
 
     @classmethod
@@ -179,8 +190,9 @@ class DerivationPath:
                 break
             if len(r) < 4:
                 raise ValueError("Invalid length")
-            derivation.append(int.from_bytes(r, 'little'))
+            derivation.append(int.from_bytes(r, "little"))
         return cls(fingerprint, derivation)
+
 
 class PSBTScope:
     def __init__(self, unknown: dict = {}):
@@ -188,12 +200,12 @@ class PSBTScope:
 
     def serialize(self) -> bytes:
         # unknown
-        r = b''
+        r = b""
         for key in self.unknown:
             r += ser_string(key)
             r += ser_string(self.unknown[key])
         # separator
-        r += b'\x00'
+        r += b"\x00"
         return r
 
     @classmethod
@@ -214,6 +226,7 @@ class PSBTScope:
             unknown[key] = value
         # now we can go through all the key-values and parse them
         return cls(unknown)
+
 
 class InputScope(PSBTScope):
     def __init__(self, unknown: dict = {}):
@@ -260,9 +273,9 @@ class InputScope(PSBTScope):
                 if len(k) != 1:
                     raise ValueError("Invalid sighash type key")
                 elif self.sighash_type is None:
-                    if len(self.unknown[k])!=4:
+                    if len(self.unknown[k]) != 4:
                         raise ValueError("Sighash type should be 4 bytes long")
-                    self.sighash_type = int.from_bytes(self.unknown.pop(k), 'big')
+                    self.sighash_type = int.from_bytes(self.unknown.pop(k), "big")
                 else:
                     raise ValueError("Duplicated sighash type")
             # redeem script
@@ -287,7 +300,9 @@ class InputScope(PSBTScope):
                 if pub in self.bip32_derivations:
                     raise ValueError("Duplicated derivation path")
                 else:
-                    self.bip32_derivations[pub] = DerivationPath.parse(self.unknown.pop(k))
+                    self.bip32_derivations[pub] = DerivationPath.parse(
+                        self.unknown.pop(k)
+                    )
             # final scriptsig
             elif k[0] == 0x07:
                 if len(k) != 1:
@@ -306,41 +321,42 @@ class InputScope(PSBTScope):
                     raise ValueError("Duplicated final scriptwitness")
 
     def serialize(self) -> bytes:
-        r = b''
+        r = b""
         if self.non_witness_utxo is not None:
-            r += b'\x01\x00'
+            r += b"\x01\x00"
             r += ser_string(self.non_witness_utxo.serialize())
         if self.witness_utxo is not None:
-            r += b'\x01\x01'
+            r += b"\x01\x01"
             r += ser_string(self.witness_utxo.serialize())
         for pub in self.partial_sigs:
-            r += ser_string(b'\x02'+pub.serialize())
+            r += ser_string(b"\x02" + pub.serialize())
             r += ser_string(self.partial_sigs[pub])
         if self.sighash_type is not None:
-            r += b'\x01\x03'
-            r += ser_string(self.sighash_type.to_bytes(4, 'big'))
+            r += b"\x01\x03"
+            r += ser_string(self.sighash_type.to_bytes(4, "big"))
         if self.redeem_script is not None:
-            r += b'\x01\x04'
-            r += self.redeem_script.serialize() # script serialization has length
+            r += b"\x01\x04"
+            r += self.redeem_script.serialize()  # script serialization has length
         if self.witness_script is not None:
-            r += b'\x01\x05'
-            r += self.witness_script.serialize() # script serialization has length
+            r += b"\x01\x05"
+            r += self.witness_script.serialize()  # script serialization has length
         for pub in self.bip32_derivations:
-            r += ser_string(b'\x06'+pub.serialize())
+            r += ser_string(b"\x06" + pub.serialize())
             r += ser_string(self.bip32_derivations[pub].serialize())
         if self.final_scriptsig is not None:
-            r += b'\x01\x07'
+            r += b"\x01\x07"
             r += self.final_scriptsig.serialize()
         if self.final_scriptwitness is not None:
-            r += b'\x01\x08'
+            r += b"\x01\x08"
             r += ser_string(self.final_scriptwitness.serialize())
         # unknown
         for key in self.unknown:
             r += ser_string(key)
             r += ser_string(self.unknown[key])
         # separator
-        r += b'\x00'
+        r += b"\x00"
         return r
+
 
 class OutputScope(PSBTScope):
     def __init__(self, unknown: dict = {}):
@@ -375,23 +391,25 @@ class OutputScope(PSBTScope):
                 if pub in self.bip32_derivations:
                     raise ValueError("Duplicated derivation path")
                 else:
-                    self.bip32_derivations[pub] = DerivationPath.parse(self.unknown.pop(k))
+                    self.bip32_derivations[pub] = DerivationPath.parse(
+                        self.unknown.pop(k)
+                    )
 
     def serialize(self) -> bytes:
-        r = b''
+        r = b""
         if self.redeem_script is not None:
-            r += b'\x01\x00'
-            r += self.redeem_script.serialize() # script serialization has length
+            r += b"\x01\x00"
+            r += self.redeem_script.serialize()  # script serialization has length
         if self.witness_script is not None:
-            r += b'\x01\x01'
-            r += self.witness_script.serialize() # script serialization has length
+            r += b"\x01\x01"
+            r += self.witness_script.serialize()  # script serialization has length
         for pub in self.bip32_derivations:
-            r += ser_string(b'\x02'+pub.serialize())
+            r += ser_string(b"\x02" + pub.serialize())
             r += ser_string(self.bip32_derivations[pub].serialize())
         # unknown
         for key in self.unknown:
             r += ser_string(key)
             r += ser_string(self.unknown[key])
         # separator
-        r += b'\x00'
+        r += b"\x00"
         return r

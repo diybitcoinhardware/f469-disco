@@ -12,14 +12,12 @@ class PublicKey:
     @classmethod
     def parse(cls, sec: bytes) -> cls:
         point = secp256k1.ec_pubkey_parse(sec)
-        compressed = (sec[0] != 0x04)
+        compressed = sec[0] != 0x04
         return cls(point, compressed)
 
     def sec(self) -> bytes:
         """Sec representation of the key"""
-        flag = (secp256k1.EC_COMPRESSED
-                if self.compressed
-                else secp256k1.EC_UNCOMPRESSED)
+        flag = secp256k1.EC_COMPRESSED if self.compressed else secp256k1.EC_UNCOMPRESSED
         return secp256k1.ec_pubkey_serialize(self._point, flag)
 
     def serialize(self) -> bytes:
@@ -37,7 +35,7 @@ class PublicKey:
         return self.serialize() > other.serialize()
 
     def __repr__(self):
-        return "PublicKey(%s)" % hexlify(self.serialize()).decode('utf-8')
+        return "PublicKey(%s)" % hexlify(self.serialize()).decode("utf-8")
 
     def __eq__(self, other):
         return self._point == other._point
@@ -65,7 +63,7 @@ class PrivateKey:
         This class doesn't store this information though.
         """
         prefix = network["wif"]
-        b = prefix+self._secret
+        b = prefix + self._secret
         if self.compressed:
             b += bytes([0x01])
         return base58.encode_check(b)

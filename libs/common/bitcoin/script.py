@@ -7,6 +7,7 @@ import io
 
 SIGHASH_ALL = 1
 
+
 class Script:
     def __init__(self, data: bytes):
         self.data = data[:]
@@ -18,15 +19,15 @@ class Script:
         if script_type is None:
             raise ValueError("This type of script doesn't have address representation")
 
-        if script_type=="p2pkh":
+        if script_type == "p2pkh":
             d = network["p2pkh"] + data[3:23]
             return base58.encode_check(d)
 
-        if script_type=="p2sh":
+        if script_type == "p2sh":
             d = network["p2sh"] + data[2:22]
             return base58.encode_check(d)
 
-        if script_type=="p2wpkh" or script_type=="p2wsh":
+        if script_type == "p2wpkh" or script_type == "p2wsh":
             return bech32.encode(network["bech32"], data[0], data[2:])
 
         # we should never get here
@@ -35,22 +36,22 @@ class Script:
     def script_type(self):
         data = self.data
         # OP_DUP OP_HASH160 <20:hash160(pubkey)> OP_EQUALVERIFY OP_CHECKSIG
-        if len(data)==25 and data[:3]==b'\x76\xa9\x14' and data[-2:]==b'\x88\xac':
+        if len(data) == 25 and data[:3] == b"\x76\xa9\x14" and data[-2:] == b"\x88\xac":
             return "p2pkh"
         # OP_HASH160 <20:hash160(script)> OP_EQUAL
-        if len(data)==23 and data[:2]==b'\xa9\x14' and data[-1]==0x87:
+        if len(data) == 23 and data[:2] == b"\xa9\x14" and data[-1] == 0x87:
             return "p2sh"
         # 0 <20:hash160(pubkey)>
-        if len(data)==22 and data[:2]==b'\x00\x14':
+        if len(data) == 22 and data[:2] == b"\x00\x14":
             return "p2wpkh"
         # 0 <32:sha256(script)>
-        if len(data)==34 and data[:2]==b'\x00\x20':
+        if len(data) == 34 and data[:2] == b"\x00\x20":
             return "p2wsh"
         # unknown type
         return None
 
     def serialize(self) -> bytes:
-        return compact.to_bytes(len(self.data))+self.data
+        return compact.to_bytes(len(self.data)) + self.data
 
     @classmethod
     def parse(cls, b: bytes) -> cls:
@@ -64,7 +65,7 @@ class Script:
     def read_from(cls, stream) -> cls:
         l = compact.read_from(stream)
         data = stream.read(l)
-        if len(data)!=l:
+        if len(data) != l:
             raise ValueError("Cant read %d bytes" % l)
         return cls(data)
 
@@ -73,6 +74,7 @@ class Script:
 
     def __ne__(self, other):
         return self.data != other.data
+
 
 class Witness:
     def __init__(self, items):
@@ -102,56 +104,63 @@ class Witness:
             items.append(data)
         return cls(items)
 
+
 def p2pkh(pubkey) -> Script:
     """Return Pay-To-Pubkey-Hash ScriptPubkey"""
-    return Script(b'\x76\xa9\x14'+hashes.hash160(pubkey.sec())+b'\x88\xac')
+    return Script(b"\x76\xa9\x14" + hashes.hash160(pubkey.sec()) + b"\x88\xac")
+
 
 def p2sh(script) -> Script:
     """Return Pay-To-Script-Hash ScriptPubkey"""
-    return Script(b'\xa9\x14'+hashes.hash160(script.data)+b'\x87')
+    return Script(b"\xa9\x14" + hashes.hash160(script.data) + b"\x87")
+
 
 def p2wpkh(pubkey) -> Script:
     """Return Pay-To-Witness-Pubkey-Hash ScriptPubkey"""
-    return Script(b'\x00\x14'+hashes.hash160(pubkey.sec()))
+    return Script(b"\x00\x14" + hashes.hash160(pubkey.sec()))
+
 
 def p2wsh(script) -> Script:
     """Return Pay-To-Witness-Pubkey-Hash ScriptPubkey"""
-    return Script(b'\x00\x20'+hashes.sha256(script.data))
+    return Script(b"\x00\x20" + hashes.sha256(script.data))
+
 
 def p2pkh_from_p2wpkh(script) -> Script:
     """Convert p2wpkh to p2pkh script"""
-    return Script(b'\x76\xa9'+script.serialize()[2:]+b'\x88\xac')
+    return Script(b"\x76\xa9" + script.serialize()[2:] + b"\x88\xac")
 
-def multisig(m:int, pubkeys) -> Script:
+
+def multisig(m: int, pubkeys) -> Script:
     if m <= 0 or m > 16:
         raise ValueError("m must be between 1 and 16")
     n = len(pubkeys)
     if n < m or n > 16:
         raise ValueError("Number of pubkeys must be between %d and 16" % m)
-    data = bytes([80+m])
+    data = bytes([80 + m])
     for pubkey in pubkeys:
         sec = pubkey.sec()
-        data += bytes([len(sec)])+sec
+        data += bytes([len(sec)]) + sec
     # OP_m <len:pubkey> ... <len:pubkey> OP_n OP_CHECKMULTISIG
-    data += bytes([80+n, 0xae])
+    data += bytes([80 + n, 0xAE])
     return Script(data)
+
 
 def address_to_scriptpubkey(addr):
     pass
 
+
 def script_sig_p2pkh(signature, pubkey) -> Script:
     sec = pubkey.sec()
-    der = signature.serialize()+bytes([SIGHASH_ALL])
-    data = compact.to_bytes(len(der))+der+compact.to_bytes(len(sec))+sec
+    der = signature.serialize() + bytes([SIGHASH_ALL])
+    data = compact.to_bytes(len(der)) + der + compact.to_bytes(len(sec)) + sec
     return Script(data)
+
 
 def script_sig_p2sh(redeem_script) -> Script:
     """Creates scriptsig for p2sh"""
     # FIXME: implement for legacy p2sh as well
     return Script(redeem_script.serialize())
 
+
 def witness_p2wpkh(signature, pubkey) -> Witness:
-    return Witness([
-            signature.serialize()+bytes([SIGHASH_ALL]),
-            pubkey.sec()
-        ])
+    return Witness([signature.serialize() + bytes([SIGHASH_ALL]), pubkey.sec()])

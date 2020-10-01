@@ -24,7 +24,11 @@ class TimeoutError(Exception):
 
 
 # Used when calling Loop.call_exception_handler
-_exc_context = {"message": "Task exception wasn't retrieved", "exception": None, "future": None}
+_exc_context = {
+    "message": "Task exception wasn't retrieved",
+    "exception": None,
+    "future": None,
+}
 
 
 ################################################################################
@@ -69,7 +73,8 @@ def sleep(t):
 class IOQueue:
     def __init__(self):
         self.poller = select.poll()
-        self.map = {}  # maps id(stream) to [task_waiting_read, task_waiting_write, stream]
+        # maps id(stream) to [task_waiting_read, task_waiting_write, stream]
+        self.map = ({})
 
     def _enqueue(self, s, idx):
         if id(s) not in self.map:

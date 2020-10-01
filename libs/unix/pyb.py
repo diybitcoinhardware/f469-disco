@@ -4,12 +4,14 @@ from micropython import const
 from tcphost import TCPHost
 from io import BytesIO
 
+
 class CPU:
     A2 = "A2"
     A4 = "A4"
     G10 = "G10"
     C2 = "C2"
     C5 = "C5"
+
 
 class Pin:
     IN = const(0)
@@ -25,16 +27,19 @@ class Pin:
     def off(self):
         print("Pin", self._name, "set to OFF")
 
+
 class UART(TCPHost):
     def __init__(self, name, *args, **kwargs):
         # port will be 5941 for YA
-        port = int.from_bytes(name.encode(), 'big')
+        port = int.from_bytes(name.encode(), "big")
         super().__init__(port)
         print("Running TCP-UART on 127.0.0.1 port %d - connect with telnet" % port)
+
 
 class USB_VCP(TCPHost):
     RTS = 1
     CTS = 2
+
     def __init__(self, *args, **kwargs):
         port = 8789
         super().__init__(port)
@@ -45,7 +50,8 @@ class USB_VCP(TCPHost):
 
     def any(self):
         # USB_VCP returns a bool here
-        return (super().any() > 0)
+        return super().any() > 0
+
 
 class USB_HID:
     def __init__(self, *args, **kwargs):
@@ -54,9 +60,9 @@ class USB_HID:
         print("Running TCP-USB_HID on 127.0.0.1 port %d - connect with telnet" % port)
 
     def recv(self, data, *, timeout=5000):
-        """ 
+        """
         Receive data on the bus:
-        can be an integer, which is the number of bytes to receive, 
+        can be an integer, which is the number of bytes to receive,
         or a mutable buffer, which will be filled with received bytes
         """
         # simulating weird behaviour of hid class
@@ -81,11 +87,13 @@ class USB_HID:
         self._host.write(data[:64])
         return len(data)
 
+
 _USB_MODE = None
+
 
 def usb_mode(*args, **kwargs):
     global _USB_MODE
-    if len(args)==0:
+    if len(args) == 0:
         return _USB_MODE
     mode = args[0]
     _USB_MODE = mode

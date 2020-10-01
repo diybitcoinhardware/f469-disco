@@ -4,19 +4,20 @@ Implements the HMAC algorithm as described by RFC 2104.
 """
 # from https://github.com/micropython/micropython-lib/blob/master/hmac/hmac.py
 
-#from _operator import _compare_digest as compare_digest
+# from _operator import _compare_digest as compare_digest
 import hashlib as _hashlib
 
 trans_5C = bytes((x ^ 0x5C) for x in range(256))
 trans_36 = bytes((x ^ 0x36) for x in range(256))
 
+
 def translate(d, t):
     return bytes(t[x] for x in d)
+
 
 # The size of the digests returned by HMAC depends on the underlying
 # hashing module used.  Use digest_size from the instance of HMAC instead.
 digest_size = None
-
 
 
 class HMAC:
@@ -24,9 +25,10 @@ class HMAC:
 
     This supports the API for Cryptographic Hash Functions (PEP 247).
     """
+
     blocksize = 64  # 512-bit HMAC; can be changed in subclasses.
 
-    def __init__(self, key, msg = None, digestmod = None):
+    def __init__(self, key, msg=None, digestmod=None):
         """Create a new HMAC object.
 
         key:       key for the keyed hash object.
@@ -42,23 +44,27 @@ class HMAC:
         """
 
         if not isinstance(key, (bytes, bytearray)):
-            raise TypeError("key: expected bytes or bytearray, but got %r" % type(key).__name__)
+            raise TypeError(
+                "key: expected bytes or bytearray, but got %r" % type(key).__name__
+            )
 
         if digestmod is None:
-            raise RuntimeError("HMAC() without an explicit digestmod argument is not supported")
+            raise RuntimeError(
+                "HMAC() without an explicit digestmod argument is not supported"
+            )
 
         if callable(digestmod):
             self.digest_cons = digestmod
         elif isinstance(digestmod, str):
-            self.digest_cons = lambda d=b'': _hashlib.new(digestmod, d)
+            self.digest_cons = lambda d=b"": _hashlib.new(digestmod, d)
         else:
-            self.digest_cons = lambda d=b'': digestmod.new(d)
+            self.digest_cons = lambda d=b"": digestmod.new(d)
 
         self.outer = self.digest_cons()
         self.inner = self.digest_cons()
         self.digest_size = self.inner.digest_size
 
-        if hasattr(self.inner, 'block_size'):
+        if hasattr(self.inner, "block_size"):
             blocksize = self.inner.block_size
             if blocksize < 16:
                 blocksize = self.blocksize
@@ -83,8 +89,7 @@ class HMAC:
         return "hmac-" + self.inner.name
 
     def update(self, msg):
-        """Update this hashing object with the string msg.
-        """
+        """Update this hashing object with the string msg."""
         self.inner.update(msg)
 
     def copy(self):
@@ -120,12 +125,12 @@ class HMAC:
         return h.digest()
 
     def hexdigest(self):
-        """Like digest(), but returns a string of hexadecimal digits instead.
-        """
+        """Like digest(), but returns a string of hexadecimal digits instead."""
         h = self._current()
         return h.hexdigest()
 
-def new(key, msg = None, digestmod = None):
+
+def new(key, msg=None, digestmod=None):
     """Create a new hashing object and return it.
 
     key: The starting key for the hash.

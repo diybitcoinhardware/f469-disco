@@ -8,21 +8,27 @@ required for normal functionality.
 """
 import socket
 
+
 class SmartcardException(Exception):
     pass
+
 
 class CardConnectionException(SmartcardException):
     pass
 
+
 class NoCardException(SmartcardException):
     pass
+
 
 def enableDebug(*args, **kwargs):
     pass
 
+
 class CardConnection:
     T1_protocol = 1
     T0_protocol = 2
+
     def __init__(self):
         self.s = None
 
@@ -31,7 +37,7 @@ class CardConnection:
             return True
         try:
             self.s = socket.socket()
-            addr = socket.getaddrinfo('127.0.0.1', 21111)[0][-1]
+            addr = socket.getaddrinfo("127.0.0.1", 21111)[0][-1]
             self.s.connect(addr)
             return True
         except:
@@ -54,6 +60,7 @@ class CardConnection:
             raise NoCardException("no card inserted")
         self.s.send(bytes(data))
         return self.s.recv(300)
+
 
 class Reader:
     def __init__(self, *args, **kwargs):

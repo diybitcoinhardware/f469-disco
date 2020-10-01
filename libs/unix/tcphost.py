@@ -12,12 +12,12 @@ class TCPHost:
         self.socket.listen(5)
         self.socket.setblocking(False)
         self.client = None
-        self.buf = b''
+        self.buf = b""
         self._check()
 
     def isconnected(self):
         self._check()
-        return (self.client is not None)
+        return self.client is not None
 
     def any(self):
         self._check()
@@ -57,12 +57,12 @@ class TCPHost:
         self._check()
         if nbytes is None or nbytes >= len(self.buf):
             buf = self.buf
-            self.buf = b''
+            self.buf = b""
         else:
             buf = self.buf[:nbytes]
             self.buf = self.buf[nbytes:]
         # uart.read() returns None if there is nothing
-        if len(buf)==0:
+        if len(buf) == 0:
             return None
         return buf
 
@@ -81,5 +81,6 @@ class TCPHost:
         except:
             return 0
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     tcphost = TCPHost()

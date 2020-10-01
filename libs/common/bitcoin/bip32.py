@@ -11,15 +11,18 @@ from binascii import hexlify
 class HDKey:
     """ HD Private or Public key """
 
-    def __init__(self, key, chain_code: bytes,
-                 version=None,
-                 depth: int = 0,
-                 fingerprint: bytes = b'\x00\x00\x00\x00',
-                 child_number: int = 0):
+    def __init__(
+        self,
+        key,
+        chain_code: bytes,
+        version=None,
+        depth: int = 0,
+        fingerprint: bytes = b"\x00\x00\x00\x00",
+        child_number: int = 0,
+    ):
         self.key = key
         if len(key.serialize()) != 32 and len(key.serialize()) != 33:
-            raise ValueError(
-                "Invalid key. Should be private or compressed public")
+            raise ValueError("Invalid key. Should be private or compressed public")
         if version is not None:
             self.version = version[:]
         else:
@@ -38,11 +41,9 @@ class HDKey:
             raise ValueError("Invalid version")
 
     @classmethod
-    def from_seed(cls,
-                  seed: bytes,
-                  version=NETWORKS["main"]["xprv"]):
+    def from_seed(cls, seed: bytes, version=NETWORKS["main"]["xprv"]):
         """Creates a root private key from 64-byte seed"""
-        raw = hashlib.hmac_sha512(b'Bitcoin seed', seed)
+        raw = hashlib.hmac_sha512(b"Bitcoin seed", seed)
         private_key = ec.PrivateKey(raw[:32])
         chain_code = raw[32:]
         return cls(private_key, chain_code, version=version)
@@ -55,16 +56,16 @@ class HDKey:
     @property
     def is_private(self) -> bool:
         """ checks if the HDKey is private or public """
-        return (len(self.key.serialize()) == 32)
+        return len(self.key.serialize()) == 32
 
     def serialize(self, version=None) -> bytes:
         if version is None:
             version = self.version
         b = version + bytes([self.depth]) + self.fingerprint
-        b += self.child_number.to_bytes(4, 'big')
+        b += self.child_number.to_bytes(4, "big")
         b += self.chain_code
         if self.is_private:
-            b += b'\x00' + self.key.serialize()
+            b += b"\x00" + self.key.serialize()
         else:
             b += self.key.serialize()
         return b
@@ -86,7 +87,7 @@ class HDKey:
         version = stream.read(4)
         depth = stream.read(1)[0]
         fingerprint = stream.read(4)
-        child_number = int.from_bytes(stream.read(4), 'big')
+        child_number = int.from_bytes(stream.read(4), "big")
         chain_code = stream.read(32)
         k = stream.read(33)
         if k[0] == 0:
@@ -96,10 +97,14 @@ class HDKey:
 
         if len(version) < 4 or len(fingerprint) < 4 or len(chain_code) < 32:
             raise ValueError("Not enough bytes")
-        hd = cls(key, chain_code,
-                 version=version, depth=depth,
-                 fingerprint=fingerprint, child_number=child_number
-                 )
+        hd = cls(
+            key,
+            chain_code,
+            version=version,
+            depth=depth,
+            fingerprint=fingerprint,
+            child_number=child_number,
+        )
         subver = hd.to_base58()[1:4]
         if subver != "prv" and subver != "pub":
             raise ValueError("Invalid version")
@@ -118,12 +123,16 @@ class HDKey:
                         break
         if version is None:
             raise RuntimeError(
-                "Can't find proper version. Provide it with version keyword")
-        return self.__class__(self.key.get_public_key(), self.chain_code,
-                              version=version,
-                              depth=self.depth,
-                              fingerprint=self.fingerprint,
-                              child_number=self.child_number)
+                "Can't find proper version. Provide it with version keyword"
+            )
+        return self.__class__(
+            self.key.get_public_key(),
+            self.chain_code,
+            version=version,
+            depth=self.depth,
+            fingerprint=self.fingerprint,
+            child_number=self.child_number,
+        )
 
     def sec(self) -> bytes:
         """Returns SEC serialization of the public key"""
@@ -144,9 +153,9 @@ class HDKey:
         sec = self.sec()
         fingerprint = hashes.hash160(sec)[:4]
         if hardened:
-            data = b'\x00' + self.key.serialize() + index.to_bytes(4, 'big')
+            data = b"\x00" + self.key.serialize() + index.to_bytes(4, "big")
         else:
-            data = sec + index.to_bytes(4, 'big')
+            data = sec + index.to_bytes(4, "big")
         raw = hashlib.hmac_sha512(self.chain_code, data)
         secret = raw[:32]
         chain_code = raw[32:]
@@ -162,9 +171,9 @@ class HDKey:
             key,
             chain_code,
             version=self.version[:],
-            depth=self.depth+1,
+            depth=self.depth + 1,
             fingerprint=fingerprint,
-            child_number=index
+            child_number=index,
         )
 
     def derive(self, path) -> HDKey:
@@ -183,9 +192,7 @@ class HDKey:
             raise RuntimeError("HD public key can't sign")
         return self.key.sign(msg_hash)
 
-    def verify(self,
-               sig: ec.Signature,
-               msg_hash: bytes) -> bool:
+    def verify(self, sig: ec.Signature, msg_hash: bytes) -> bool:
         """Verifies a signature agains 32-byte message hash"""
         if self.is_private:
             return self.key.get_public_key().verify(sig, msg_hash)
@@ -203,9 +210,7 @@ class HDKey:
         return not self.__eq__(other)
 
 
-def detect_version(path: str,
-                   default="xprv",
-                   network=None) -> bytes:
+def detect_version(path: str, default="xprv", network=None) -> bytes:
     """
     Detects slip-132? version from the path for certain network.
     Trying to be smart, use if you want, but with care.
@@ -217,17 +222,17 @@ def detect_version(path: str,
     arr = parse_path(path)
     if len(arr) == 0:
         return network[key]
-    if arr[0] == 0x80000000+84:
-        key = "z"+default[1:]
-    elif arr[0] == 0x80000000+49:
-        key = "y"+default[1:]
-    elif arr[0] == 0x80000000+48:
+    if arr[0] == 0x80000000 + 84:
+        key = "z" + default[1:]
+    elif arr[0] == 0x80000000 + 49:
+        key = "y" + default[1:]
+    elif arr[0] == 0x80000000 + 48:
         if len(arr) >= 4:
-            if arr[3] == 0x80000000+1:
-                key = "Y"+default[1:]
-            elif arr[3] == 0x80000000+2:
-                key = "Z"+default[1:]
-    if network is None and len(arr) > 1 and arr[1] == 0x80000000+1:
+            if arr[3] == 0x80000000 + 1:
+                key = "Y" + default[1:]
+            elif arr[3] == 0x80000000 + 2:
+                key = "Z" + default[1:]
+    if network is None and len(arr) > 1 and arr[1] == 0x80000000 + 1:
         net = NETWORKS["test"]
     return net[key]
 
@@ -244,7 +249,7 @@ def parse_path(path: str) -> list:
         arr = arr[:-1]
     for i, e in enumerate(arr):
         if e[-1] == "h" or e[-1] == "'":
-            arr[i] = int(e[:-1])+0x80000000
+            arr[i] = int(e[:-1]) + 0x80000000
         else:
             arr[i] = int(e)
     return arr
@@ -254,7 +259,7 @@ def path_to_str(path: list, fingerprint=None) -> str:
     s = "m" if fingerprint is None else hexlify(fingerprint).decode()
     for el in path:
         if el >= 0x80000000:
-            s += "/%dh" % (el-0x80000000)
+            s += "/%dh" % (el - 0x80000000)
         else:
             s += "/%d" % el
     return s
