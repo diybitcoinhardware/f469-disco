@@ -74,7 +74,7 @@ class IOQueue:
     def __init__(self):
         self.poller = select.poll()
         # maps id(stream) to [task_waiting_read, task_waiting_write, stream]
-        self.map = ({})
+        self.map = {}
 
     def _enqueue(self, s, idx):
         if id(s) not in self.map:

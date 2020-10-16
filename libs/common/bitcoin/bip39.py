@@ -4,8 +4,14 @@ import hashlib
 PBKDF2_ROUNDS = 2048
 
 
-def mnemonic_to_bytes(mnemonic: str) -> bytes:
-    """Converts bip39 mnemonic to entopy bytes"""
+def mnemonic_to_bytes(mnemonic: str, ignore_checksum: bool = False) -> bytes:
+    """
+    Converts bip39 mnemonic to entopy bytes.
+    If ignore_checksum is set to True the bip39 checksum is ignored.
+    This option is useful for fixing the checksum of
+    a randomly generated mnemonic via round-trip conversion:
+    mnemonic_from_bytes(mnemonic_to_bytes(invalid_mnemonic))
+    """
     # this function is copied from Jimmy Song's HDPrivateKey.from_mnemonic() method
     words = mnemonic.strip().split()
     if len(words) % 3 != 0 or len(words) < 12:
@@ -55,7 +61,7 @@ def mnemonic_to_bytes(mnemonic: str) -> bytes:
 
     # ignore the last bits_to_ignore bits
     computed_checksum[-1] &= 256 - (1 << (bits_to_ignore + 1) - 1)
-    if checksum != bytes(computed_checksum):
+    if not ignore_checksum and checksum != bytes(computed_checksum):
         raise ValueError("Checksum verification failed")
     return data
 

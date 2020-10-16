@@ -25,9 +25,11 @@ import binascii
 import bitcoin.bech32 as segwit_addr
 from unittest import TestCase
 
+
 def segwit_scriptpubkey(witver, witprog):
     """Construct a Segwit scriptPubKey for a given witness program."""
     return bytes([witver + 0x50 if witver else 0, len(witprog)] + witprog)
+
 
 VALID_CHECKSUM = [
     "A12UEL5L",
@@ -49,15 +51,24 @@ INVALID_CHECKSUM = [
 ]
 
 VALID_ADDRESS = [
-    ["BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4", "0014751e76e8199196d454941c45d1b3a323f1433bd6"],
-    ["tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
-     "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262"],
-    ["bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx",
-     "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6"],
+    [
+        "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
+        "0014751e76e8199196d454941c45d1b3a323f1433bd6",
+    ],
+    [
+        "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
+        "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262",
+    ],
+    [
+        "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx",
+        "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6",
+    ],
     ["BC1SW50QA3JX3S", "6002751e"],
     ["bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj", "5210751e76e8199196d454941c45d1b3a323"],
-    ["tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy",
-     "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433"],
+    [
+        "tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy",
+        "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433",
+    ],
 ]
 
 INVALID_ADDRESS = [
@@ -71,7 +82,6 @@ INVALID_ADDRESS = [
     "bc1zw508d6qejxtdg4y5r3zarvaryvqyzf3du",
     "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3pjxtptv",
     "bc1gmk9yu",
-
 ]
 
 INVALID_ADDRESS_ENC = [
@@ -82,6 +92,7 @@ INVALID_ADDRESS_ENC = [
     ("bc", 16, 41),
 ]
 
+
 class TestSegwitAddress(TestCase):
     """Unit test class for segwit addressess."""
 
@@ -90,8 +101,8 @@ class TestSegwitAddress(TestCase):
         for test in VALID_CHECKSUM:
             hrp, _ = segwit_addr.bech32_decode(test)
             self.assertIsNotNone(hrp)
-            pos = test.rfind('1')
-            test = test[:pos+1] + chr(ord(test[pos + 1]) ^ 1) + test[pos+2:]
+            pos = test.rfind("1")
+            test = test[: pos + 1] + chr(ord(test[pos + 1]) ^ 1) + test[pos + 2 :]
             hrp, _ = segwit_addr.bech32_decode(test)
             self.assertIsNone(hrp)
 
