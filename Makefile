@@ -5,6 +5,7 @@ MPY_DIR ?= micropython
 FROZEN_MANIFEST_EMPTY ?= ../../../manifests/empty.py
 FROZEN_MANIFEST_FULL ?= ../../../manifests/disco.py
 FROZEN_MANIFEST_UNIX ?= ../../../manifests/unix.py
+USE_DBOOT ?= 0
 
 $(TARGET_DIR):
 	mkdir -p $(TARGET_DIR)
@@ -23,6 +24,7 @@ mpy-cross: $(TARGET_DIR) $(MPY_DIR)/mpy-cross/Makefile
 empty: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	@echo Building binary without frozen files
 	make -C $(MPY_DIR)/ports/stm32 \
+		USE_DBOOT=$(USE_DBOOT) \
 		BOARD=$(BOARD) \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST) && \
@@ -34,6 +36,7 @@ empty: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	@echo Building binary with frozen files
 	make -C $(MPY_DIR)/ports/stm32 \
+		USE_DBOOT=$(USE_DBOOT) \
 		BOARD=$(BOARD) \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_FULL) && \
