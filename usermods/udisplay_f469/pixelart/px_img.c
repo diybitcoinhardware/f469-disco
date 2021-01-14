@@ -149,7 +149,7 @@ static bool px_img_design(lv_obj_t * img, const lv_area_t * mask, lv_design_mode
         cords_tmp.y2 = coords.y1 + w;
         cords_tmp.x2 = coords.x1 + w;
 
-        lv_draw_fill(&cords_tmp, mask, LV_COLOR_MAKE(255,255,255), opa_scale);
+        // lv_draw_fill(&cords_tmp, mask, LV_COLOR_MAKE(255,255,255), opa_scale);
 
         uint16_t idx = 0;
         const uint8_t * data = (uint8_t *)dsc->data;

@@ -19,8 +19,8 @@ STATIC mp_obj_t qrcode_encode(mp_obj_t text_obj){
         mp_raise_ValueError("Failed to encode");
     }
     int size = qrcodegen_getSize(qrcode);
-    // align to 8 bits and add 4-block border
-    int imgsize = (size/8+1)*8+8;
+    // align to 8 bits and add 2-block border
+    int imgsize = (size/8+1)*8+4;
     int lpad = (imgsize-size)/2;
     size_t bufsize = (imgsize*imgsize)/8;
     vstr_t vstr;
