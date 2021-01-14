@@ -19,16 +19,22 @@ STATIC mp_obj_t qrcode_encode(mp_obj_t text_obj){
         mp_raise_ValueError("Failed to encode");
     }
     int size = qrcodegen_getSize(qrcode);
-    size_t bufsize = (size*size+7)/8;
+    // align to 8 bits
+    int imgsize = (size/8+1)*8;
+    int lpad = (imgsize-size)/2;
+    size_t bufsize = (imgsize*imgsize)/8;
     vstr_t vstr;
     vstr_init_len(&vstr, bufsize);
     memset((byte*)vstr.buf, 0, bufsize);
-    size_t cur = 0;
-    for(int y=0; y<size; y++){
-        for(int x=0; x<size; x++){
+    size_t cur = imgsize*lpad;
+    for(int y=0; y<imgsize-lpad; y++){
+        cur+=lpad;
+        for(int x=0; x<imgsize-lpad; x++){
             vstr.buf[cur/8] = vstr.buf[cur/8] << 1;
-            if(qrcodegen_getModule(qrcode, x, y)){
-                vstr.buf[cur/8]++;
+            if(x<size && y<size){
+                if(qrcodegen_getModule(qrcode, x, y)){
+                    vstr.buf[cur/8]++;
+                }
             }
             cur++;
         }
