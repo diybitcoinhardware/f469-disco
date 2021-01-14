@@ -138,8 +138,10 @@ static bool px_img_design(lv_obj_t * img, const lv_area_t * mask, lv_design_mode
         lv_area_t cords_tmp;
 
         lv_coord_t w = lv_obj_get_width(img);
-        int scale = w/ext->w;
-        lv_coord_t off = (w - scale*ext->w)/2;
+        // there is always +1 on the right
+        lv_coord_t ww = ext->w - 1;
+        int scale = w/ww;
+        lv_coord_t off = (w - scale*ww)/2;
 
         cords_tmp.y1 = coords.y1;
         cords_tmp.x1 = coords.x1;
@@ -151,8 +153,8 @@ static bool px_img_design(lv_obj_t * img, const lv_area_t * mask, lv_design_mode
 
         uint16_t idx = 0;
         const uint8_t * data = (uint8_t *)dsc->data;
-        for(lv_coord_t x = 0; x < ext->w; x++){
-            for(lv_coord_t y = 0; y < ext->h; y++){
+        for(lv_coord_t x = 0; x < ww; x++){
+            for(lv_coord_t y = 0; y < (ext->h-1); y++){
                 cords_tmp.x1 = coords.x1 + off + x*scale;
                 cords_tmp.x2 = cords_tmp.x1 + scale;
                 cords_tmp.y1 = coords.y1 + off + y*scale;
