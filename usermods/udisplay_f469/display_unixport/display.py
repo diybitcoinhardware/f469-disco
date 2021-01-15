@@ -1,4 +1,6 @@
-def init(*args, **kwargs):
+from udisplay import update, on, off, set_rotation
+
+def init(autoupdate=True):
     import lvgl as lv
     import SDL
 
@@ -35,16 +37,6 @@ def init(*args, **kwargs):
 
     scr = lv.obj()
     lv.scr_load(scr)
-
-# unify the API
-def on():
-    pass
-
-def off():
-    pass
-
-def update(*args, **kwargs):
-    pass
-
-def set_rotation(rot):
-    pass
+    if autoupdate:
+        import SDL
+        SDL.enable_autoupdate()

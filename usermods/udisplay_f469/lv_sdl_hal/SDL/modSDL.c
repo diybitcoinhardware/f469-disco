@@ -12,10 +12,14 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
+bool autoupdate = false;
+
 STATIC mp_obj_t mp_lv_task_handler(mp_obj_t arg)
 {  
     if (monitor_active()) monitor_sdl_refr_core();
-    lv_task_handler();
+    if(autoupdate){
+        lv_task_handler();
+    }
     return mp_const_none;
 }
 
@@ -28,7 +32,9 @@ STATIC int tick_thread(void * data)
 
     while(monitor_active()) {
         SDL_Delay(1);   /*Sleep for 1 millisecond*/
-        lv_tick_inc(1); /*Tell LittelvGL that 1 milliseconds were elapsed*/
+        if(autoupdate){
+            lv_tick_inc(1); /*Tell LittelvGL that 1 milliseconds were elapsed*/
+        }
         mp_sched_schedule((mp_obj_t)&mp_lv_task_handler_obj, mp_const_none);
     }
 
@@ -38,7 +44,9 @@ STATIC int tick_thread(void * data)
 STATIC void mp_lv_main_loop(void)
 {
         mp_sched_schedule((mp_obj_t)&mp_lv_task_handler_obj, mp_const_none);
-        lv_tick_inc(LV_TICK_RATE);
+        if(autoupdate){
+            lv_tick_inc(LV_TICK_RATE);
+        }
 }
 #endif
 
@@ -69,14 +77,22 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_0(mp_deinit_SDL_obj, mp_deinit_SDL);
 DEFINE_PTR_OBJ(monitor_flush);
 DEFINE_PTR_OBJ(mouse_read);
 
+STATIC mp_obj_t enable_autoupdate()
+{
+    autoupdate = true;
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_0(mp_enable_autoupdate_obj, enable_autoupdate);
+
 STATIC const mp_rom_map_elem_t SDL_globals_table[] = {
         { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_SDL) },
         { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&mp_init_SDL_obj) },
         { MP_ROM_QSTR(MP_QSTR_deinit), MP_ROM_PTR(&mp_deinit_SDL_obj) },
         { MP_ROM_QSTR(MP_QSTR_monitor_flush), MP_ROM_PTR(&PTR_OBJ(monitor_flush))},
         { MP_ROM_QSTR(MP_QSTR_mouse_read), MP_ROM_PTR(&PTR_OBJ(mouse_read))},
+        { MP_ROM_QSTR(MP_QSTR_enable_autoupdate), MP_ROM_PTR(&mp_enable_autoupdate_obj) },
 };
-         
+
 
 STATIC MP_DEFINE_CONST_DICT (
     mp_module_SDL_globals,
