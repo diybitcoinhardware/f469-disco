@@ -7,13 +7,13 @@ Works with hardware device over serial port and unixport as a subprocess.
 Dependencies:
 
 ```
-pip3 install pexpect pyserial
+pip3 install pexpect pyserial jupyter
 ```
 
 Kernel:
 
 ```
-jupyter kernelspec install f469kernel
+python3 -m jupyter kernelspec install f469kernel
 ```
 
 Add module to python (development mode):
