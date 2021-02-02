@@ -27,7 +27,7 @@
 #endif
 #ifndef T1_MAX_TIMEOUT_MS
   /// Maximal timeout in milliseconds
-  #define T1_MAX_TIMEOUT_MS             4000L
+  #define T1_MAX_TIMEOUT_MS             (100*1000L)
 #endif
 
 /// Protocol events

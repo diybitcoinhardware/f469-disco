@@ -65,7 +65,7 @@
 #define CRC_SIZE                        2
 
 /// Block delivery attempts
-#define DELIVERY_ATTEMPTS               3
+#define DELIVERY_ATTEMPTS               10
 /// Resynchronization attempts
 #define RESYNC_ATTEMPTS                 3
 
@@ -177,10 +177,10 @@ static const uint16_t crc_tbl[256] = {
 
 /// Extended configuration data
 static const ext_config_entry_t ext_config[t1_config_size] = {
-  [t1_cfg_tm_interbyte]    = { .min = 1,       .max = TM_MAX,  .def = 100    },
+  [t1_cfg_tm_interbyte]    = { .min = 1,       .max = TM_MAX,  .def = 200    },
   [t1_cfg_tm_atr]          = { .min = 1,       .max = TM_MAX,  .def = 1000   },
-  [t1_cfg_tm_response]     = { .min = 1,       .max = TM_MAX,  .def = 1000   },
-  [t1_cfg_tm_response_max] = { .min = 1,       .max = TM_MAX,  .def = TM_MAX },
+  [t1_cfg_tm_response]     = { .min = 1,       .max = TM_MAX,  .def = 2000   },
+  [t1_cfg_tm_response_max] = { .min = 1,       .max = TM_MAX,  .def = 4000   },
   [t1_cfg_use_crc]         = { .min = 0,       .max = 1,       .def = 0      },
   [t1_cfg_ifsc]            = { .min = IFS_MIN, .max = IFS_MAX, .def = 32     },
   [t1_cfg_rx_skip_bytes]   = { .min = 0,       .max = 255,     .def = 0      }
