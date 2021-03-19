@@ -55,9 +55,9 @@ NETWORKS = {
     },
     "signet": {
         "name": "Signet",
-        "wif": b"\xD9",
-        "p2pkh": b"\x7D",
-        "p2sh": b"\x57",
+        "wif": b"\xEF",
+        "p2pkh": b"\x6F",
+        "p2sh": b"\xC4",
         "bech32": "tb",
         "xprv": b"\x04\x35\x83\x94",
         "xpub": b"\x04\x35\x87\xcf",
