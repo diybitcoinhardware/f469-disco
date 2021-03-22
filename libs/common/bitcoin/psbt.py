@@ -63,16 +63,16 @@ class PSBT:
         return r
 
     @classmethod
-    def parse(cls, b: bytes) -> cls:
+    def parse(cls, b: bytes):
         return _parse(cls, b)
 
     @classmethod
-    def read_from(cls, stream) -> cls:
+    def read_from(cls, stream):
         tx = None
         unknown = {}
         xpubs = OrderedDict()
         # check magic
-        if stream.read(5) != self.MAGIC:
+        if stream.read(5) != cls.MAGIC:
             raise ValueError("Invalid PSBT")
         while True:
             key = read_string(stream)
