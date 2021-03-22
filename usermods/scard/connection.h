@@ -27,7 +27,7 @@ typedef struct scard_reader_conn_params_ {
 } scard_conn_params_t;
 
 /// Connection parameters PODO type
-const mp_obj_type_t scard_conn_params_type;
+extern const mp_obj_type_t scard_conn_params_type;
 /// Connection class type
 extern const mp_obj_type_t scard_CardConnection_type;
 
