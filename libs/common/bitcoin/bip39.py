@@ -1,18 +1,18 @@
 # Mnemonic convertion to seed and to/from bytes
-import hashlib
+import sys
 
-PBKDF2_ROUNDS = 2048
+if sys.implementation.name == "micropython":
+    import hashlib
+    from micropython import const
+else:
+    from .util import hashlib, const
+
+PBKDF2_ROUNDS = const(2048)
 
 
-def mnemonic_to_bytes(mnemonic: str, ignore_checksum: bool = False) -> bytes:
-    """
-    Converts bip39 mnemonic to entopy bytes.
-    If ignore_checksum is set to True the bip39 checksum is ignored.
-    This option is useful for fixing the checksum of
-    a randomly generated mnemonic via round-trip conversion:
-    mnemonic_from_bytes(mnemonic_to_bytes(invalid_mnemonic))
-    """
+def mnemonic_to_bytes(mnemonic: str, ignore_checksum=False):
     # this function is copied from Jimmy Song's HDPrivateKey.from_mnemonic() method
+
     words = mnemonic.strip().split()
     if len(words) % 3 != 0 or len(words) < 12:
         raise ValueError("Invalid recovery phrase")
@@ -66,7 +66,7 @@ def mnemonic_to_bytes(mnemonic: str, ignore_checksum: bool = False) -> bytes:
     return data
 
 
-def mnemonic_is_valid(mnemonic: str) -> bool:
+def mnemonic_is_valid(mnemonic: str):
     """Checks if mnemonic is valid (checksum and words)"""
     try:
         mnemonic_to_bytes(mnemonic)
@@ -75,7 +75,7 @@ def mnemonic_is_valid(mnemonic: str) -> bool:
         return False
 
 
-def mnemonic_to_seed(mnemonic: str, password: str = "") -> bytes:
+def mnemonic_to_seed(mnemonic: str, password: str = ""):
     # first we try to conver mnemonic to bytes
     # and raise a correct error if it is invalid
     mnemonic_to_bytes(mnemonic)
@@ -99,8 +99,7 @@ def _extract_index(bits, b, n):
     return value
 
 
-def mnemonic_from_bytes(b: bytes) -> str:
-    """Converts entropy to bip39 mnemonic"""
+def mnemonic_from_bytes(b):
     if len(b) % 4 != 0:
         raise ValueError("Byte array should be multiple of 4 long (16, 20, ..., 32)")
     total_bits = len(b) * 8
@@ -116,11 +115,7 @@ def mnemonic_from_bytes(b: bytes) -> str:
     return " ".join(mnemonic)
 
 
-def find_candidates(word_part: str, nmax=5) -> list:
-    """
-    Returns first `nmax` words from bip39 dictionary
-    that strart with `word_part`.
-    """
+def find_candidates(word_part, nmax=5):
     candidates = []
     for w in WORDLIST:
         if w.startswith(word_part):

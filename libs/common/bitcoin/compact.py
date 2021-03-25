@@ -2,7 +2,7 @@
 import io
 
 
-def to_bytes(i: int) -> bytes:
+def to_bytes(i: int):
     """encodes an integer as a compact int"""
     if i < 0:
         raise ValueError("integer can't be negative: {}".format(i))
@@ -18,8 +18,7 @@ def to_bytes(i: int) -> bytes:
     return bytes([0xFC + order]) + i.to_bytes(2 ** order, "little")
 
 
-def from_bytes(b: bytes) -> int:
-    """Converts bytes with compact int to int"""
+def from_bytes(b: bytes):
     s = io.BytesIO(b)
     res = read_from(s)
     if len(s.read(1)) > 0:
@@ -27,8 +26,8 @@ def from_bytes(b: bytes) -> int:
     return res
 
 
-def read_from(stream) -> int:
-    """Reads a compact integer from a stream."""
+def read_from(stream):
+    """reads a compact integer from a stream"""
     i = stream.read(1)[0]
     if i >= 0xFD:
         bytes_to_read = 2 ** (i - 0xFC)

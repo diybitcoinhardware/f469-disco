@@ -1,3 +1,10 @@
+import sys
+
+if sys.implementation.name == "micropython":
+    from micropython import const
+else:
+    from .util import const
+
 NETWORKS = {
     "main": {
         "name": "Mainnet",
@@ -15,7 +22,7 @@ NETWORKS = {
         "zpub": b"\x04\xb2\x47\x46",
         "Ypub": b"\x02\x95\xb4\x3f",
         "Zpub": b"\x02\xaa\x7e\xd3",
-        "bip32": 0,  # coin type for bip32 derivation
+        "bip32": const(0),  # coin type for bip32 derivation
     },
     "test": {
         "name": "Testnet",
@@ -33,7 +40,7 @@ NETWORKS = {
         "zpub": b"\x04\x5f\x1c\xf6",
         "Ypub": b"\x02\x42\x89\xef",
         "Zpub": b"\x02\x57\x54\x83",
-        "bip32": 1,
+        "bip32": const(1),
     },
     "regtest": {
         "name": "Regtest",
@@ -51,7 +58,7 @@ NETWORKS = {
         "zpub": b"\x04\x5f\x1c\xf6",
         "Ypub": b"\x02\x42\x89\xef",
         "Zpub": b"\x02\x57\x54\x83",
-        "bip32": 1,
+        "bip32": const(1),
     },
     "signet": {
         "name": "Signet",
@@ -69,6 +76,6 @@ NETWORKS = {
         "zpub": b"\x04\x5f\x1c\xf6",
         "Ypub": b"\x02\x42\x89\xef",
         "Zpub": b"\x02\x57\x54\x83",
-        "bip32": 1,
+        "bip32": const(1),
     },
 }
