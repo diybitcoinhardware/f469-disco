@@ -35,6 +35,14 @@ class Descriptor(DescriptorBase):
         self.wpkh = wpkh
 
     @property
+    def script_len(self):
+        if self.miniscript:
+            return len(self.miniscript)
+        if self.wpkh:
+            return 22 # 00 <20:pkh>
+        return 25 # OP_DUP OP_HASH160 <20:pkh> OP_EQUALVERIFY OP_CHECKSIG
+
+    @property
     def num_branches(self):
         return max([k.num_branches for k in self.keys])
 
@@ -65,6 +73,17 @@ class Descriptor(DescriptorBase):
     @property
     def is_sorted(self):
         return self.is_basic_multisig and self.miniscript.NAME == "sortedmulti"
+
+    def scriptpubkey_type(self):
+        if self.sh:
+            return "p2sh"
+        if self.is_pkh:
+            if self.is_legacy:
+                return "p2pkh"
+            if self.is_segwit:
+                return "p2wpkh"
+        else:
+            return "p2wsh"
 
     @property
     def brief_policy(self):
