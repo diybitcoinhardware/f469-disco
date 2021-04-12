@@ -159,23 +159,27 @@ class PSET(PSBT):
         Returns number of signatures added to PSBT
         """
         hprevout = hashlib.sha256()
-        hrangeproof = hashlib.sha256()
+        # check if we need to calculate hash rangeproof or it's already there
+        hrangeproof = hashlib.sha256() if self.tx._hash_outputs_rangeproofs is None else None
         for i, out in enumerate(self.tx.vout):
             if self.outputs[i].is_blinded:
                 hprevout.update(self.outputs[i].asset_commitment)
                 hprevout.update(self.outputs[i].value_commitment)
                 hprevout.update(self.outputs[i].nonce_commitment)
                 hprevout.update(out.script_pubkey.serialize())
-                hrangeproof.update(compact.to_bytes(len(self.outputs[i].range_proof)))
-                hrangeproof.update(self.outputs[i].range_proof)
-                hrangeproof.update(compact.to_bytes(len(self.outputs[i].surjection_proof)))
-                hrangeproof.update(self.outputs[i].surjection_proof)
+                if hrangeproof:
+                    hrangeproof.update(compact.to_bytes(len(self.outputs[i].range_proof)))
+                    hrangeproof.update(self.outputs[i].range_proof)
+                    hrangeproof.update(compact.to_bytes(len(self.outputs[i].surjection_proof)))
+                    hrangeproof.update(self.outputs[i].surjection_proof)
             else:
                 hprevout.update(out.serialize())
-                hrangeproof.update(out.witness.range_proof.serialize())
-                hrangeproof.update(out.witness.surjection_proof.serialize())
+                if hrangeproof:
+                    hrangeproof.update(out.witness.range_proof.serialize())
+                    hrangeproof.update(out.witness.surjection_proof.serialize())
         self.tx._hash_outputs = hprevout.digest()
-        self.tx._hash_outputs_rangeproofs = hrangeproof.digest()
+        if hrangeproof:
+            self.tx._hash_outputs_rangeproofs = hrangeproof.digest()
         return super().sign_with(root, sighash)
 
     def verify(self):
