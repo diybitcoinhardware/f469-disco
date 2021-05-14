@@ -20,7 +20,7 @@ typedef struct _mp_obj_hmac_t {
 STATIC mp_obj_t hmac_HMAC_update(mp_obj_t self_in, mp_obj_t arg);
 
 STATIC mp_obj_t hmac_HMAC_make_new_helper(const mp_obj_type_t *type, size_t n_args, const mp_obj_t *pos_args, mp_map_t *kwargs){
-    mp_arg_check_num(n_args, 0, 1, 3, false);
+    mp_arg_check_num(n_args, 0, 0, 3, true);
 
     enum { ARG_key, ARG_message, ARG_digestmod };
     static const mp_arg_t allowed_args[] = {
@@ -56,14 +56,14 @@ STATIC mp_obj_t hmac_HMAC_make_new_helper(const mp_obj_type_t *type, size_t n_ar
     }else if(digestmod == DIGEST_HMAC_SHA512){
         hmac_sha512_Init((HMAC_SHA512_CTX*)o->state, key.buf, key.len);
     }
-    if (n_args >= 2) {
+    if (args[ARG_message].u_obj != MP_ROM_NONE) {
         hmac_HMAC_update(MP_OBJ_FROM_PTR(o), args[ARG_message].u_obj);
     }
     return MP_OBJ_FROM_PTR(o);
 }
 
 STATIC mp_obj_t hmac_HMAC_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
-    mp_arg_check_num(n_args, n_kw, 1, MP_OBJ_FUN_ARGS_MAX, true);
+    mp_arg_check_num(n_args, n_kw, 0, MP_OBJ_FUN_ARGS_MAX, true);
 
     mp_map_t kw_args;
     mp_map_init_fixed_table(&kw_args, n_kw, args + n_args);
@@ -127,7 +127,7 @@ STATIC const mp_obj_type_t hmac_HMAC_type = {
 STATIC mp_obj_t hmac_new(size_t n_args, const mp_obj_t *args, mp_map_t *kwargs) {
     return hmac_HMAC_make_new_helper(&hmac_HMAC_type, n_args, args, kwargs);
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_KW(hmac_new_obj, 1, hmac_new);
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(hmac_new_obj, 0, hmac_new);
 
 
 /****************************** MODULE ******************************/
