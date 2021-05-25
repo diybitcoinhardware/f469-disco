@@ -1,11 +1,11 @@
 # Mnemonic convertion to seed and to/from bytes
 import sys
+import hashlib
 
 if sys.implementation.name == "micropython":
-    import hashlib
     from micropython import const
 else:
-    from .util import hashlib, const
+    from .util import const
 
 try:
     # RAM-optimized c-implementation of wordlist lookup

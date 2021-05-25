@@ -1,18 +1,18 @@
 import sys
 
 if sys.implementation.name == "micropython":
-    import hashlib
     import secp256k1
 else:
-    from .util import hashlib, secp256k1
+    from .util import secp256k1
+import hashlib
 from . import ec
 from .base import EmbitKey, EmbitError
 from .networks import NETWORKS
 from . import base58
 from . import hashes
+import hmac
 from binascii import hexlify
 import io
-
 
 class HDError(EmbitError):
     pass
@@ -53,7 +53,7 @@ class HDKey(EmbitKey):
     @classmethod
     def from_seed(cls, seed: bytes, version=NETWORKS["main"]["xprv"]):
         """Creates a root private key from 64-byte seed"""
-        raw = hashlib.hmac_sha512(b"Bitcoin seed", seed)
+        raw = hmac.new(b"Bitcoin seed", seed, digestmod='sha512').digest()
         private_key = ec.PrivateKey(raw[:32])
         chain_code = raw[32:]
         return cls(private_key, chain_code, version=version)
@@ -170,7 +170,7 @@ class HDKey(EmbitKey):
             data = b"\x00" + self.key.serialize() + index.to_bytes(4, "big")
         else:
             data = sec + index.to_bytes(4, "big")
-        raw = hashlib.hmac_sha512(self.chain_code, data)
+        raw = hmac.new(self.chain_code, data, digestmod='sha512').digest()
         secret = raw[:32]
         chain_code = raw[32:]
         if self.is_private:
