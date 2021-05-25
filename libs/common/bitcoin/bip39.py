@@ -86,8 +86,6 @@ def mnemonic_to_seed(mnemonic: str, password: str = ""):
     # first we try to conver mnemonic to bytes
     # and raise a correct error if it is invalid
     mnemonic_to_bytes(mnemonic)
-    # from hashlib.c usermodule
-    # mp_obj_t password, mp_obj_t salt, mp_obj_t iterations, mp_obj_t len
     return hashlib.pbkdf2_hmac(
         "sha512",
         mnemonic.encode("utf-8"),
