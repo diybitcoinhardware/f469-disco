@@ -142,40 +142,44 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
         return mp_const_none;
     }
     hUsbHostFS.transferStatus = START_DATA_TRANSFER;
+    mp_hal_delay_ms(300);
+    if(hUsbHostFS.transferStatus == STOP_DATA_TRANSFER)
+    {
+      for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+      {
+        printf("0x%X ", hUsbHostFS.rawRxData[i]);
+      }
+      printf("\n\n");
+    }
     m_del(uint8_t, dynamic_buf, hUsbHostFS.apduLen);
     dynamic_buf = NULL;
-    for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
-    {
-      printf("%x ", hUsbHostFS.rawRxData[i]);
-    }
-    printf("\n\n");
     memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
     return mp_const_none;
 }
 
 static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
 {
-  mp_uint_t voltage = 0;
+  uint8_t voltage = 0;
 	if ((ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_VOLTAGE)
 		|| (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_ACTIVATION))
 		voltage = 0;	/* automatic voltage selection */
 	else
 	{
-		if (ccidDescriptor->bVoltageSupport & 1)
+		if (ccidDescriptor->bVoltageSupport == 0x01 || ccidDescriptor->bVoltageSupport == 0x07)
 		{
       //5V
       voltage = 0x01;
 		}
 
-		if (ccidDescriptor->bVoltageSupport & 2)
+		if (ccidDescriptor->bVoltageSupport == 0x02)
 		{
       //3V
       voltage = 0x02;
 		}
 
-		if (ccidDescriptor->bVoltageSupport & 4)
+		if (ccidDescriptor->bVoltageSupport == 0x04)
 		{
-      //1.8
+      //1.8V
       voltage = 0x03;
 		}
 	}
@@ -184,27 +188,28 @@ static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
 STATIC mp_obj_t connection_cmd_power_on(mp_obj_t self_in)
 {
     usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
-    if(usbProcess_type.scardConnected)
+    USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+    hUsbHostFS.apduLen = CCID_ICC_POWER_ON_CMD_LENGTH;
+    self->IccPowerOnCmd[0] = 0x62; 
+    self->IccPowerOnCmd[1] = 0x00;
+    self->IccPowerOnCmd[2] = 0x00;
+    self->IccPowerOnCmd[3] = 0x00;
+    self->IccPowerOnCmd[4] = 0x00;
+    self->IccPowerOnCmd[5] = chipCardDesc.bCurrentSlotIndex;	
+    self->IccPowerOnCmd[6] = self->pbSeq++;
+    self->IccPowerOnCmd[7] = getVoltageSupport(&chipCardDesc);
+    self->IccPowerOnCmd[8] = 0x00;
+    self->IccPowerOnCmd[9] = 0x00;
+    hUsbHostFS.apdu = self->IccPowerOnCmd;
+    hUsbHostFS.transferStatus = START_DATA_TRANSFER;
+    mp_hal_delay_ms(350);
+    if(hUsbHostFS.transferStatus == STOP_DATA_TRANSFER)
     {
-        USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-        self->IccPowerOnCmd[0] = 0x62; /* IccPowerOn */
-        self->IccPowerOnCmd[1] = self->IccPowerOnCmd[2] = self->IccPowerOnCmd[3] = self->IccPowerOnCmd[4] = 0;	/* dwLength */
-        self->IccPowerOnCmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
-        self->IccPowerOnCmd[6] = self->pbSeq++;
-        self->IccPowerOnCmd[7] = getVoltageSupport(&chipCardDesc);
-        self->IccPowerOnCmd[8] = self->IccPowerOnCmd[9] = 0; /* RFU */ 
-        hUsbHostFS.apdu = self->IccPowerOnCmd;
-        hUsbHostFS.transferStatus = START_DATA_TRANSFER;
-        // Print ATR
-        for(int i = 10; i < 29; i++)
-        {
-            printf("0x%x ", hUsbHostFS.rawRxData[i]);
-        }
-        printf("\n\n");
-    }
-    else
-    {
-      raise_SmartcardException("smart card reader is not connected");
+      for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+      {
+        printf("0x%X ", hUsbHostFS.rawRxData[i]);
+      }
+      printf("\n\n");
     }
     memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
     return mp_const_none;
@@ -214,8 +219,8 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_obj, 1, connection_transmi
 
 STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   // Instance methods
-  { MP_ROM_QSTR(MP_QSTR_send),    MP_ROM_PTR(&connection_transmit_obj) },
-  { MP_ROM_QSTR(MP_QSTR_get_atr), MP_ROM_PTR(&connection_cmd_power_on_obj) },
+  { MP_ROM_QSTR(MP_QSTR_transmit),    MP_ROM_PTR(&connection_transmit_obj) },
+  { MP_ROM_QSTR(MP_QSTR_connect), MP_ROM_PTR(&connection_cmd_power_on_obj) },
 };
 
 STATIC MP_DEFINE_CONST_DICT(connection_locals_dict, connection_locals_dict_table);

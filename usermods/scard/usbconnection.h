@@ -44,6 +44,7 @@
 
 #define CCID_CLASS_AUTO_VOLTAGE		      0x00000008
 
+#define CCID_ICC_POWER_ON_CMD_LENGTH    (10U)
 /// Connection state
 typedef enum state_ {
   state_closed       = MP_QSTR_closed,       ///< Connection is closed
@@ -77,6 +78,7 @@ typedef struct usb_connection_obj_ {
   mp_obj_t reader;               ///< Reader to which connection is bound
   state_t state;                 ///< Connection state
   mp_obj_t timer;                ///< Timer object
+  mp_obj_t atr;                  ///< ATR as bytes object
   mp_uint_t prev_ticks_ms;       ///< Previous value of millisecond ticks
   uint8_t pbSeq;
   uint8_t IccPowerOnCmd[10];
