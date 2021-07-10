@@ -44,7 +44,10 @@ static void timer_task(usb_connection_obj_t* self) {
       USBH_Process(&hUsbHostFS);
       if(hUsbHostFS.gState == HOST_CLASS)
       {
-        self->state = state_connecting;
+        if(self->state != state_connected)
+        {
+          self->state = state_connecting;
+        }
       }
       else
       {
@@ -159,35 +162,35 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
 static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
 {
   uint8_t voltage = 0;
-	if ((ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_VOLTAGE)
-		|| (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_ACTIVATION))
-		voltage = 0;	/* automatic voltage selection */
-	else
-	{
-		if (ccidDescriptor->bVoltageSupport == 0x01 || ccidDescriptor->bVoltageSupport == 0x07)
-		{
+  if ((ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_VOLTAGE)
+    || (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_ACTIVATION))
+    voltage = 0;	/* automatic voltage selection */
+  else
+  {
+    if (ccidDescriptor->bVoltageSupport == 0x01 || ccidDescriptor->bVoltageSupport == 0x07)
+    {
       //5V
       voltage = 0x01;
-		}
+    }
 
-		if (ccidDescriptor->bVoltageSupport == 0x02)
-		{
+    if (ccidDescriptor->bVoltageSupport == 0x02)
+    {
       //3V
       voltage = 0x02;
-		}
+    }
 
-		if (ccidDescriptor->bVoltageSupport == 0x04)
-		{
+    if (ccidDescriptor->bVoltageSupport == 0x04)
+    {
       //1.8V
       voltage = 0x03;
-		}
-	}
-	return voltage;
+    }
+}
+  return voltage;
 }
 STATIC mp_obj_t connection_cmd_power_on(mp_obj_t self_in)
 {
     usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
-    if(self->state == state_connecting)
+    if(self->state == state_connecting || self->state == state_connected)
     {
         USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
         hUsbHostFS.apduLen = CCID_ICC_POWER_ON_CMD_LENGTH;
@@ -246,6 +249,14 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
         memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
         //Stop USB CCID communication
         USBH_CCID_Stop(&hUsbHostFS);
+        // Deinitialize timer
+        if(self->timer) 
+        {
+          mp_obj_t deinit_fn = mp_load_attr(self->timer, MP_QSTR_deinit);
+          (void)mp_call_function_0(deinit_fn);
+          self->timer = MP_OBJ_NULL;
+      }
+        self->state = state_disconnected;
     }
     else
     {
