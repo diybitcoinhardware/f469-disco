@@ -15,6 +15,7 @@ STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
   self->base.type = &scard_UsbCardConnection_type;
   self->reader = NULL;
   self->state = state_closed;
+  self->CCID_Handle = NULL;
   self->timer = MP_OBJ_NULL;
   self->pbSeq = 0;
   usb_timer_init(self);
@@ -143,16 +144,13 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
     {
         return mp_const_none;
     }
-    hUsbHostFS.transferStatus = START_DATA_TRANSFER;
+    self->CCID_Handle->state = CCID_TRANSFER_DATA;
     mp_hal_delay_ms(300);
-    if(hUsbHostFS.transferStatus == STOP_DATA_TRANSFER)
+    for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
     {
-      for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
-      {
-        printf("0x%X ", hUsbHostFS.rawRxData[i]);
-      }
-      printf("\n\n");
+      printf("0x%X ", hUsbHostFS.rawRxData[i]);
     }
+    printf("\n\n");
     m_del(uint8_t, dynamic_buf, hUsbHostFS.apduLen);
     dynamic_buf = NULL;
     memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
@@ -187,36 +185,41 @@ static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
 }
   return voltage;
 }
-STATIC mp_obj_t connection_cmd_power_on(mp_obj_t self_in)
+STATIC mp_obj_t connection_connect(mp_obj_t self_in)
 {
     usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+    self->CCID_Handle = hUsbHostFS.pActiveClass->pData;
     if(self->state == state_connecting || self->state == state_connected)
     {
-        USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-        hUsbHostFS.apduLen = CCID_ICC_POWER_ON_CMD_LENGTH;
-        self->IccCmd[0] = 0x62; 
-        self->IccCmd[1] = 0x00;
-        self->IccCmd[2] = 0x00;
-        self->IccCmd[3] = 0x00;
-        self->IccCmd[4] = 0x00;
-        self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	
-        self->IccCmd[6] = self->pbSeq++;
-        self->IccCmd[7] = getVoltageSupport(&chipCardDesc);
-        self->IccCmd[8] = 0x00;
-        self->IccCmd[9] = 0x00;
-        hUsbHostFS.apdu = self->IccCmd;
-        hUsbHostFS.transferStatus = START_DATA_TRANSFER;
-        mp_hal_delay_ms(350);
-        if(hUsbHostFS.transferStatus == STOP_DATA_TRANSFER)
-        {
-          for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+          if(connection_slot_status(self_in) == ICC_INSERTED)
           {
-            printf("0x%X ", hUsbHostFS.rawRxData[i]);
-          }
-          printf("\n\n");
+              USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+              hUsbHostFS.apduLen = CCID_ICC_POWER_ON_CMD_LENGTH;
+              self->IccCmd[0] = 0x62; 
+              self->IccCmd[1] = 0x00;
+              self->IccCmd[2] = 0x00;
+              self->IccCmd[3] = 0x00;
+              self->IccCmd[4] = 0x00;
+              self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	
+              self->IccCmd[6] = self->pbSeq++;
+              self->IccCmd[7] = getVoltageSupport(&chipCardDesc);
+              self->IccCmd[8] = 0x00;
+              self->IccCmd[9] = 0x00;
+              hUsbHostFS.apdu = self->IccCmd;
+              self->CCID_Handle->state = CCID_TRANSFER_DATA;
+              mp_hal_delay_ms(350);
+              for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+              {
+                printf("0x%X ", hUsbHostFS.rawRxData[i]);
+              }
+              printf("\n\n");
+              memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+              self->state = state_connected;
         }
-        memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
-        self->state = state_connected;
+        else
+        {
+            raise_SmartcardException("smart card is not inserted");
+        }
     }
     else
     {
@@ -236,16 +239,13 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
         self->IccCmd[6] = self->pbSeq++;
         self->IccCmd[7] = self->IccCmd[8] = self->IccCmd[9] = 0; /* RFU */
         hUsbHostFS.apdu = self->IccCmd;
-        hUsbHostFS.transferStatus = START_DATA_TRANSFER;
+        self->CCID_Handle->state = CCID_TRANSFER_DATA;
         mp_hal_delay_ms(350);
-        if(hUsbHostFS.transferStatus == STOP_DATA_TRANSFER)
+        for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
         {
-            for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
-            {
-              printf("0x%X ", hUsbHostFS.rawRxData[i]);
-            }
-            printf("\n\n");
+          printf("0x%X ", hUsbHostFS.rawRxData[i]);
         }
+        printf("\n\n");
         memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
         //Stop USB CCID communication
         USBH_CCID_Stop(&hUsbHostFS);
@@ -264,16 +264,33 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
     }
     return mp_const_none;
 }
+STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in) 
+{
+    usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+    self->CCID_Handle->state = CCID_GET_SLOT_STATUS;
+    mp_hal_delay_ms(100);
+    return hUsbHostFS.iccSlotStatus;
+}
 
+STATIC mp_obj_t connection_isCardInserted(mp_obj_t self_in) {
+  usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+  if(connection_slot_status(self_in) == ICC_INSERTED)
+  {
+      return mp_const_true;  
+  }
+  return mp_const_false;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_isCardInserted_obj, connection_isCardInserted);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_disconnect_obj, connection_disconnect);
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_cmd_power_on_obj, connection_cmd_power_on);
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_connect_obj, connection_connect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_obj, 1, connection_transmit);
 
 STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   // Instance methods
-  { MP_ROM_QSTR(MP_QSTR_disconnect),    MP_ROM_PTR(&connection_disconnect_obj)    },
-  { MP_ROM_QSTR(MP_QSTR_transmit),      MP_ROM_PTR(&connection_transmit_obj)      },
-  { MP_ROM_QSTR(MP_QSTR_connect),       MP_ROM_PTR(&connection_cmd_power_on_obj)  },
+  { MP_ROM_QSTR(MP_QSTR_disconnect),      MP_ROM_PTR(&connection_disconnect_obj)        },
+  { MP_ROM_QSTR(MP_QSTR_transmit),        MP_ROM_PTR(&connection_transmit_obj)          },
+  { MP_ROM_QSTR(MP_QSTR_connect),         MP_ROM_PTR(&connection_connect_obj)           },
+  { MP_ROM_QSTR(MP_QSTR_isCardInserted),  MP_ROM_PTR(&connection_isCardInserted_obj)    },
 };
 
 STATIC MP_DEFINE_CONST_DICT(connection_locals_dict, connection_locals_dict_table);

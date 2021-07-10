@@ -426,8 +426,14 @@ typedef enum
 {
   START_DATA_TRANSFER = 1,
   STOP_DATA_TRANSFER,
+  GET_SLOT_STATUS,
 } USBH_CmdTransferStatusTypeDef;
 
+typedef enum 
+{
+  ICC_INSERTED = 1,
+  ICC_REMOVED,
+} USBH_SlotStatusTypeDef;
 /* Control request structure */
 typedef struct 
 {
@@ -492,10 +498,11 @@ typedef struct _USBH_HandleTypeDef
   void*                 pData;                  
   void                 (* pUser )(struct _USBH_HandleTypeDef *pHandle, uint8_t id);
 #ifdef USB_CCID_HOST_MODE
-  USBH_CmdTransferStatusTypeDef transferStatus;
+  USBH_SlotStatusTypeDef iccSlotStatus;
   uint8_t* apdu;
   size_t apduLen;
-  uint8_t rawRxData[64]; 
+  uint8_t rawRxData[64];
+  uint8_t RDR_to_PC_NotifySlotChange[4];
 #endif  
 #if (USBH_USE_OS == 1)
   osMessageQId          os_event;   

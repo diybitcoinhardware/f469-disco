@@ -80,12 +80,14 @@ typedef struct usb_connection_obj_ {
   mp_obj_t timer;                ///< Timer object
   mp_obj_t atr;                  ///< ATR as bytes object
   mp_uint_t prev_ticks_ms;       ///< Previous value of millisecond ticks
+  CCID_HandleTypeDef *CCID_Handle; 
   uint8_t pbSeq;
   uint8_t IccCmd[10];
 } usb_connection_obj_t;
 
 STATIC void usb_timer_init(usb_connection_obj_t* self); 
 static void timer_task(usb_connection_obj_t* self);
+STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in);
 /// Connection class type
 extern const mp_obj_type_t scard_UsbCardConnection_type;
 #endif

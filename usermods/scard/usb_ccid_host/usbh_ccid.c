@@ -113,8 +113,8 @@ static USBH_StatusTypeDef USBH_CCID_InterfaceInit (USBH_HandleTypeDef *phost)
       {
         if(phost->device.CfgDesc.Itf_Desc[interface].Ep_Desc[i].bmAttributes == USB_EP_TYPE_INTR)
         {
-          CCID_Handle->CommItf.NotifEp = phost->device.CfgDesc.Itf_Desc[interface].Ep_Desc[0].bEndpointAddress;
-          CCID_Handle->CommItf.NotifEpSize  = phost->device.CfgDesc.Itf_Desc[interface].Ep_Desc[0].wMaxPacketSize;
+          CCID_Handle->CommItf.NotifEp = phost->device.CfgDesc.Itf_Desc[interface].Ep_Desc[i].bEndpointAddress;
+          CCID_Handle->CommItf.NotifEpSize  = phost->device.CfgDesc.Itf_Desc[interface].Ep_Desc[i].wMaxPacketSize;
         }
       }
     }
@@ -261,27 +261,31 @@ int pbSeq = 0;
   * @param  phost: Host handle
   * @retval USBH Status
   */
+
 static USBH_StatusTypeDef USBH_CCID_Process (USBH_HandleTypeDef *phost)
 {
   USBH_StatusTypeDef status = USBH_BUSY;
   USBH_StatusTypeDef req_status = USBH_OK;
   CCID_HandleTypeDef *CCID_Handle =  phost->pActiveClass->pData;
   USBH_ChipCardDescTypeDef chipCardDesc = phost->device.CfgDesc.Itf_Desc[0].CCD_Desc;
+  phost->iccSlotStatus = ICC_REMOVED;
   switch(CCID_Handle->state)
   {
     case CCID_IDLE_STATE:
       status = USBH_OK;
-      if(phost->transferStatus == START_DATA_TRANSFER)
-      {
-        CCID_Handle->state = CCID_TRANSFER_DATA;
-      }
+      USBH_InterruptReceiveData(phost, phost->RDR_to_PC_NotifySlotChange,
+                              sizeof(phost->RDR_to_PC_NotifySlotChange), CCID_Handle->CommItf.NotifPipe);
       break;
-    
-    case CCID_GET_DATA_HOST:
-      USBH_InterruptReceiveData(phost, 
-                                phost->rawRxData,
-                                8,
-                                CCID_Handle->CommItf.NotifPipe);
+    case CCID_GET_SLOT_STATUS:
+      if(phost->RDR_to_PC_NotifySlotChange[0] == 0x50 && phost->RDR_to_PC_NotifySlotChange[1] == 0x02)
+      {
+        phost->iccSlotStatus = ICC_REMOVED;
+      }
+      if(phost->RDR_to_PC_NotifySlotChange[0] == 0x50 && phost->RDR_to_PC_NotifySlotChange[1] == 0x03)
+      {
+        phost->iccSlotStatus = ICC_INSERTED;
+      }
+      CCID_Handle->state = CCID_IDLE_STATE; 
       break;
     case CCID_TRANSFER_DATA:
       USBH_CCID_Transmit(phost, phost->apdu, phost->apduLen);
@@ -289,10 +293,8 @@ static USBH_StatusTypeDef USBH_CCID_Process (USBH_HandleTypeDef *phost)
       USBH_Delay(200);
       USBH_CCID_Receive(phost, phost->rawRxData, sizeof(phost->rawRxData));
       CCID_ProcessReception(phost);
-      phost->transferStatus = STOP_DATA_TRANSFER;
       CCID_Handle->state = CCID_IDLE_STATE;
-      break;   
-      
+      break;
     case CCID_ERROR_STATE:
       req_status = USBH_ClrFeature(phost, 0x00); 
       
