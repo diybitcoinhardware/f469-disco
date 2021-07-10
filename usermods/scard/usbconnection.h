@@ -81,17 +81,11 @@ typedef struct usb_connection_obj_ {
   mp_obj_t atr;                  ///< ATR as bytes object
   mp_uint_t prev_ticks_ms;       ///< Previous value of millisecond ticks
   uint8_t pbSeq;
-  uint8_t IccPowerOnCmd[10];
+  uint8_t IccCmd[10];
 } usb_connection_obj_t;
-
-typedef struct usb_process_obj_ {
-  __IO HOST_StateTypeDef     gProcessState;
-  bool scardConnected;
-} usb_process_obj_t;
 
 STATIC void usb_timer_init(usb_connection_obj_t* self); 
 static void timer_task(usb_connection_obj_t* self);
 /// Connection class type
 extern const mp_obj_type_t scard_UsbCardConnection_type;
-usb_process_obj_t usbProcess_type;
 #endif

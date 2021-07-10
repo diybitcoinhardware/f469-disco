@@ -38,18 +38,17 @@ static void timer_task(usb_connection_obj_t* self) {
     mp_uint_t ticks_ms = mp_hal_ticks_ms();
     mp_uint_t elapsed = scard_ticks_diff(ticks_ms, self->prev_ticks_ms);
     self->prev_ticks_ms = ticks_ms;
-    usbProcess_type.scardConnected = false;
     if(elapsed)
     {
       led_state(4, 0);
       USBH_Process(&hUsbHostFS);
       if(hUsbHostFS.gState == HOST_CLASS)
       {
-        usbProcess_type.scardConnected = true;
+        self->state = state_connecting;
       }
       else
       {
-        usbProcess_type.scardConnected = false;
+        self->state = state_closed;
       }
       mp_hal_delay_ms(100);
       led_state(4, 1);
@@ -188,39 +187,82 @@ static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
 STATIC mp_obj_t connection_cmd_power_on(mp_obj_t self_in)
 {
     usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
-    USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-    hUsbHostFS.apduLen = CCID_ICC_POWER_ON_CMD_LENGTH;
-    self->IccPowerOnCmd[0] = 0x62; 
-    self->IccPowerOnCmd[1] = 0x00;
-    self->IccPowerOnCmd[2] = 0x00;
-    self->IccPowerOnCmd[3] = 0x00;
-    self->IccPowerOnCmd[4] = 0x00;
-    self->IccPowerOnCmd[5] = chipCardDesc.bCurrentSlotIndex;	
-    self->IccPowerOnCmd[6] = self->pbSeq++;
-    self->IccPowerOnCmd[7] = getVoltageSupport(&chipCardDesc);
-    self->IccPowerOnCmd[8] = 0x00;
-    self->IccPowerOnCmd[9] = 0x00;
-    hUsbHostFS.apdu = self->IccPowerOnCmd;
-    hUsbHostFS.transferStatus = START_DATA_TRANSFER;
-    mp_hal_delay_ms(350);
-    if(hUsbHostFS.transferStatus == STOP_DATA_TRANSFER)
+    if(self->state == state_connecting)
     {
-      for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
-      {
-        printf("0x%X ", hUsbHostFS.rawRxData[i]);
-      }
-      printf("\n\n");
+        USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+        hUsbHostFS.apduLen = CCID_ICC_POWER_ON_CMD_LENGTH;
+        self->IccCmd[0] = 0x62; 
+        self->IccCmd[1] = 0x00;
+        self->IccCmd[2] = 0x00;
+        self->IccCmd[3] = 0x00;
+        self->IccCmd[4] = 0x00;
+        self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	
+        self->IccCmd[6] = self->pbSeq++;
+        self->IccCmd[7] = getVoltageSupport(&chipCardDesc);
+        self->IccCmd[8] = 0x00;
+        self->IccCmd[9] = 0x00;
+        hUsbHostFS.apdu = self->IccCmd;
+        hUsbHostFS.transferStatus = START_DATA_TRANSFER;
+        mp_hal_delay_ms(350);
+        if(hUsbHostFS.transferStatus == STOP_DATA_TRANSFER)
+        {
+          for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+          {
+            printf("0x%X ", hUsbHostFS.rawRxData[i]);
+          }
+          printf("\n\n");
+        }
+        memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+        self->state = state_connected;
     }
-    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    else
+    {
+        raise_SmartcardException("smart card reader is not connected");
+    }
     return mp_const_none;
 }
+STATIC mp_obj_t connection_disconnect(mp_obj_t self_in) 
+{
+    usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+    USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+    if(self->state == state_connected)
+    {
+        self->IccCmd[0] = 0x63; /* IccPowerOff */
+        self->IccCmd[1] = self->IccCmd[2] = self->IccCmd[3] = self->IccCmd[4] = 0;	/* dwLength */
+        self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
+        self->IccCmd[6] = self->pbSeq++;
+        self->IccCmd[7] = self->IccCmd[8] = self->IccCmd[9] = 0; /* RFU */
+        hUsbHostFS.apdu = self->IccCmd;
+        hUsbHostFS.transferStatus = START_DATA_TRANSFER;
+        mp_hal_delay_ms(350);
+        if(hUsbHostFS.transferStatus == STOP_DATA_TRANSFER)
+        {
+            for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+            {
+              printf("0x%X ", hUsbHostFS.rawRxData[i]);
+            }
+            printf("\n\n");
+        }
+        memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+        //Stop USB CCID communication
+        USBH_CCID_Stop(&hUsbHostFS);
+    }
+    else
+    {
+        raise_SmartcardException("smart card reader is not connected");
+    }
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_disconnect_obj, connection_disconnect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_cmd_power_on_obj, connection_cmd_power_on);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_obj, 1, connection_transmit);
 
 STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   // Instance methods
-  { MP_ROM_QSTR(MP_QSTR_transmit),    MP_ROM_PTR(&connection_transmit_obj) },
-  { MP_ROM_QSTR(MP_QSTR_connect), MP_ROM_PTR(&connection_cmd_power_on_obj) },
+  { MP_ROM_QSTR(MP_QSTR_disconnect),    MP_ROM_PTR(&connection_disconnect_obj)    },
+  { MP_ROM_QSTR(MP_QSTR_transmit),      MP_ROM_PTR(&connection_transmit_obj)      },
+  { MP_ROM_QSTR(MP_QSTR_connect),       MP_ROM_PTR(&connection_cmd_power_on_obj)  },
 };
 
 STATIC MP_DEFINE_CONST_DICT(connection_locals_dict, connection_locals_dict_table);
