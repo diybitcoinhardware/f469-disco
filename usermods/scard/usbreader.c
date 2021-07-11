@@ -13,21 +13,40 @@
 #include "usbreader.h"
 /// Reader class type
 extern const mp_obj_type_t scard_UsbReader_type;
-typedef struct reader_obj_ {
+typedef struct usb_reader_obj_ {
   /// Pointer to type of base class
   mp_obj_base_t base;
   /// Reader name
   mp_obj_t name;
   /// Active connection
   mp_obj_t connection;
-} reader_obj_t;
+} usb_reader_obj_t;
 
-STATIC mp_obj_t usb_reader_make_new()
+STATIC mp_obj_t usb_reader_make_new(const mp_obj_type_t* type, size_t n_args,
+                                size_t n_kw, const mp_obj_t* all_args)
 {
+    enum 
+    { 
+      ARG_name, 
+      ARG_timerId
+    };
+    static const mp_arg_t allowed_args[] = {
+      { MP_QSTR_name,     MP_ARG_KW_ONLY  | MP_ARG_OBJ, {.u_obj = mp_const_none}},
+      { MP_QSTR_timerId,  MP_ARG_KW_ONLY  | MP_ARG_OBJ,
+      {.u_obj = MP_OBJ_NEW_SMALL_INT(-1)} }
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args),
+                              allowed_args, args);
+    // Check name
+    if( !mp_obj_is_type(args[ARG_name].u_obj, &mp_type_NoneType) &&
+        !mp_obj_is_str(args[ARG_name].u_obj) ) {
+      mp_raise_ValueError("name must be string or None");
+    }
     // Create new object
-    reader_obj_t* self = m_new0(reader_obj_t, 1U);
+    usb_reader_obj_t* self = m_new0(usb_reader_obj_t, 1U);
     self->base.type = &scard_UsbReader_type;
-    self->name = "USB Smart Card Reader";
+    self->name = args[ARG_name].u_obj;
     self->connection = MP_OBJ_NULL;
     led_state(1, 1);
     led_state(2, 1);
@@ -38,17 +57,28 @@ STATIC mp_obj_t usb_reader_make_new()
 }
 
 STATIC mp_obj_t usbreader_createConnection(mp_obj_t self_in) {
-  reader_obj_t* self = (reader_obj_t*)self_in;
+  usb_reader_obj_t* self = (usb_reader_obj_t*)self_in;
 
   // Create a new connection
   mp_obj_t args[] =  {
     // Positional arguments
-    MP_OBJ_FROM_PTR(self),               // reader
+    MP_OBJ_FROM_PTR(self),
   };
   self->connection = scard_UsbCardConnection_type.make_new(
-    &scard_UsbCardConnection_type, 2U, 0U, args);
+    &scard_UsbCardConnection_type, 1U, 0U, args);
 
   return MP_OBJ_FROM_PTR(self->connection);
+}
+
+void usbreader_deleteConnection(mp_obj_t* self_in, mp_obj_t* connection) {
+  usb_reader_obj_t* self = (usb_reader_obj_t*)self_in;
+
+  if(mp_obj_is_type(self, &scard_UsbReader_type)) {
+    if(connection && self->connection == connection) {
+      // Remove the reference to let the GC collecting this connection object
+      self->connection = MP_OBJ_NULL;
+    }
+  }
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(usbreader_createConnection_obj, usbreader_createConnection);

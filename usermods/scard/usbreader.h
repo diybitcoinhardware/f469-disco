@@ -19,5 +19,13 @@
 
 extern USBH_HandleTypeDef hUsbHostFS;
 extern const mp_obj_type_t scard_UsbReader_type;
-
+/**
+ * Deletes a smart card connection
+ *
+ * Called from CardConnection.close(), not exposed to Python
+ *
+ * @param self        instance of Reader class
+ * @param connection  instance of CardConnection class
+ */
+extern void usbreader_deleteConnection(mp_obj_t* self_in, mp_obj_t* connection);
 #endif

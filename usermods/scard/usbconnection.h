@@ -73,16 +73,31 @@ typedef struct event_ {
   size_t n_kw;
 } event_t;
 
+typedef struct usb_ccid_apdu_ {
+  const uint8_t *apdu; ///< Pointer to buffer containing APDU
+  size_t len;          ///< Length of APDU in bytes
+} usb_ccid_apdu_t;
+
+typedef struct usb_ccid_atr_ {
+  const uint8_t *atr; ///< Pointer to buffer containing APDU
+  size_t len;          ///< Length of APDU in bytes
+} usb_ccid_atr_t;
 typedef struct usb_connection_obj_ {
   mp_obj_base_t base;            ///< Pointer to type of base class
   mp_obj_t reader;               ///< Reader to which connection is bound
   state_t state;                 ///< Connection state
   mp_obj_t timer;                ///< Timer object
   mp_obj_t atr;                  ///< ATR as bytes object
+  mp_obj_t apdu;                  ///< APDU as bytes object
   mp_uint_t prev_ticks_ms;       ///< Previous value of millisecond ticks
+  mp_obj_t observers;            ///< List of observers
+  event_t event_buf[MAX_EVENTS]; ///< Event buffer
+  size_t event_idx;              ///< Event index within event_buf[]
   CCID_HandleTypeDef *CCID_Handle; 
   uint8_t pbSeq;
   uint8_t IccCmd[10];
+  usb_ccid_apdu_t apdu_recived;
+  usb_ccid_atr_t  atr_received;
 } usb_connection_obj_t;
 
 STATIC void usb_timer_init(usb_connection_obj_t* self); 
