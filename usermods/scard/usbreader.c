@@ -2,7 +2,7 @@
  * @file       usbreader.c
  * @brief      MicroPython uscard usb module: UsbReader class
  * @author     Rostislav Gurin <rgurin@embedity.dev>
- * @copyright  Copyright 2020 Crypto Advance GmbH. All rights reserved.
+ * @copyright  Copyright 2021 Crypto Advance GmbH. All rights reserved.
  */
 
 #include <stdio.h>
@@ -22,12 +22,35 @@ typedef struct usb_reader_obj_ {
   mp_obj_t connection;
 } usb_reader_obj_t;
 
+/**
+ * @brief Constructor of Reader
+ *
+ * Constructor
+ * .. class:: Reader(name=None, timerId=-1)
+ *
+ *  Constructs a UsbReader object.
+ *
+ *  Optional keyword parameters:
+ *
+ *    - *name* name of smart card reader
+ *    - *timerId* id of the timer to be used use for background tasks
+ *
+ * Argument *timerId* can also be None, denying creation of a separate timer
+ * for a CardConnection object. In this case, CardConnection() must be called by
+ * user code periodically at least once in 50ms to run background tasks.
+ *
+ * @param type      pointer to type structure
+ * @param n_args    number of arguments
+ * @param n_kw      number of keyword arguments
+ * @param all_args  array containing arguments
+ * @return          a new instance of CardConnection class
+ */
 STATIC mp_obj_t usb_reader_make_new(const mp_obj_type_t* type, size_t n_args,
                                 size_t n_kw, const mp_obj_t* all_args)
 {
     enum 
     { 
-      ARG_name, 
+      ARG_name = 0, 
       ARG_timerId
     };
     static const mp_arg_t allowed_args[] = {
@@ -56,6 +79,16 @@ STATIC mp_obj_t usb_reader_make_new(const mp_obj_type_t* type, size_t n_args,
     return MP_OBJ_FROM_PTR(self);
 }
 
+/**
+ * @brief Returns a smart card connection through a reader
+ *
+ * .. method:: UsbReader.createConnection()
+ *
+ *  Returns a smart card connection through a reader
+ *
+ * @param self_in  instance of UsbReader class
+ * @return         a new smart card connection
+ */
 STATIC mp_obj_t usbreader_createConnection(mp_obj_t self_in) {
   usb_reader_obj_t* self = (usb_reader_obj_t*)self_in;
 
@@ -81,11 +114,28 @@ void usbreader_deleteConnection(mp_obj_t* self_in, mp_obj_t* connection) {
   }
 }
 
+/**
+ * @brief Returns reader name
+ *
+ * .. method:: Reader.getName()
+ *
+ *  Returns the name of smart card reader
+ *
+ * @param self_in  instance of Reader class
+ * @return         name of smart card reader
+ */
+STATIC mp_obj_t reader_getName(mp_obj_t self_in) {
+  usb_reader_obj_t* self = (usb_reader_obj_t*)self_in;
+  return self->name;
+}
+
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(usbreader_createConnection_obj, usbreader_createConnection);
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(reader_getName_obj, reader_getName);
 
 STATIC const mp_rom_map_elem_t usbreader_locals_dict_table[] = {
   // Instance methods
   { MP_ROM_QSTR(MP_QSTR_createConnection), MP_ROM_PTR(&usbreader_createConnection_obj) },
+  { MP_ROM_QSTR(MP_QSTR_getName),          MP_ROM_PTR(&reader_getName_obj)             },
 };
 STATIC MP_DEFINE_CONST_DICT(usbreader_locals_dict, usbreader_locals_dict_table);
 

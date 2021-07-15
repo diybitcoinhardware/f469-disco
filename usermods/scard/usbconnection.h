@@ -2,9 +2,8 @@
  * @file       usbreader.h
  * @brief      MicroPython uscard usb module: UsbReader class
  * @author     Rostislav Gurin <rgurin@embedity.dev>
- * @copyright  Copyright 2020 Crypto Advance GmbH. All rights reserved.
+ * @copyright  Copyright 2021 Crypto Advance GmbH. All rights reserved.
  */
-
 
 #ifndef USBCONNECTION_H_INCLUDED
 /// Avoids multiple inclusion of this file
@@ -34,16 +33,14 @@
 #define EVENT_POS_ARGS                  (2U)
 /// Maximal number of events in queue
 #define MAX_EVENTS                      (4U)
-/// Size of receive buffer in bytes inside wait loops
-#define WAIT_LOOP_RX_BUF_SIZE           (32U)
 /// Number of sequential cycles that presence pin should keep the same state to
 /// change presence of smart card
 #define CARD_PRESENCE_CYCLES            (5U)
-
+/* Features from dwFeatures */
 #define CCID_CLASS_AUTO_ACTIVATION	    0x00000004
 
 #define CCID_CLASS_AUTO_VOLTAGE		      0x00000008
-
+/// Length of ICC power on command
 #define CCID_ICC_POWER_ON_CMD_LENGTH    (10U)
 /// Connection state
 typedef enum state_ {
@@ -79,25 +76,28 @@ typedef struct usb_ccid_apdu_ {
 } usb_ccid_apdu_t;
 
 typedef struct usb_ccid_atr_ {
-  const uint8_t *atr; ///< Pointer to buffer containing APDU
-  size_t len;          ///< Length of APDU in bytes
+  const uint8_t *atr;   ///< Pointer to buffer containing ATR
+  size_t len;          ///< Length of ATR in bytes
 } usb_ccid_atr_t;
 typedef struct usb_connection_obj_ {
-  mp_obj_base_t base;            ///< Pointer to type of base class
-  mp_obj_t reader;               ///< Reader to which connection is bound
-  state_t state;                 ///< Connection state
-  mp_obj_t timer;                ///< Timer object
-  mp_obj_t atr;                  ///< ATR as bytes object
-  mp_obj_t apdu;                  ///< APDU as bytes object
-  mp_uint_t prev_ticks_ms;       ///< Previous value of millisecond ticks
-  mp_obj_t observers;            ///< List of observers
-  event_t event_buf[MAX_EVENTS]; ///< Event buffer
-  size_t event_idx;              ///< Event index within event_buf[]
-  CCID_HandleTypeDef *CCID_Handle; 
-  uint8_t pbSeq;
-  uint8_t IccCmd[10];
-  usb_ccid_apdu_t apdu_recived;
-  usb_ccid_atr_t  atr_received;
+  mp_obj_base_t base;              ///< Pointer to type of base class
+  mp_obj_t reader;                 ///< Reader to which connection is bound
+  state_t state;                   ///< Connection state
+  mp_obj_t timer;                  ///< Timer object
+  mp_obj_t atr;                    ///< ATR as bytes object
+  mp_obj_t apdu;                   ///< APDU as bytes object
+  mp_uint_t prev_ticks_ms;         ///< Previous value of millisecond ticks
+  mp_obj_t observers;              ///< List of observers
+  event_t event_buf[MAX_EVENTS];   ///< Event buffer
+  size_t event_idx;                ///< Event index within event_buf[]
+  int32_t atr_timeout_ms;          ///< ATR timeout in ms
+  int32_t rsp_timeout_ms;          ///< Response timeout in ms
+  int32_t max_timeout_ms;          ///< Maximal response timeout in ms
+  CCID_HandleTypeDef *CCID_Handle; ///< Structure for CCID process
+  uint8_t pbSeq;                   ///< Sequence number for command. 
+  uint8_t IccCmd[10];              ///< CCID command
+  usb_ccid_apdu_t apdu_recived;    ///< Received APDU
+  usb_ccid_atr_t  atr_received;    ///< Received ATR
 } usb_connection_obj_t;
 
 STATIC void usb_timer_init(usb_connection_obj_t* self); 

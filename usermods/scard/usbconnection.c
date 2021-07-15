@@ -7,11 +7,31 @@
 
 #include "usbconnection.h"
 
+/**
+ * @brief Constructor of UsbCardConnection
+ *
+ * Constructor
+ * .. class:: UsbCardConnection(usbreader, connParams)
+ *
+ *  Constructs a connection object
+ *
+ *    - *usbreader* reader to which connection is bound, instance of Reader class
+ *    - *connParams* connection parameters provided by the reader
+ *
+ * CardConnection object must not be constructed by user! Use
+ * UsbReader.createConnection instead.
+ *
+ * @param type      pointer to type structure
+ * @param n_args    number of arguments
+ * @param n_kw      number of keyword arguments
+ * @param all_args  array containing arguments
+ * @return          a new instance of CardConnection class
+ */
 STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
                                     size_t n_kw, const mp_obj_t* all_args) 
 {
   // Create a new connection object
-    // Arguments
+  // Arguments
   enum {
     ARG_reader = 0,
   };
@@ -37,6 +57,9 @@ STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
   self->CCID_Handle = NULL;
   self->timer = MP_OBJ_NULL;
   self->pbSeq = 0;
+  self->atr_timeout_ms = 350;
+  self->rsp_timeout_ms = 350;
+  self->max_timeout_ms = 500;
   usb_timer_init(self);
   printf("\r\nNew USB smart card connection\n");
   return MP_OBJ_FROM_PTR(self);                                    
@@ -61,7 +84,7 @@ static size_t list_get_len(mp_obj_t list) {
 /**
  * Creates event and stores it in buffer
  *
- * @param self  instance of CardConnection class
+ * @param self  instance of UsbCardConnection class
  * @param args  arguments of event passed to observer
  * @param n_kw  number of keyword arguments
  */
@@ -89,7 +112,7 @@ static void create_event(usb_connection_obj_t* self, mp_obj_t* args, size_t n_kw
 /**
  * Notifies observers passing only type arguments
  *
- * @param self        instance of CardConnection class
+ * @param self        instance of UsbCardConnection class
  * @param event_type  type argument
  */
 static void notify_observers(usb_connection_obj_t* self, event_type_t event_type) {
@@ -103,7 +126,7 @@ static void notify_observers(usb_connection_obj_t* self, event_type_t event_type
 /**
  * Notifies observers passing type and text arguments
  *
- * @param self        instance of CardConnection class
+ * @param self        instance of UsbCardConnection class
  * @param event_type  type argument
  * @param text        text argument
  */
@@ -123,7 +146,7 @@ static void notify_observers_text(usb_connection_obj_t* self,
 /**
  * Notifies observers passing smart card command
  *
- * @param self   instance of CardConnection class
+ * @param self   instance of UsbCardConnection class
  * @param bytes  command data
  */
 static void notify_observers_command(usb_connection_obj_t* self, mp_obj_t bytes) {
@@ -142,7 +165,7 @@ static void notify_observers_command(usb_connection_obj_t* self, mp_obj_t bytes)
 /**
  * Notifies observers passing smart card response
  *
- * @param self      instance of CardConnection class
+ * @param self      instance of UsbCardConnection class
  * @param response  smart card response list
  */
 static void notify_observers_response(usb_connection_obj_t* self,
@@ -178,6 +201,14 @@ static mp_obj_t make_response_list(const uint8_t* data, size_t len) {
   return MP_OBJ_TO_PTR(response);
 }
 
+/**
+ * __call__ special method running background tasks, usually by timer
+ * @param self_in  instance of CardConnection class casted to mp_obj_t
+ * @param n_args   number of arguments
+ * @param n_kw     number of keywords arguments
+ * @param args     array containing arguments
+ * @return         None
+ */
 STATIC mp_obj_t connection_call(mp_obj_t self_in, size_t n_args, size_t n_kw,
                                 const mp_obj_t *args) {
   usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
@@ -188,7 +219,7 @@ STATIC mp_obj_t connection_call(mp_obj_t self_in, size_t n_args, size_t n_kw,
 /**
  * Timer task
  *
- * @param self  instance of CardConnection class
+ * @param self  instance of UsbCardConnection class
  */
 static void timer_task(usb_connection_obj_t* self) {
     mp_uint_t ticks_ms = mp_hal_ticks_ms();
@@ -231,6 +262,10 @@ static mp_obj_t create_timer(usb_connection_obj_t* self, mp_int_t timer_id) {
   return machine_timer_type.make_new(&machine_timer_type, 1, 2, args);
 }
 
+/**
+ * Init a new timer. Timer object for background tasks
+ * @param self      instance of UsbCardConnection class
+ */
 STATIC void usb_timer_init(usb_connection_obj_t* self) 
 {
   mp_int_t timer_id = -1;
@@ -239,6 +274,14 @@ STATIC void usb_timer_init(usb_connection_obj_t* self)
   self->timer = create_timer(self, timer_id);
 }
 
+/**
+ * Converts objects to byte buffer
+ *
+ * @param dst        destination buffer of bytes
+ * @param objects    source array of objects
+ * @param n_objects  number of objects to convert
+ * @return           true if successful
+ */
 static bool objects_to_buf(uint8_t* buf, const mp_obj_t* objects,
                            size_t n_objects) {
   const mp_obj_t* p_obj = objects;
@@ -261,6 +304,12 @@ static bool objects_to_buf(uint8_t* buf, const mp_obj_t* objects,
   return true;
 }
 
+/**
+ * Get voltage from CCID device descriptor
+ *
+ * @param ccidDescriptor  CCID device descriptor
+ * @return                supported voltage
+ */
 static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
 {
   uint8_t voltage = 0;
@@ -290,6 +339,21 @@ static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
   return voltage;
 }
 
+/**
+ * @brief Transmit an APDU to the smart card
+ *
+ * .. method:: UsbCardConnection.transmit(bytes, protocol=None)
+ *
+ *  Transmit an APDU to the smart card. Arguments:
+ *    - *bytes* buffer containing APDU
+ *    - *protocol* protocol identifier, if None uses previously selected
+ *      protocol (if any), or default protocol if nothing selected
+ *
+ * @param n_args    number of arguments
+ * @param pos_args  positional arguments
+ * @param kw_args   keyword arguments
+ * @return          None
+ */
 STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
                                     mp_map_t *kw_args)
 {
@@ -310,6 +374,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
     // Get data buffer of 'bytes' argument
     uint8_t* dynamic_buf = NULL;
     // Check if bytes is a list
+    notify_observers_command(self, args[ARG_bytes].u_obj);
     if(mp_obj_is_type(args[ARG_bytes].u_obj, &mp_type_list)) 
     {   
         // 'bytes' is list
@@ -333,7 +398,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
         if(connection_slot_status(MP_OBJ_TO_PTR(pos_args[0])) == ICC_INSERTED)
         {
           self->CCID_Handle->state = CCID_TRANSFER_DATA;
-          mp_hal_delay_ms(300);
+          mp_hal_delay_ms(self->rsp_timeout_ms);
           for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
           {
             printf("0x%X ", hUsbHostFS.rawRxData[i]);
@@ -344,7 +409,10 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
           self->apdu_recived.apdu = hUsbHostFS.rawRxData;
           self->apdu_recived.len = sizeof(hUsbHostFS.rawRxData);
           self->apdu = mp_obj_new_bytes(self->apdu_recived.apdu, self->apdu_recived.len);
+          mp_obj_t response = make_response_list(self->apdu_recived.apdu, self->apdu_recived.len);
+          notify_observers_response(self, response);
           memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+          notify_observers(self, event_response);
         }
         else
         {
@@ -359,6 +427,16 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
     return mp_const_none;
 }
 
+/**
+ * @brief Connects to a smart card
+ *
+ * .. method:: UsbCardConnection.connect()
+ *
+ *  Connects to a smart card.
+ *
+ * @param self      instance of UsbCardConnection class
+ * @return          None
+ */
 STATIC mp_obj_t connection_connect(mp_obj_t self_in)
 {
     usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
@@ -381,8 +459,9 @@ STATIC mp_obj_t connection_connect(mp_obj_t self_in)
               self->IccCmd[8] = 0x00;
               self->IccCmd[9] = 0x00;
               hUsbHostFS.apdu = self->IccCmd;
+              notify_observers_command(self, self->IccCmd);
               self->CCID_Handle->state = CCID_TRANSFER_DATA;
-              mp_hal_delay_ms(350);
+              mp_hal_delay_ms(self->atr_timeout_ms);
               for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
               {
                 printf("0x%X ", hUsbHostFS.rawRxData[i]);
@@ -391,6 +470,8 @@ STATIC mp_obj_t connection_connect(mp_obj_t self_in)
               self->atr_received.atr = hUsbHostFS.rawRxData;
               self->atr_received.len = sizeof(hUsbHostFS.rawRxData);
               self->atr = mp_obj_new_bytes(self->atr_received.atr, self->atr_received.len);
+              mp_obj_t response = make_response_list(self->atr_received.atr, self->atr_received.len);
+              notify_observers_response(self, response);
               memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
               self->state = state_connected;
               notify_observers(self, event_connect);
@@ -407,6 +488,20 @@ STATIC mp_obj_t connection_connect(mp_obj_t self_in)
     }
     return mp_const_none;
 }
+
+/**
+ * @brief Terminates communication with a smart card and removes power
+ *
+ * .. method:: UsbCardConnection.disconnect()
+ *
+ *  Terminates communication with a smart card and removes power. Call this
+ *  function before asking the user to remove a smart card. This function does
+ *  not close connection but makes it inactive. When a new card is inserted, the
+ *  connection object may be reused with the same parameters.
+ *
+ * @param self_in  instance of CardConnection class
+ * @return         None
+ */
 STATIC mp_obj_t connection_disconnect(mp_obj_t self_in) 
 {
     usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
@@ -415,6 +510,7 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
     {
         if(connection_slot_status(self_in) == ICC_INSERTED)
         {
+          notify_observers(self, event_insertion);
           self->IccCmd[0] = 0x63; /* IccPowerOff */
           self->IccCmd[1] = self->IccCmd[2] = self->IccCmd[3] = self->IccCmd[4] = 0;	/* dwLength */
           self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
@@ -422,7 +518,7 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
           self->IccCmd[7] = self->IccCmd[8] = self->IccCmd[9] = 0; /* RFU */
           hUsbHostFS.apdu = self->IccCmd;
           self->CCID_Handle->state = CCID_TRANSFER_DATA;
-          mp_hal_delay_ms(350);
+          mp_hal_delay_ms(self->rsp_timeout_ms);
           for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
           {
             printf("0x%X ", hUsbHostFS.rawRxData[i]);
@@ -457,6 +553,17 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
     }
     return mp_const_none;
 }
+
+/**
+ * @brief Connects to a smart card
+ *
+ * .. method:: UsbCardConnection.connection_slot_status()
+ *  
+ * Get status of usb smart card reader active slot.
+ * 
+ * @param self      instance of UsbCardConnection class
+ * @return          hUsbHostFS.iccSlotStatus
+ */
 STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in) 
 {
     usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
@@ -465,6 +572,14 @@ STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in)
     return hUsbHostFS.iccSlotStatus;
 }
 
+/**
+ * @brief Checks if smart card is inserted
+ *
+ * .. method:: UsbCardConnection.isCardInserted()
+ *
+ * @param self_in   instance of CardConnection class
+ * @return          True if smart card is inserted
+ */
 STATIC mp_obj_t connection_isCardInserted(mp_obj_t self_in) {
   usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
   if(connection_slot_status(self_in) == ICC_INSERTED)
@@ -477,9 +592,9 @@ STATIC mp_obj_t connection_isCardInserted(mp_obj_t self_in) {
 /**
  * @brief Return card connection reader
  *
- * .. method:: CardConnection.getReader()
+ * .. method:: UsbCardConnection.getReader()
  *
- * @param self_in  instance of CardConnection class
+ * @param self_in  instance of UsbCardConnection class
  * @return         reader object
  */
 STATIC mp_obj_t connection_getReader(mp_obj_t self_in) {
@@ -493,11 +608,11 @@ STATIC mp_obj_t connection_getReader(mp_obj_t self_in) {
 /**
  * @brief Checks if connection is active
  *
- * .. method:: CardConnection.isActive()
+ * .. method:: UsbCardConnection.isActive()
  *
  *  Checks connection state, returning True if card is inserted and powered
  *
- * @param self_in  instance of CardConnection class
+ * @param self_in  instance of UsbCardConnection class
  * @return         connection state: True - active, False - not active
  */
 STATIC mp_obj_t connection_isActive(mp_obj_t self_in) {
@@ -516,7 +631,7 @@ STATIC mp_obj_t connection_isActive(mp_obj_t self_in) {
 /**
  * @brief Returns APDU sentence received from the smart card
  *
- * .. method:: CardConnection.getAPDU()
+ * .. method:: UsbCardConnection.getAPDU()
  *
  * @param self_in  instance of CardConnection class
  * @return         APDU sentence as array bytes or None if not available
@@ -532,7 +647,7 @@ STATIC mp_obj_t connection_getAPDU(mp_obj_t self_in) {
 /**
  * @brief Returns ATR sentence received from the smart card
  *
- * .. method:: CardConnection.getATR()
+ * .. method:: UsbCardConnection.getATR()
  *
  * @param self_in  instance of CardConnection class
  * @return         ATR sentence as array bytes or None if not available
@@ -547,7 +662,7 @@ STATIC mp_obj_t connection_getATR(mp_obj_t self_in) {
 /**
  * @brief Returns connection state
  *
- * .. method:: CardConnection.getState()
+ * .. method:: UsbCardConnection.getState()
  *
  *  Returns connection state, one of the following QSTR strings:
  *
@@ -568,18 +683,18 @@ STATIC mp_obj_t connection_getState(mp_obj_t self_in) {
 /**
  * @brief Adds observer
  *
- * .. method:: CardConnection.addObserver(observer)
+ * .. method:: UsbCardConnection.addObserver(observer)
  *
  *  Adds observer receiving notifications on events of connection. The
  *  *observer* should be a callable object, a function or a method having the
  *  following signature:
  *
- *  def my_function(cardconnection, type, args=None)
- *  def my_method(self, cardconnection, type, args=None)
+ *  def my_function(usbcardconnection, type, args=None)
+ *  def my_method(self, usbcardconnection, type, args=None)
  *
  *  Observer arguments:
  *
- *    - *cardconnection* smart card connection
+ *    - *usbscardconnection* smart card connection
  *    - *type* event type: 'connect', 'disconnect', 'command', 'response',
  *                         'insertion', 'removal', 'error'
  *    - *args* event arguments, a list
@@ -602,11 +717,11 @@ STATIC mp_obj_t connection_addObserver(mp_obj_t self_in, mp_obj_t observer) {
 /**
  * @brief Deletes observer
  *
- * .. method:: CardConnection.deleteObserver(observer)
+ * .. method:: UsbCardConnection.deleteObserver(observer)
  *
  *  Deletes observer. The *observer* should be a callable object.
  *
- * @param self_in   instance of CardConnection class
+ * @param self_in   instance of UsbCardConnection class
  * @param observer  observer, a callable object
  * @return          None
  */
@@ -624,11 +739,11 @@ STATIC mp_obj_t connection_deleteObserver(mp_obj_t self_in, mp_obj_t observer) {
 /**
  * @brief Deletes all observers
  *
- * .. method:: CardConnection.deleteObservers()
+ * .. method:: UsbCardConnection.deleteObservers()
  *
  *  Deletes all observers.
  *
- * @param self_in  instance of CardConnection class
+ * @param self_in  instance of UsbCardConnection class
  * @return         None
  */
 STATIC mp_obj_t connection_deleteObservers(mp_obj_t self_in) {
@@ -651,11 +766,11 @@ STATIC mp_obj_t connection_deleteObservers(mp_obj_t self_in) {
 /**
  * @brief Returns number of registered observers
  *
- * .. method:: CardConnection.countObservers()
+ * .. method:: UsbCardConnection.countObservers()
  *
  *  Returns number of registered observers.
  *
- * @param self_in  instance of CardConnection class
+ * @param self_in  instance of UsbCardConnection class
  * @return         number of registered observers
  */
 STATIC mp_obj_t connection_countObservers(mp_obj_t self_in) {
@@ -694,6 +809,38 @@ STATIC mp_obj_t connection_notifyAll(mp_obj_t self_in, mp_obj_t unused) {
   }
 }
 
+STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
+                                       mp_map_t *kw_args) {
+  // Get self
+  assert(n_args >= 1U);
+  usb_connection_obj_t* self = (usb_connection_obj_t*)MP_OBJ_TO_PTR(pos_args[0]);
+
+  // Parse and check arguments
+  enum { ARG_atrTimeout = 0, ARG_responseTimeout, ARG_maxTimeout };
+  static const mp_arg_t allowed_args[] = {
+    { MP_QSTR_atrTimeout,      MP_ARG_OBJ, {.u_obj = mp_const_none} },
+    { MP_QSTR_responseTimeout, MP_ARG_OBJ, {.u_obj = mp_const_none} },
+    { MP_QSTR_maxTimeout,      MP_ARG_OBJ, {.u_obj = mp_const_none} }
+  };
+  mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+  mp_arg_parse_all(n_args - 1U, pos_args + 1U, kw_args,
+                   MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+  // Check if connection is closed
+  if(state_closed == self->state) {
+    raise_CardConnectionException("connection is closed");
+  }
+
+  // Save parameters
+  self->atr_timeout_ms = mp_obj_get_int(args[ARG_atrTimeout].u_obj);
+
+  self->rsp_timeout_ms = mp_obj_get_int(args[ARG_responseTimeout].u_obj);
+
+  self->max_timeout_ms = mp_obj_get_int(args[ARG_maxTimeout].u_obj);
+
+  return mp_const_none;
+}
+
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_disconnect_obj, connection_disconnect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_connect_obj, connection_connect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_obj, 1, connection_transmit);
@@ -708,6 +855,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(connection_deleteObserver_obj, connection_delet
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_deleteObservers_obj, connection_deleteObservers);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_countObservers_obj, connection_countObservers);
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(connection_notifyAll_obj, connection_notifyAll);
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_setTimeouts_obj, 1, connection_setTimeouts);
 
 STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   // Instance methods
@@ -725,6 +873,7 @@ STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   { MP_ROM_QSTR(MP_QSTR_deleteObservers), MP_ROM_PTR(&connection_deleteObservers_obj)   },
   { MP_ROM_QSTR(MP_QSTR_countObservers),  MP_ROM_PTR(&connection_countObservers_obj)    },
   { MP_ROM_QSTR(MP_QSTR__notifyAll),      MP_ROM_PTR(&connection_notifyAll_obj)         },
+  { MP_ROM_QSTR(MP_QSTR_setTimeouts),     MP_ROM_PTR(&connection_setTimeouts_obj)       },
 };
 
 STATIC MP_DEFINE_CONST_DICT(connection_locals_dict, connection_locals_dict_table);
