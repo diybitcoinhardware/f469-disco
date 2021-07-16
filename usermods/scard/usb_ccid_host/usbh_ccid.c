@@ -254,7 +254,6 @@ static USBH_StatusTypeDef USBH_CCID_ClassRequest (USBH_HandleTypeDef *phost)
   return status;
 }
 
-int pbSeq = 0;
 /**
   * @brief  USBH_CCID_Process 
   *         The function is for managing state machine for CCID data transfers 
@@ -290,7 +289,7 @@ static USBH_StatusTypeDef USBH_CCID_Process (USBH_HandleTypeDef *phost)
     case CCID_TRANSFER_DATA:
       USBH_CCID_Transmit(phost, phost->apdu, phost->apduLen);
       CCID_ProcessTransmission(phost);
-      USBH_Delay(200);
+      //USBH_Delay(200);
       USBH_CCID_Receive(phost, phost->rawRxData, sizeof(phost->rawRxData));
       CCID_ProcessReception(phost);
       CCID_Handle->state = CCID_IDLE_STATE;

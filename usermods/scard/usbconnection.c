@@ -339,6 +339,30 @@ static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
   return voltage;
 }
 
+static void i2dw(int value, uint8_t buffer[])
+{
+	buffer[0] = value & 0xFF;
+	buffer[1] = (value >> 8) & 0xFF;
+	buffer[2] = (value >> 16) & 0xFF;
+	buffer[3] = (value >> 24) & 0xFF;
+} /* i2dw */
+
+STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t *tx_buffer, unsigned int tx_length, uint8_t *cmd, 
+                                            unsigned short rx_length, uint8_t bBWI)
+{
+  usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+	USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+	cmd[0] = 0x6F; /* XfrBlock */
+	i2dw(tx_length, cmd+1);	/* APDU length */
+	cmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
+	cmd[6] = self->pbSeq++;;
+	cmd[7] = bBWI;	/* extend block waiting timeout */
+	cmd[8] = rx_length & 0xFF;	/* Expected length, in character mode only */
+	cmd[9] = (rx_length >> 8) & 0xFF;
+	memcpy(cmd+10, tx_buffer, tx_length);
+}
+
+
 /**
  * @brief Transmit an APDU to the smart card
  *
@@ -362,6 +386,17 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
     assert(n_args >= 1U);
     usb_connection_obj_t* self = (usb_connection_obj_t*)MP_OBJ_TO_PTR(pos_args[0]);
 
+    if(self->state != state_connected)
+    {
+      raise_SmartcardException("smart card reader is not connected");
+    }
+    if(connection_slot_status(MP_OBJ_TO_PTR(pos_args[0])) != ICC_INSERTED)
+    {
+       notify_observers(self, event_removal);
+       raise_SmartcardException("smart card is not inserted");
+    }
+    notify_observers(self, event_insertion);
+
     // Parse and check arguments
     enum { ARG_bytes = 0, ARG_protocol };
     static const mp_arg_t allowed_args[] = {
@@ -372,7 +407,8 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
     mp_arg_parse_all(n_args - 1U, pos_args + 1U, kw_args,
                     MP_ARRAY_SIZE(allowed_args), allowed_args, args);
     // Get data buffer of 'bytes' argument
-    uint8_t* dynamic_buf = NULL;
+    uint8_t *apdu = NULL;
+    hUsbHostFS.apdu = NULL;
     // Check if bytes is a list
     notify_observers_command(self, args[ARG_bytes].u_obj);
     if(mp_obj_is_type(args[ARG_bytes].u_obj, &mp_type_list)) 
@@ -381,49 +417,57 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
         // Get properties of the list
         mp_obj_t* items;
         mp_obj_list_get(args[ARG_bytes].u_obj, &hUsbHostFS.apduLen, &items);
-        // Chose static buffer or allocate dynamic buffer if needed
-        dynamic_buf = m_new(uint8_t, hUsbHostFS.apduLen);
-        hUsbHostFS.apdu = dynamic_buf;
-        if(!objects_to_buf(hUsbHostFS.apdu, items, hUsbHostFS.apduLen)) 
+        apdu = m_new(uint8_t, hUsbHostFS.apduLen);
+        if(!objects_to_buf(apdu, items, hUsbHostFS.apduLen)) 
         {
             mp_raise_ValueError("incorrect data format");
         }
+        // Chose size of the buffer
+        if(apdu[0] == 0x62 || apdu[0] == 0x63)
+        {
+          // if command is IccPowerOn or IccPowerOff, 
+          // size of the buffer equals size of APDU 
+          hUsbHostFS.apdu = apdu;
+        }
+        else
+        {
+          // if command is abData block (ex. SELECT cmd)
+          // size of buffer equal size of APDU + size of 
+          // PC_to_RDR_XfrBlock command
+          size_t cmdLen = CCID_ICC_LENGTH + hUsbHostFS.apduLen;
+          hUsbHostFS.apdu = m_new(uint8_t, cmdLen);
+          // Add apdu to PC_to_RDR_XfrBlock command
+          connection_prepare_xfrblock(MP_OBJ_TO_PTR(pos_args[0]), apdu, hUsbHostFS.apduLen, hUsbHostFS.apdu, 0, 0);
+          for(int i = 0; i < cmdLen; i++)
+          {
+            printf("0x%X ", hUsbHostFS.apdu[i]);
+          }
+          printf("\n\n");
+          hUsbHostFS.apduLen = hUsbHostFS.apduLen + CCID_ICC_LENGTH;
+        }
+        self->CCID_Handle->state = CCID_TRANSFER_DATA;
+        mp_hal_delay_ms(self->atr_timeout_ms);
+        for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+        {
+          printf("0x%X ", hUsbHostFS.rawRxData[i]);
+        }
+        printf("\n\n");
+        m_del(uint8_t, hUsbHostFS.apdu, CCID_ICC_LENGTH + hUsbHostFS.apduLen);
+        hUsbHostFS.apdu = NULL;
+        m_del(uint8_t, apdu, hUsbHostFS.apduLen);
+        apdu = NULL;
     } 
     else 
     {
         return mp_const_none;
     }
-    if(self->state == state_connecting || self->state == state_connected)
-    {
-        if(connection_slot_status(MP_OBJ_TO_PTR(pos_args[0])) == ICC_INSERTED)
-        {
-          self->CCID_Handle->state = CCID_TRANSFER_DATA;
-          mp_hal_delay_ms(self->rsp_timeout_ms);
-          for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
-          {
-            printf("0x%X ", hUsbHostFS.rawRxData[i]);
-          }
-          printf("\n\n");
-          m_del(uint8_t, dynamic_buf, hUsbHostFS.apduLen);
-          dynamic_buf = NULL;
-          self->apdu_recived.apdu = hUsbHostFS.rawRxData;
-          self->apdu_recived.len = sizeof(hUsbHostFS.rawRxData);
-          self->apdu = mp_obj_new_bytes(self->apdu_recived.apdu, self->apdu_recived.len);
-          mp_obj_t response = make_response_list(self->apdu_recived.apdu, self->apdu_recived.len);
-          notify_observers_response(self, response);
-          memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
-          notify_observers(self, event_response);
-        }
-        else
-        {
-          notify_observers(self, event_removal);
-          raise_SmartcardException("smart card is not inserted");
-        }
-    }
-    else
-    {
-      raise_SmartcardException("smart card reader is not connected");
-    }
+    self->apdu_recived.apdu = hUsbHostFS.rawRxData;
+    self->apdu_recived.len = sizeof(hUsbHostFS.rawRxData);
+    self->apdu = mp_obj_new_bytes(self->apdu_recived.apdu, self->apdu_recived.len);
+    mp_obj_t response = make_response_list(self->apdu_recived.apdu, self->apdu_recived.len);
+    notify_observers_response(self, response);
+    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    notify_observers(self, event_response);
     return mp_const_none;
 }
 
@@ -447,7 +491,7 @@ STATIC mp_obj_t connection_connect(mp_obj_t self_in)
           {
               notify_observers(self, event_insertion);
               USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-              hUsbHostFS.apduLen = CCID_ICC_POWER_ON_CMD_LENGTH;
+              hUsbHostFS.apduLen = CCID_ICC_LENGTH;
               self->IccCmd[0] = 0x62; 
               self->IccCmd[1] = 0x00;
               self->IccCmd[2] = 0x00;

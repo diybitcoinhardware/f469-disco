@@ -41,7 +41,7 @@
 
 #define CCID_CLASS_AUTO_VOLTAGE		      0x00000008
 /// Length of ICC power on command
-#define CCID_ICC_POWER_ON_CMD_LENGTH    (10U)
+#define CCID_ICC_LENGTH    (10U)
 /// Connection state
 typedef enum state_ {
   state_closed       = MP_QSTR_closed,       ///< Connection is closed
