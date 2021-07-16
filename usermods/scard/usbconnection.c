@@ -841,6 +841,38 @@ STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
   return mp_const_none;
 }
 
+/**
+ * @brief Closes connection releasing hardware resources
+ *
+ * .. method:: UsbCardConnection.close()
+ *
+ *  Closes connection releasing hardware resources
+ *
+ * @param self_in  instance of CardConnection class
+ * @return         None
+ */
+STATIC mp_obj_t connection_close(mp_obj_t self_in) {
+
+  usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+  if(self->state != state_closed) {
+    connection_disconnect(self_in);
+    connection_deleteObservers(self_in);
+
+    // Deinitialize timer
+    if(self->timer) {
+      mp_obj_t deinit_fn = mp_load_attr(self->timer, MP_QSTR_deinit);
+      (void)mp_call_function_0(deinit_fn);
+      self->timer = MP_OBJ_NULL;
+    }
+    // Detach from reader
+    usbreader_deleteConnection(self->reader, MP_OBJ_FROM_PTR(self));
+    self->reader = MP_OBJ_NULL;
+
+    // Mark connection object as closed
+    self->state = state_closed;
+  }
+}
+
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_disconnect_obj, connection_disconnect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_connect_obj, connection_connect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_obj, 1, connection_transmit);
@@ -855,10 +887,14 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(connection_deleteObserver_obj, connection_delet
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_deleteObservers_obj, connection_deleteObservers);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_countObservers_obj, connection_countObservers);
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(connection_notifyAll_obj, connection_notifyAll);
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_close_obj, connection_close);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_setTimeouts_obj, 1, connection_setTimeouts);
 
 STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   // Instance methods
+  { MP_ROM_QSTR(MP_QSTR___del__),         MP_ROM_PTR(&connection_close_obj)             },
+  { MP_ROM_QSTR(MP_QSTR___enter__),       MP_ROM_PTR(&mp_identity_obj)                  },
+  { MP_ROM_QSTR(MP_QSTR___exit__),        MP_ROM_PTR(&connection_close_obj)             },
   { MP_ROM_QSTR(MP_QSTR_connect),         MP_ROM_PTR(&connection_connect_obj)           },
   { MP_ROM_QSTR(MP_QSTR_disconnect),      MP_ROM_PTR(&connection_disconnect_obj)        },
   { MP_ROM_QSTR(MP_QSTR_transmit),        MP_ROM_PTR(&connection_transmit_obj)          },
@@ -872,6 +908,7 @@ STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   { MP_ROM_QSTR(MP_QSTR_deleteObserver),  MP_ROM_PTR(&connection_deleteObserver_obj)    },
   { MP_ROM_QSTR(MP_QSTR_deleteObservers), MP_ROM_PTR(&connection_deleteObservers_obj)   },
   { MP_ROM_QSTR(MP_QSTR_countObservers),  MP_ROM_PTR(&connection_countObservers_obj)    },
+  { MP_ROM_QSTR(MP_QSTR_close),           MP_ROM_PTR(&connection_close_obj)             },
   { MP_ROM_QSTR(MP_QSTR__notifyAll),      MP_ROM_PTR(&connection_notifyAll_obj)         },
   { MP_ROM_QSTR(MP_QSTR_setTimeouts),     MP_ROM_PTR(&connection_setTimeouts_obj)       },
 };
