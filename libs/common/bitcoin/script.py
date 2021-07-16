@@ -4,13 +4,17 @@ from . import bech32
 from . import hashes
 from . import compact
 from .base import EmbitBase, EmbitError
-import io
+import sys
+if sys.implementation.name == "micropython":
+    import secp256k1
+else:
+    from .util import secp256k1
 
 SIGHASH_ALL = 1
 
 
 class Script(EmbitBase):
-    def __init__(self, data):
+    def __init__(self, data=b""):
         self.data = data
 
     def address(self, network=NETWORKS["main"]):
@@ -28,7 +32,7 @@ class Script(EmbitBase):
             d = network["p2sh"] + data[2:22]
             return base58.encode_check(d)
 
-        if script_type in ["p2wpkh", "p2wsh"]:
+        if script_type in ["p2wpkh", "p2wsh", "p2tr"]:
             ver = data[0]
             # FIXME: should be one of OP_N
             if ver > 0:
@@ -52,6 +56,9 @@ class Script(EmbitBase):
         # 0 <32:sha256(script)>
         if len(data) == 34 and data[:2] == b"\x00\x20":
             return "p2wsh"
+        # OP_1 <x-only-pubkey>
+        if len(data) == 34 and data[:2] == b"\x51\x20":
+            return "p2tr"
         # unknown type
         return None
 
@@ -74,9 +81,15 @@ class Script(EmbitBase):
     def __ne__(self, other):
         return self.data != other.data
 
+    def __hash__(self):
+        return hash(self.data)
+
+    def __len__(self):
+        return len(self.data)
+
 
 class Witness(EmbitBase):
-    def __init__(self, items):
+    def __init__(self, items=[]):
         self.items = items[:]
 
     def write_to(self, stream):
@@ -95,6 +108,12 @@ class Witness(EmbitBase):
             data = stream.read(l)
             items.append(data)
         return cls(items)
+
+    def __hash__(self):
+        return hash(self.items)
+
+    def __len__(self):
+        return len(self.items)
 
 
 def p2pkh(pubkey):
@@ -115,6 +134,17 @@ def p2wpkh(pubkey):
 def p2wsh(script):
     """Return Pay-To-Witness-Pubkey-Hash ScriptPubkey"""
     return Script(b"\x00\x20" + hashes.sha256(script.data))
+
+
+def p2tr(pubkey, script_tree=None):
+    """Return Pay-To-Taproot ScriptPubkey"""
+    if script_tree is None:
+        h = b""
+    else:
+        raise NotImplementedError("Taproot script trees are not supported yet")
+        _, h = taproot_tree_helper(script_tree)
+    output_pubkey = pubkey.taproot_tweak(h)
+    return Script(b"\x51\x20" + output_pubkey.xonly())
 
 
 def p2pkh_from_p2wpkh(script):
@@ -151,14 +181,19 @@ def address_to_scriptpubkey(addr):
         # fail - then it's bech32 address
         hrp = addr.split("1")[0]
         ver, data = bech32.decode(hrp, addr)
-        if ver != 0 or len(data) not in [20, 32]:
+        if ver not in [0, 1] or len(data) not in [20, 32]:
             raise EmbitError("Invalid bech32 address")
+        if ver == 1 and len(data) != 32:
+            raise EmbitError("Invalid bech32 address")
+        # OP_1..OP_N
+        if ver > 0:
+            ver += 0x50
         return Script(bytes([ver, len(data)] + data))
 
 
-def script_sig_p2pkh(signature, pubkey):
+def script_sig_p2pkh(signature, pubkey, sighash=SIGHASH_ALL):
     sec = pubkey.sec()
-    der = signature.serialize() + bytes([SIGHASH_ALL])
+    der = signature.serialize() + bytes([sighash])
     data = compact.to_bytes(len(der)) + der + compact.to_bytes(len(sec)) + sec
     return Script(data)
 
@@ -169,5 +204,5 @@ def script_sig_p2sh(redeem_script):
     return Script(redeem_script.serialize())
 
 
-def witness_p2wpkh(signature, pubkey):
-    return Witness([signature.serialize() + bytes([SIGHASH_ALL]), pubkey.sec()])
+def witness_p2wpkh(signature, pubkey, sighash=SIGHASH_ALL):
+    return Witness([signature.serialize() + bytes([sighash]), pubkey.sec()])

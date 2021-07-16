@@ -7,8 +7,8 @@ from . import hashes
 from .script import Script, Witness
 from . import script
 from .base import EmbitBase, EmbitError
-from binascii import b2a_base64, a2b_base64, hexlify
-
+from binascii import b2a_base64, a2b_base64, hexlify, unhexlify
+from io import BytesIO
 
 class PSBTError(EmbitError):
     pass
@@ -70,9 +70,8 @@ class PSBTScope(EmbitBase):
     def parse_unknowns(self):
         # go through all the unknowns and parse them
         for k in list(self.unknown):
-            # legacy utxo
             s = BytesIO()
-            ser_string(s, v)
+            ser_string(s, self.unknown[k])
             s.seek(0)
             self.read_value(s, k)
 
@@ -84,6 +83,9 @@ class PSBTScope(EmbitBase):
         if key in self.unknown:
             raise PSBTError("Duplicated key")
         self.unknown[key] = value
+
+    def update(self, other):
+        self.unknown.update(other.unknown)
 
     @classmethod
     def read_from(cls, stream, *args, **kwargs):
@@ -114,6 +116,8 @@ class InputScope(PSBTScope):
         self.non_witness_utxo = None
         self.witness_utxo = None
         self._utxo = None
+        self._txhash = None
+        self._verified = False
         self.partial_sigs = OrderedDict()
         self.sighash_type = None
         self.redeem_script = None
@@ -122,6 +126,32 @@ class InputScope(PSBTScope):
         self.final_scriptsig = None
         self.final_scriptwitness = None
         self.parse_unknowns()
+
+    def clear_metadata(self):
+        """Removes metadata like derivations, utxos etc except final or partial sigs"""
+        self.unknown = {}
+        self.non_witness_utxo = None
+        self.witness_utxo = None
+        self.sighash_type = None
+        self.redeem_script = None
+        self.witness_script = None
+        self.bip32_derivations = OrderedDict()
+
+    def update(self, other):
+        self.txid = other.txid or self.txid
+        self.vout = other.vout if other.vout is not None else self.vout
+        self.sequence = other.sequence if other.sequence is not None else self.sequence
+        self.unknown.update(other.unknown)
+        self.non_witness_utxo = other.non_witness_utxo or self.non_witness_utxo
+        self.witness_utxo = other.witness_utxo or self.witness_utxo
+        self._utxo = other._utxo or self._utxo
+        self.partial_sigs.update(other.partial_sigs)
+        self.sighash_type = other.sighash_type if other.sighash_type is not None else self.sighash_type
+        self.redeem_script = other.redeem_script or self.redeem_script
+        self.witness_script = other.witness_script or self.witness_script
+        self.bip32_derivations.update(other.bip32_derivations)
+        self.final_scriptsig = other.final_scriptsig or self.final_scriptsig
+        self.final_scriptwitness = other.final_scriptwitness or self.final_scriptwitness
 
     @property
     def vin(self):
@@ -137,7 +167,30 @@ class InputScope(PSBTScope):
 
     @property
     def is_verified(self):
-        return self._utxo is not None
+        """Check if prev txid was verified using non_witness_utxo. See `verify()`"""
+        return self._verified
+
+    @property
+    def is_taproot(self):
+        return self.utxo.script_pubkey.script_type() == "p2tr"
+
+    def verify(self, ignore_missing=False):
+        """Verifies the hash of previous transaction provided in non_witness_utxo.
+        We must verify on a hardware wallet even on segwit transactions to avoid
+        miner fee attack described here:
+        https://blog.trezor.io/details-of-firmware-updates-for-trezor-one-version-1-9-1-and-trezor-model-t-version-2-3-1-1eba8f60f2dd
+        For legacy txs we need to verify it to calculate fee.
+        """
+        if self.non_witness_utxo or self._txhash:
+            txid = bytes(reversed(self._txhash)) if self._txhash else self.non_witness_utxo.txid()
+            if self.txid == txid:
+                self._verified = True
+                return True
+            else:
+                raise PSBTError("Previous txid doesn't match non_witness_utxo txid")
+        if not ignore_missing:
+            raise PSBTError("Missing non_witness_utxo")
+        return False
 
     def read_value(self, stream, k):
         # separator
@@ -154,14 +207,10 @@ class InputScope(PSBTScope):
                 # we verified and saved utxo
                 if self.compress and self.txid and self.vout is not None:
                     txout, txhash = self.TX_CLS.read_vout(stream, self.vout)
-                    if txhash != bytes(reversed(self.txid)):
-                        raise PSBTError("Invalid hash of the non witness utxo")
+                    self._txhash = txhash
                     self._utxo = txout
                 else:
                     tx = self.TX_CLS.read_from(stream)
-                    if self.txid:
-                        if tx.txid() != self.txid:
-                            raise PSBTError("Invalid hash of the non witness utxo")
                     self.non_witness_utxo = tx
             return
         v = read_string(stream)
@@ -312,6 +361,21 @@ class OutputScope(PSBTScope):
         self.bip32_derivations = OrderedDict()
         self.parse_unknowns()
 
+    def clear_metadata(self):
+        """Removes metadata like derivations, utxos etc except final or partial sigs"""
+        self.unknown = {}
+        self.redeem_script = None
+        self.witness_script = None
+        self.bip32_derivations = OrderedDict()
+
+    def update(self, other):
+        self.value = other.value if other.value is not None else self.value
+        self.script_pubkey = other.script_pubkey or self.script_pubkey
+        self.unknown.update(other.unknown)
+        self.redeem_script = other.redeem_script or self.redeem_script
+        self.witness_script = other.witness_script or self.witness_script
+        self.bip32_derivations.update(other.bip32_derivations)
+
     @property
     def vout(self):
         return TransactionOutput(self.value, self.script_pubkey)
@@ -421,11 +485,16 @@ class PSBT(EmbitBase):
     def sighash_legacy(self, *args, **kwargs):
         return self.tx.sighash_legacy(*args, **kwargs)
 
-    def verify(self):
+    def sighash_taproot(self, *args, **kwargs):
+        return self.tx.sighash_taproot(*args, **kwargs)
+
+    @property
+    def is_verified(self):
+        return all([inp.is_verified for inp in self.inputs])
+
+    def verify(self, ignore_missing=False):
         for i, inp in enumerate(self.inputs):
-            if inp.non_witness_utxo:
-                if inp.non_witness_utxo.txid() != self.tx.vin[i].txid:
-                    raise PSBTError("Invalid hash of the non witness utxo for input %d" % i)
+            inp.verify(ignore_missing)
 
     def utxo(self, i):
         if self.inputs[i].is_verified:
@@ -568,6 +637,11 @@ class PSBT(EmbitBase):
     def sighash(self, i, sighash=SIGHASH.ALL):
         inp = self.inputs[i]
 
+        if inp.is_taproot:
+            values = [inp.utxo.value for inp in self.inputs]
+            scripts = [inp.utxo.script_pubkey for inp in self.inputs]
+            return self.sighash_taproot(i, script_pubkeys=scripts, values=values, sighash=sighash)
+
         value = inp.utxo.value
         sc = inp.witness_script or inp.redeem_script or inp.utxo.script_pubkey
 
@@ -590,7 +664,7 @@ class PSBT(EmbitBase):
             h = self.sighash_legacy(i, sc, sighash=sighash)
         return h
 
-    def sign_with(self, root, sighash=SIGHASH.ALL) -> int:
+    def sign_with(self, root, sighash=SIGHASH.DEFAULT) -> int:
         """
         Signs psbt with root key (HDKey or similar).
         Returns number of signatures added to PSBT.
@@ -606,17 +680,56 @@ class PSBT(EmbitBase):
             pkh = hashes.hash160(sec)
 
         counter = 0
-        tx = self.tx
         for i, inp in enumerate(self.inputs):
             # check which sighash to use
-            inp_sighash = inp.sighash_type or sighash or SIGHASH.ALL
-            # if input sighash is set and is different from kwarg - skip input
+            inp_sighash = inp.sighash_type or sighash or SIGHASH.DEFAULT
+
+            # if input sighash is set and is different from kwarg - don't sign this input
             if sighash is not None and inp_sighash != sighash:
                 continue
+
+            # SIGHASH.DEFAULT is only for taproot
+            if not inp.is_taproot and inp_sighash == SIGHASH.DEFAULT:
+                inp_sighash = SIGHASH.ALL
 
             h = self.sighash(i, sighash=inp_sighash)
 
             sc = inp.witness_script or inp.redeem_script or inp.utxo.script_pubkey
+
+            # taproot is special
+            # currently works only for single key
+            if inp.is_taproot:
+                # individual private key
+                if not fingerprint:
+                    # TODO: tweak using taproot psbt fields
+                    pk = root.taproot_tweak(b"")
+                    if pk.xonly() in sc.data:
+                        sig = pk.schnorr_sign(h)
+                        wit = sig.serialize()
+                        if inp_sighash != SIGHASH.DEFAULT:
+                            wit += bytes([inp_sighash])
+                        inp.final_scriptwitness = Witness([wit])
+                        counter += 1
+                # if we use HDKey
+                else:
+                    # TODO: add taproot derivation paths and scripts
+                    for pub in inp.bip32_derivations:
+                        # check if it is root key
+                        if inp.bip32_derivations[pub].fingerprint == fingerprint:
+                            hdkey = root.derive(inp.bip32_derivations[pub].derivation)
+                            mypub = hdkey.key.get_public_key()
+                            if mypub != pub:
+                                raise PSBTError("Derivation path doesn't look right")
+                            pk = hdkey.taproot_tweak(b"")
+                            if pk.xonly() in sc.data:
+                                sig = pk.schnorr_sign(h)
+                                # sig plus sighash flag
+                                wit = sig.serialize()
+                                if inp_sighash != SIGHASH.DEFAULT:
+                                    wit += bytes([inp_sighash])
+                                inp.final_scriptwitness = Witness([wit])
+                                counter += 1
+                continue
 
             # if we have individual private key
             if not fingerprint:
