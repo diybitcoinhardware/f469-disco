@@ -21,6 +21,9 @@
 #include "protocols.h"
 #include "usbreader.h"
 #include "scard.h"
+
+/// Size of receive buffer in bytes inside wait loops
+#define WAIT_LOOP_RX_BUF_SIZE           (32U)
 /// Timer period in milliseconds
 #define TIMER_PERIOD_MS                 (10U)
 /// Smart card reset duration in ms, 5ms (at least 400 clock cycles)
@@ -50,6 +53,12 @@ typedef enum state_ {
   state_connected    = MP_QSTR_connected,    ///< Card is connected
   state_error        = MP_QSTR_error         ///< Card error
 } state_t;
+
+/// Connection state
+typedef enum process_state_ {
+  process_state_init,
+  process_state_ready
+} process_state_t;
 
 /// Types of connection events
 typedef enum event_type_ {
@@ -83,6 +92,7 @@ typedef struct usb_connection_obj_ {
   mp_obj_base_t base;              ///< Pointer to type of base class
   mp_obj_t reader;                 ///< Reader to which connection is bound
   state_t state;                   ///< Connection state
+  process_state_t process_state;    ///<  USB host process state
   mp_obj_t timer;                  ///< Timer object
   mp_obj_t atr;                    ///< ATR as bytes object
   mp_obj_t apdu;                   ///< APDU as bytes object
@@ -98,11 +108,21 @@ typedef struct usb_connection_obj_ {
   uint8_t IccCmd[10];              ///< CCID command
   usb_ccid_apdu_t apdu_recived;    ///< Received APDU
   usb_ccid_atr_t  atr_received;    ///< Received ATR
+  mp_obj_t response;             ///< Card response, a list [data, sw1, sw2]
+  mp_int_t next_protocol;        ///< ID of the protocol for the next op.
+  uint16_t presence_cycles;      ///< Counter of card presence cycles (debounce)
+  bool presence_state;           ///< Card presence state
+  const proto_impl_t* protocol;  ///< Protocol used to communicate with card
+  proto_handle_t proto_handle;   ///< Protocol handle
+  bool blocking;                 ///< If true, all operations are blocking
+  bool raise_on_error;           ///< Forces exception for non-blocking mode
 } usb_connection_obj_t;
 
 STATIC void usb_timer_init(usb_connection_obj_t* self); 
 static void timer_task(usb_connection_obj_t* self);
 STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in);
+STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t *tx_buffer, unsigned int tx_length, uint8_t *cmd, 
+                                            unsigned short rx_length, uint8_t bBWI);
 /// Connection class type
 extern const mp_obj_type_t scard_UsbCardConnection_type;
 #endif

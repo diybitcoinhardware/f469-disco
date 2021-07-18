@@ -239,6 +239,10 @@ CCID_HandleTypeDef;
 extern USBH_ClassTypeDef  CCID_Class;
 #define USBH_CCID_CLASS    &CCID_Class
 
+void CCID_ProcessTransmission(USBH_HandleTypeDef *phost);
+
+void CCID_ProcessReception(USBH_HandleTypeDef *phost);
+
 USBH_StatusTypeDef  USBH_CCID_Transmit(USBH_HandleTypeDef *phost, 
                                       uint8_t *pbuff, 
                                       uint32_t length);

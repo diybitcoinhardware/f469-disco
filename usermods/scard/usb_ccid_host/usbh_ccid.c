@@ -54,10 +54,6 @@ static USBH_StatusTypeDef USBH_CCID_SOFProcess(USBH_HandleTypeDef *phost);
 
 static USBH_StatusTypeDef USBH_CCID_ClassRequest (USBH_HandleTypeDef *phost);
 
-static void CCID_ProcessTransmission(USBH_HandleTypeDef *phost);
-
-static void CCID_ProcessReception(USBH_HandleTypeDef *phost);
-
 USBH_ClassTypeDef  CCID_Class = 
 {
   "CCID",
@@ -412,7 +408,7 @@ USBH_StatusTypeDef  USBH_CCID_Receive(USBH_HandleTypeDef *phost, uint8_t *pbuff,
 *  @param  pdev: Selected device
 * @retval None
 */
-static void CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
+void CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
 {
   CCID_HandleTypeDef *CCID_Handle =  phost->pActiveClass->pData;
   USBH_URBStateTypeDef URB_Status = USBH_URB_IDLE;
@@ -485,7 +481,7 @@ static void CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
 * @retval None
 */
 
-static void CCID_ProcessReception(USBH_HandleTypeDef *phost)
+void CCID_ProcessReception(USBH_HandleTypeDef *phost)
 {
   CCID_HandleTypeDef *CCID_Handle =  phost->pActiveClass->pData;
   USBH_URBStateTypeDef URB_Status = USBH_URB_IDLE;
@@ -501,11 +497,11 @@ static void CCID_ProcessReception(USBH_HandleTypeDef *phost)
                           CCID_Handle->DataItf.InEpSize, 
                           CCID_Handle->DataItf.InPipe);
     
-    CCID_Handle->data_rx_state = CCID_RECEIVE_DATA_WAIT;
+    //CCID_Handle->data_rx_state = CCID_RECEIVE_DATA_WAIT;
     
-    break;
+    //break;
     
-  case CCID_RECEIVE_DATA_WAIT:
+  //case CCID_RECEIVE_DATA_WAIT:
     
     URB_Status = USBH_LL_GetURBState(phost, CCID_Handle->DataItf.InPipe); 
     
