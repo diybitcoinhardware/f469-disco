@@ -374,7 +374,7 @@ USBH_StatusTypeDef  USBH_CCID_Transmit(USBH_HandleTypeDef *phost, uint8_t *pbuff
   {
     CCID_Handle->pTxData = pbuff;
     CCID_Handle->TxDataLength = length;  
-    CCID_Handle->state = CCID_TRANSFER_DATA;
+    //CCID_Handle->state = CCID_TRANSFER_DATA;
     CCID_Handle->data_tx_state = CCID_SEND_DATA; 
     Status = USBH_OK;
   }
@@ -396,7 +396,7 @@ USBH_StatusTypeDef  USBH_CCID_Receive(USBH_HandleTypeDef *phost, uint8_t *pbuff,
   {
     CCID_Handle->pRxData = pbuff;
     CCID_Handle->RxDataLength = length;  
-    CCID_Handle->state = CCID_TRANSFER_DATA;
+    //CCID_Handle->state = CCID_TRANSFER_DATA;
     CCID_Handle->data_rx_state = CCID_RECEIVE_DATA;     
     Status = USBH_OK;
   }

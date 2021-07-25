@@ -34,11 +34,12 @@ typedef enum proto_prm_special_ {
 ///
 /// If parameter is not specified it equals to NULL.
 typedef enum proto_ev_code_ {
-  proto_ev_none = 0,      ///< Not an event
-  proto_ev_atr_received,  ///< ATR is received; parameter: proto_atr_t*
-  proto_ev_connect,       ///< Connection established
-  proto_ev_apdu_received, ///< APDU is received; parameter: proto_apdu_t*
-  proto_ev_error          ///< Error; parameter: const char string
+  proto_ev_none = 0,          ///< Not an event
+  proto_ev_atr_received,      ///< ATR is received; parameter: proto_atr_t*
+  proto_ev_connect,           ///< Connection established
+  proto_ev_apdu_received,     ///< APDU is received; parameter: proto_apdu_t*
+  proto_ev_pps_exchange_done,  ///< PPS exchange done
+  proto_ev_error              ///< Error; parameter: const char string
 } proto_ev_code_t;
 
 /// Parameter of proto_ev_atr_received
@@ -98,6 +99,7 @@ typedef struct proto_inst_ {
   proto_cb_handle_event_t cb_handle_event;  ///< Callback handling events
   mp_obj_t cb_self;                         ///< Self parameter for callback
   uint8_t tx_errors;                        ///< Counter of transmit errors
+  proto_ev_code_t user_event;
 } proto_inst_t, *proto_handle_t;
 
 /**

@@ -238,7 +238,7 @@ static void timer_task(usb_connection_obj_t* self) {
     self->prev_ticks_ms = ticks_ms;
     if(elapsed)
     {
-      led_state(4, 0);
+      //led_state(4, 0);
       USBH_Process(&hUsbHostFS);
       if(hUsbHostFS.gState == HOST_CLASS)
       {
@@ -249,7 +249,7 @@ static void timer_task(usb_connection_obj_t* self) {
         self->process_state = process_state_init;
       }
       mp_hal_delay_ms(100);
-      led_state(4, 1);
+      //led_state(4, 1);
     }
     // Run protocol timer task only when we are connecting or connected
     if(state_connecting == self->state || state_connected == self->state) 
@@ -363,13 +363,53 @@ static void i2dw(int value, uint8_t buffer[])
 	buffer[3] = (value >> 24) & 0xFF;
 }
  /* i2dw */
+
+STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t *tx_buffer, unsigned int tx_length, uint8_t *cmd, 
+                                            unsigned short rx_length, uint8_t bBWI)
+{
+  usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+	USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+	cmd[0] = 0x6F; /* XfrBlock */
+	i2dw(tx_length, cmd+1);	/* APDU length */
+	cmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
+	cmd[6] = self->pbSeq++;
+	cmd[7] = bBWI;	/* extend block waiting timeout */
+	cmd[8] = rx_length & 0xFF;	/* Expected length, in character mode only */
+	cmd[9] = (rx_length >> 8) & 0xFF;
+	memcpy(cmd+10, tx_buffer, tx_length);
+}
+STATIC void connection_ccid_transmit_set_parameters(usb_connection_obj_t* self, USBH_HandleTypeDef *phost)
+{
+	USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+  uint8_t cmd[17];
+  uint8_t rcv[32];
+	uint8_t param[] = {
+			0x11,	/* Fi/Di		*/
+			0x10,	/* TCCKS		*/
+			0x00,	/* GuardTime	*/
+			0x4D,	/* BWI/CWI		*/
+			0x00,	/* ClockStop	*/
+			0x20,	/* IFSC			*/
+			0x00	/* NADValue		*/
+	};
+  cmd[0] = 0x61; /* SetParameters */
+	i2dw(sizeof(param), cmd+1);	/* APDU length */
+	cmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
+	cmd[6] = self->pbSeq++;
+	cmd[7] = 0x01;	/* bProtocolNum */
+	cmd[8] = cmd[9] = 0; /* RFU */
+  memcpy(cmd+10, param, sizeof(param));
+  USBH_CCID_Transmit(phost, cmd, sizeof(cmd));
+  CCID_ProcessTransmission(phost);
+}
+
 STATIC void connection_ccid_transmit_xfr_block(usb_connection_obj_t* self, USBH_HandleTypeDef *phost, 
                                                 uint8_t *pbuff, uint32_t length)
 {
-    uint8_t cmd[CCID_ICC_LENGTH + length];
-    connection_prepare_xfrblock(self, pbuff, length, cmd, 0, 0);
-    USBH_CCID_Transmit(phost, cmd, CCID_ICC_LENGTH + length);
-    CCID_ProcessTransmission(phost);  
+  uint8_t cmd[CCID_ICC_LENGTH + length];
+  connection_prepare_xfrblock(self, pbuff, length, cmd, 0, 0);
+  USBH_CCID_Transmit(phost, cmd, CCID_ICC_LENGTH + length);
+  CCID_ProcessTransmission(phost);  
 }
 
 STATIC void connection_ccid_transmit_raw(usb_connection_obj_t* self, USBH_HandleTypeDef *phost, 
@@ -385,21 +425,6 @@ STATIC void connection_ccid_receive(USBH_HandleTypeDef *phost, uint8_t *pbuff, u
     CCID_ProcessReception(phost);  
 }
 
-STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t *tx_buffer, unsigned int tx_length, uint8_t *cmd, 
-                                            unsigned short rx_length, uint8_t bBWI)
-{
-  usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
-	USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-	cmd[0] = 0x6F; /* XfrBlock */
-	i2dw(tx_length, cmd+1);	/* APDU length */
-	cmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
-	cmd[6] = self->pbSeq++;;
-	cmd[7] = bBWI;	/* extend block waiting timeout */
-	cmd[8] = rx_length & 0xFF;	/* Expected length, in character mode only */
-	cmd[9] = (rx_length >> 8) & 0xFF;
-	memcpy(cmd+10, tx_buffer, tx_length);
-}
-
 /**
  * Waits for connection to complete in blocking mode
  *
@@ -410,7 +435,7 @@ static inline void wait_connect_blocking(usb_connection_obj_t* self) {
   while(self->state == state_connecting) {
     memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
     connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
-    mp_hal_delay_ms(350);
+    mp_hal_delay_ms(50);
     uint16_t length = USBH_LL_GetLastXferSize(&hUsbHostFS, self->CCID_Handle->DataItf.InPipe);
     if(length == 0)
     {
@@ -441,7 +466,7 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
 {
     usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
     USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-    if(self->state == state_connected)
+    if(self->state == state_connected || self->state == state_connecting)
     {
         if(connection_slot_status(self_in) == ICC_INSERTED)
         {
@@ -452,8 +477,8 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
           self->IccCmd[6] = self->pbSeq++;
           self->IccCmd[7] = self->IccCmd[8] = self->IccCmd[9] = 0; /* RFU */
           hUsbHostFS.apdu = self->IccCmd;
-          self->CCID_Handle->state = CCID_TRANSFER_DATA;
-          mp_hal_delay_ms(350);
+          connection_ccid_transmit_raw(self, &hUsbHostFS, hUsbHostFS.apdu, sizeof(self->IccCmd));
+          connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
           for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
           {
             printf("0x%X ", hUsbHostFS.rawRxData[i]);
@@ -484,7 +509,7 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
     }
     else
     {
-        raise_SmartcardException("1smart card reader is not connected");
+        raise_SmartcardException("\r\n1smart card reader is not connected\r\n");
     }
     return mp_const_none;
 }
@@ -502,7 +527,7 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
 static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
                                   proto_ev_prm_t prm) {
   usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
-
+  uint8_t rcv[64];
   switch(ev_code) {
     case proto_ev_atr_received:
       self->atr = mp_obj_new_bytes(prm.atr_received->atr,
@@ -526,7 +551,16 @@ static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
         }
       }
       break;
-
+    case proto_ev_pps_exchange_done:
+      connection_ccid_transmit_set_parameters(self, &hUsbHostFS);
+      memset(rcv, 0, sizeof(rcv));
+      connection_ccid_receive(&hUsbHostFS, rcv, 64);
+      //for(int i = 0; i < sizeof(rcv); i++)
+      //{
+      //  printf(" 0x%X", rcv[i]);
+      //}
+      //("\r\n");
+      break;
     case proto_ev_error:
       connection_disconnect(self);
       self->state = state_error;
@@ -557,6 +591,7 @@ static void wait_response_blocking(usb_connection_obj_t* self) {
     MICROPY_EVENT_POLL_HOOK
   }
 }
+
 /**
  * Callback function that outputs bytes to serial port
  *
@@ -724,7 +759,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
     // Get self
     assert(n_args >= 1U);
     usb_connection_obj_t* self = (usb_connection_obj_t*)MP_OBJ_TO_PTR(pos_args[0]);
-
+    /*
     if(self->state != state_connected)
     {
       raise_SmartcardException("2smart card reader is not connected");
@@ -734,6 +769,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
        notify_observers(self, event_removal);
        raise_SmartcardException("2smart card is not inserted");
     }
+    */
     notify_observers(self, event_insertion);
 
     // Parse and check arguments
@@ -762,7 +798,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
             mp_raise_ValueError("incorrect data format");
         }
         // Chose size of the buffer
-        if(apdu[0] == 0x62 || apdu[0] == 0x63)
+        if(apdu[0] == 0x62 || apdu[0] == 0x63 || apdu[0] == 0x61 || apdu[0] == 0x6C)
         {
           // if command is IccPowerOn or IccPowerOff, 
           // size of the buffer equals size of APDU 
@@ -797,10 +833,10 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
           printf("0x%X ", hUsbHostFS.rawRxData[i]);
         }
         printf("\n\n");
-        m_del(uint8_t, hUsbHostFS.apdu, hUsbHostFS.apduLen);
-        hUsbHostFS.apdu = NULL;
-        m_del(uint8_t, apdu, hUsbHostFS.apduLen);
-        apdu = NULL;
+        //m_del(uint8_t, hUsbHostFS.apdu, hUsbHostFS.apduLen);
+        //hUsbHostFS.apdu = NULL;
+        //m_del(uint8_t, apdu, hUsbHostFS.apduLen);
+        //apdu = NULL;
     } 
     else 
     {
@@ -1161,9 +1197,9 @@ STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
                    MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
   // Check if connection is closed
-  if(state_closed == self->state) {
-    raise_CardConnectionException("connection is closed");
-  }
+  //if(state_closed == self->state) {
+  //  raise_CardConnectionException("connection is closed");
+  //}
 
   // Save parameters
   self->atr_timeout_ms = mp_obj_get_int(args[ARG_atrTimeout].u_obj);

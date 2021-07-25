@@ -1048,11 +1048,11 @@ static void handle_pps_data(t1_inst_t* inst, const uint8_t* buf,
       inst->rx_buf[inst->rx_buf_idx++] = *p_byte++;
     }
     if(inst->rx_buf_idx == pps_size) { // Handle PPS response
-      inst->tmr_response_timeout = 0U;
+      inst->tmr_response_timeout = 50U;
       if(check_pps_response(inst, inst->rx_buf, inst->rx_buf_idx)) {
         reset_rx(inst);
-        event_add(p_events, send_ifsd_request(inst));
-        inst->fsm_state = t1_st_ifsd_setup;
+        event_add(p_events, event(t1_ev_pps_exchange_done));
+        inst->fsm_state = t1_st_ifsd_setup_prepare;
       } else {
         event_add(p_events, event(t1_ev_pps_failed));
       }
@@ -1067,6 +1067,11 @@ void t1_timer_task(t1_inst_t* inst, uint32_t elapsed_ms) {
     event_list_t events = { .len = 0U };
     t1_atr_decoded_t atr_decoded;
 
+    if(inst->fsm_state == t1_st_ifsd_setup_prepare)
+    {
+      event_add(&events, send_ifsd_request(inst));
+      inst->fsm_state = t1_st_ifsd_setup;
+    }
     // Process all timers
     if(timer_elapsed(&inst->tmr_interbyte_timeout, elapsed_ms)) {
       if(inst->fsm_state == t1_st_wait_atr) {

@@ -138,8 +138,11 @@ static void t1_cb_handle_event(t1_ev_code_t ev_code, const void* ev_prm,
           proto_ev_prm_t prm = { .apdu_received = &apdu };
           handle->cb_handle_event(handle->cb_self, proto_ev_apdu_received, prm);
         }
+      case t1_ev_pps_exchange_done: {
+          proto_ev_prm_t prm = { .connect = NULL };
+          handle->cb_handle_event(handle->cb_self, proto_ev_pps_exchange_done, prm);
+        }
         break;
-
       default:
         break; // Ignore unknown event
     }

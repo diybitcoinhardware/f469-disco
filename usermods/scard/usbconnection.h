@@ -92,7 +92,7 @@ typedef struct usb_connection_obj_ {
   mp_obj_base_t base;              ///< Pointer to type of base class
   mp_obj_t reader;                 ///< Reader to which connection is bound
   state_t state;                   ///< Connection state
-  process_state_t process_state;    ///<  USB host process state
+  process_state_t process_state;   ///<  USB host process state
   mp_obj_t timer;                  ///< Timer object
   mp_obj_t atr;                    ///< ATR as bytes object
   mp_obj_t apdu;                   ///< APDU as bytes object
