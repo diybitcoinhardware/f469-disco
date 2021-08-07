@@ -194,8 +194,6 @@ static USBH_StatusTypeDef USBH_CCID_InterfaceInit (USBH_HandleTypeDef *phost)
   return status;
 }
 
-
-
 /**
   * @brief  USBH_CCID_InterfaceDeInit 
   *         The function DeInit the Pipes used for the CCID class.
@@ -282,14 +280,6 @@ static USBH_StatusTypeDef USBH_CCID_Process (USBH_HandleTypeDef *phost)
       }
       CCID_Handle->state = CCID_IDLE_STATE; 
       break;
-    case CCID_TRANSFER_DATA:
-      USBH_CCID_Transmit(phost, phost->apdu, phost->apduLen);
-      CCID_ProcessTransmission(phost);
-      //USBH_Delay(200);
-      USBH_CCID_Receive(phost, phost->rawRxData, sizeof(phost->rawRxData));
-      CCID_ProcessReception(phost);
-      CCID_Handle->state = CCID_IDLE_STATE;
-      break;
     case CCID_ERROR_STATE:
       req_status = USBH_ClrFeature(phost, 0x00); 
       
@@ -320,7 +310,7 @@ static USBH_StatusTypeDef USBH_CCID_SOFProcess (USBH_HandleTypeDef *phost)
 }
                                    
   
-  /**
+/**
   * @brief  USBH_CCID_Stop 
   *         Stop current CCID Transmission 
   * @param  phost: Host handle
@@ -370,11 +360,10 @@ USBH_StatusTypeDef  USBH_CCID_Transmit(USBH_HandleTypeDef *phost, uint8_t *pbuff
   USBH_StatusTypeDef Status = USBH_BUSY;
   CCID_HandleTypeDef *CCID_Handle =  phost->pActiveClass->pData;
   
-  if((CCID_Handle->state == CCID_IDLE_STATE) || (CCID_Handle->state == CCID_TRANSFER_DATA))
+  if((CCID_Handle->state == CCID_IDLE_STATE))
   {
     CCID_Handle->pTxData = pbuff;
     CCID_Handle->TxDataLength = length;  
-    //CCID_Handle->state = CCID_TRANSFER_DATA;
     CCID_Handle->data_tx_state = CCID_SEND_DATA; 
     Status = USBH_OK;
   }
@@ -392,11 +381,10 @@ USBH_StatusTypeDef  USBH_CCID_Receive(USBH_HandleTypeDef *phost, uint8_t *pbuff,
   USBH_StatusTypeDef Status = USBH_BUSY;
   CCID_HandleTypeDef *CCID_Handle =  phost->pActiveClass->pData;
   
-  if((CCID_Handle->state == CCID_IDLE_STATE) || (CCID_Handle->state == CCID_TRANSFER_DATA))
+  if((CCID_Handle->state == CCID_IDLE_STATE))
   {
     CCID_Handle->pRxData = pbuff;
     CCID_Handle->RxDataLength = length;  
-    //CCID_Handle->state = CCID_TRANSFER_DATA;
     CCID_Handle->data_rx_state = CCID_RECEIVE_DATA;     
     Status = USBH_OK;
   }
@@ -496,12 +484,6 @@ void CCID_ProcessReception(USBH_HandleTypeDef *phost)
                           CCID_Handle->pRxData, 
                           CCID_Handle->DataItf.InEpSize, 
                           CCID_Handle->DataItf.InPipe);
-    
-    //CCID_Handle->data_rx_state = CCID_RECEIVE_DATA_WAIT;
-    
-    //break;
-    
-  //case CCID_RECEIVE_DATA_WAIT:
     
     URB_Status = USBH_LL_GetURBState(phost, CCID_Handle->DataItf.InPipe); 
     

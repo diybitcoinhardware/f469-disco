@@ -70,10 +70,50 @@ STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
   self->next_protocol = protocol_na;
   self->presence_cycles = 0;
   self->presence_state = false;
+  self->blocking = true;
+  self->process_state = process_state_closed;
+  self->processTimer = 150;
 
   usb_timer_init(self);
   printf("\r\nNew USB smart card connection\n");
   return MP_OBJ_FROM_PTR(self);                                    
+}
+
+/**
+ * Returns minimal of two uint32_t operands
+ * @param a  operand A
+ * @param b  operand B
+ * @return   minimal of A and B
+ */
+static inline uint32_t min_u32(uint32_t a, uint32_t b) {
+    return a < b ? a : b;
+}
+
+/**
+ * Decreases timer counter and checks if it is elapsed
+ *
+ * This function also ensures that it is called at least twice before indicating
+ * that timer is elapsed. It is done as protection measure against abnormally
+ * quick timeout event in case timer task is called right after the timer
+ * variable is initialized. As side effect, this function supports timeouts not
+ * longer than 0x7FFFFFFF.
+ * @param p_timer     pointer to timer variable
+ * @param elapsed_ms  time in milliseconds passed since previous call
+ * @return            true is timer is elapsed
+ */
+static bool connection_timer_elapsed(uint32_t *p_timer, uint32_t elapsed_ms) {
+  if(*p_timer) {
+    uint32_t time = *p_timer & 0x7FFFFFFFUL;
+    if(!(time -= min_u32(elapsed_ms, time))) {
+      if(*p_timer & 0x80000000UL) { // Not first call?
+        *p_timer = 0;
+        return true;
+      }
+    }
+    // Set higher bit to check for non-first call later
+    *p_timer = time | 0x80000000UL;
+  }
+  return false;
 }
 
 /**
@@ -232,24 +272,27 @@ STATIC mp_obj_t connection_call(mp_obj_t self_in, size_t n_args, size_t n_kw,
  *
  * @param self  instance of UsbCardConnection class
  */
+
 static void timer_task(usb_connection_obj_t* self) {
     mp_uint_t ticks_ms = mp_hal_ticks_ms();
     mp_uint_t elapsed = scard_ticks_diff(ticks_ms, self->prev_ticks_ms);
     self->prev_ticks_ms = ticks_ms;
-    if(elapsed)
+    uint32_t elapsed_ms = 0;
+    if(connection_timer_elapsed(&self->processTimer, elapsed)) 
     {
-      //led_state(4, 0);
-      USBH_Process(&hUsbHostFS);
-      if(hUsbHostFS.gState == HOST_CLASS)
-      {
-        self->process_state = process_state_ready;
-      }
-      else
-      {
-        self->process_state = process_state_init;
-      }
-      mp_hal_delay_ms(100);
-      //led_state(4, 1);
+        USBH_Process(&hUsbHostFS);
+        if(hUsbHostFS.gState == HOST_CLASS)
+        {
+          self->process_state = process_state_ready;
+        }
+        else
+        {
+          self->process_state = process_state_init;
+        }
+    }
+    if(self->processTimer == 0)
+    {
+      self->processTimer = 150;
     }
     // Run protocol timer task only when we are connecting or connected
     if(state_connecting == self->state || state_connected == self->state) 
@@ -382,7 +425,6 @@ STATIC void connection_ccid_transmit_set_parameters(usb_connection_obj_t* self, 
 {
 	USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
   uint8_t cmd[17];
-  uint8_t rcv[32];
 	uint8_t param[] = {
 			0x11,	/* Fi/Di		*/
 			0x10,	/* TCCKS		*/
@@ -433,19 +475,18 @@ STATIC void connection_ccid_receive(USBH_HandleTypeDef *phost, uint8_t *pbuff, u
 static inline void wait_connect_blocking(usb_connection_obj_t* self) {
   uint8_t rx_buf[32] = {0};
   while(self->state == state_connecting) {
-    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
-    connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
-    mp_hal_delay_ms(50);
-    uint16_t length = USBH_LL_GetLastXferSize(&hUsbHostFS, self->CCID_Handle->DataItf.InPipe);
-    if(length == 0)
-    {
-      raise_SmartcardException("Recieved zero bytes");
-    }
-    memset(rx_buf, 0, sizeof(rx_buf));
-    memcpy(rx_buf, hUsbHostFS.rawRxData + CCID_ICC_LENGTH, length - CCID_ICC_LENGTH);
-    self->protocol->serial_in(self->proto_handle, rx_buf, length - CCID_ICC_LENGTH);
-    timer_task(self);
-    MICROPY_EVENT_POLL_HOOK
+      memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+      connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
+      mp_hal_delay_ms(100);
+      uint16_t length = USBH_LL_GetLastXferSize(&hUsbHostFS, self->CCID_Handle->DataItf.InPipe);
+      if(length != 0)
+      {
+        memset(rx_buf, 0, sizeof(rx_buf));
+        memcpy(rx_buf, hUsbHostFS.rawRxData + CCID_ICC_LENGTH, length - CCID_ICC_LENGTH);
+        self->protocol->serial_in(self->proto_handle, rx_buf, length - CCID_ICC_LENGTH);
+        timer_task(self);
+        MICROPY_EVENT_POLL_HOOK
+      }
   }
 }
 
@@ -555,11 +596,7 @@ static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
       connection_ccid_transmit_set_parameters(self, &hUsbHostFS);
       memset(rcv, 0, sizeof(rcv));
       connection_ccid_receive(&hUsbHostFS, rcv, 64);
-      //for(int i = 0; i < sizeof(rcv); i++)
-      //{
-      //  printf(" 0x%X", rcv[i]);
-      //}
-      //("\r\n");
+      mp_hal_delay_ms(150);
       break;
     case proto_ev_error:
       connection_disconnect(self);
@@ -578,17 +615,21 @@ static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
  *
  * @param self  instance of CardConnection class
  */
-static void wait_response_blocking(usb_connection_obj_t* self) {
-  uint8_t rx_buf[32];
-
-  // Loop while there is no response from the smart card. May be interrupted by
-  // an exception raised inside handler of the protocol as well.
+static inline void wait_response_blocking(usb_connection_obj_t* self) {
+  uint8_t rx_buf[32] = {0};
   while(self->response == MP_OBJ_NULL) {
-    //size_t n_bytes = scard_rx_readinto(self->sc_handle, rx_buf, sizeof(rx_buf));
-    connection_ccid_receive(&hUsbHostFS, rx_buf, sizeof(rx_buf));
-    self->protocol->serial_in(self->proto_handle, rx_buf, sizeof(rx_buf));
-    timer_task(self);
-    MICROPY_EVENT_POLL_HOOK
+    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
+    mp_hal_delay_ms(150);
+    uint16_t length = USBH_LL_GetLastXferSize(&hUsbHostFS, self->CCID_Handle->DataItf.InPipe);
+    if(length != 0)
+    {
+      memset(rx_buf, 0, sizeof(rx_buf));
+      memcpy(rx_buf, hUsbHostFS.rawRxData + CCID_ICC_LENGTH, length - CCID_ICC_LENGTH);
+      self->protocol->serial_in(self->proto_handle, rx_buf, length - CCID_ICC_LENGTH);
+      timer_task(self);
+      MICROPY_EVENT_POLL_HOOK
+    }
   }
 }
 
@@ -655,7 +696,7 @@ static void change_protocol(usb_connection_obj_t* self, mp_int_t protocol_id,
   }
 }
 
-STATIC mp_obj_t connection_transmit_t1(size_t n_args, const mp_obj_t *pos_args,
+STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
                                     mp_map_t *kw_args) {
   // Get self
   assert(n_args >= 1U);
@@ -672,9 +713,9 @@ STATIC mp_obj_t connection_transmit_t1(size_t n_args, const mp_obj_t *pos_args,
                    MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
   // Check connection state
-  //if(state_connected != self->state) {
-  //  raise_SmartcardException("card not connected");
-  //}
+  if(state_connected != self->state) {
+    raise_SmartcardException("card not connected");
+  }
 
   // Change smart card protocol if requested
   mp_int_t new_protocol = self->next_protocol;
@@ -735,123 +776,6 @@ STATIC mp_obj_t connection_transmit_t1(size_t n_args, const mp_obj_t *pos_args,
   return mp_const_none;
 }
 
-
-
-/**
- * @brief Transmit an APDU to the smart card
- *
- * .. method:: UsbCardConnection.transmit(bytes, protocol=None)
- *
- *  Transmit an APDU to the smart card. Arguments:
- *    - *bytes* buffer containing APDU
- *    - *protocol* protocol identifier, if None uses previously selected
- *      protocol (if any), or default protocol if nothing selected
- *
- * @param n_args    number of arguments
- * @param pos_args  positional arguments
- * @param kw_args   keyword arguments
- * @return          None
- */
-STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
-                                    mp_map_t *kw_args)
-{
-    led_state(3, 1);
-    // Get self
-    assert(n_args >= 1U);
-    usb_connection_obj_t* self = (usb_connection_obj_t*)MP_OBJ_TO_PTR(pos_args[0]);
-    /*
-    if(self->state != state_connected)
-    {
-      raise_SmartcardException("2smart card reader is not connected");
-    }
-    if(connection_slot_status(MP_OBJ_TO_PTR(pos_args[0])) != ICC_INSERTED)
-    {
-       notify_observers(self, event_removal);
-       raise_SmartcardException("2smart card is not inserted");
-    }
-    */
-    notify_observers(self, event_insertion);
-
-    // Parse and check arguments
-    enum { ARG_bytes = 0, ARG_protocol };
-    static const mp_arg_t allowed_args[] = {
-      { MP_QSTR_bytes,    MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = mp_const_none}},
-      { MP_QSTR_protocol, MP_ARG_OBJ,                   {.u_obj = mp_const_none}}
-    };
-    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
-    mp_arg_parse_all(n_args - 1U, pos_args + 1U, kw_args,
-                    MP_ARRAY_SIZE(allowed_args), allowed_args, args);
-    // Get data buffer of 'bytes' argument
-    uint8_t *apdu = NULL;
-    hUsbHostFS.apdu = NULL;
-    // Check if bytes is a list
-    notify_observers_command(self, args[ARG_bytes].u_obj);
-    if(mp_obj_is_type(args[ARG_bytes].u_obj, &mp_type_list)) 
-    {   
-        // 'bytes' is list
-        // Get properties of the list
-        mp_obj_t* items;
-        mp_obj_list_get(args[ARG_bytes].u_obj, &hUsbHostFS.apduLen, &items);
-        apdu = m_new(uint8_t, hUsbHostFS.apduLen);
-        if(!objects_to_buf(apdu, items, hUsbHostFS.apduLen)) 
-        {
-            mp_raise_ValueError("incorrect data format");
-        }
-        // Chose size of the buffer
-        if(apdu[0] == 0x62 || apdu[0] == 0x63 || apdu[0] == 0x61 || apdu[0] == 0x6C)
-        {
-          // if command is IccPowerOn or IccPowerOff, 
-          // size of the buffer equals size of APDU 
-          hUsbHostFS.apdu = apdu;
-          for(int i = 0; i < hUsbHostFS.apduLen; i++)
-          {
-            printf("0x%X ", hUsbHostFS.apdu[i]);
-          }
-          printf("\n\n");
-        }
-        else
-        {
-          // if command is abData block (ex. SELECT cmd)
-          // size of buffer equal size of APDU + size of 
-          // PC_to_RDR_XfrBlock command
-          size_t cmdLen = CCID_ICC_LENGTH + hUsbHostFS.apduLen;
-          hUsbHostFS.apdu = m_new(uint8_t, cmdLen);
-          // Add apdu to PC_to_RDR_XfrBlock command
-          connection_prepare_xfrblock(MP_OBJ_TO_PTR(pos_args[0]), apdu, hUsbHostFS.apduLen, hUsbHostFS.apdu, 0, 0);
-          for(int i = 0; i < cmdLen; i++)
-          {
-            printf("0x%X ", hUsbHostFS.apdu[i]);
-          }
-          printf("\n\n");
-          hUsbHostFS.apduLen = hUsbHostFS.apduLen + CCID_ICC_LENGTH;
-        }
-        connection_ccid_transmit_raw(self, &hUsbHostFS, hUsbHostFS.apdu, hUsbHostFS.apduLen);
-        connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
-        mp_hal_delay_ms(350);
-        for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
-        {
-          printf("0x%X ", hUsbHostFS.rawRxData[i]);
-        }
-        printf("\n\n");
-        //m_del(uint8_t, hUsbHostFS.apdu, hUsbHostFS.apduLen);
-        //hUsbHostFS.apdu = NULL;
-        //m_del(uint8_t, apdu, hUsbHostFS.apduLen);
-        //apdu = NULL;
-    } 
-    else 
-    {
-        return mp_const_none;
-    }
-    self->apdu_recived.apdu = hUsbHostFS.rawRxData;
-    self->apdu_recived.len = sizeof(hUsbHostFS.rawRxData);
-    self->apdu = mp_obj_new_bytes(self->apdu_recived.apdu, self->apdu_recived.len);
-    mp_obj_t response = make_response_list(self->apdu_recived.apdu, self->apdu_recived.len);
-    notify_observers_response(self, response);
-    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
-    notify_observers(self, event_response);
-    return mp_const_none;
-}
-
 /**
  * @brief Connects to a smart card
  *
@@ -888,8 +812,8 @@ STATIC mp_obj_t connection_connect(size_t n_args, const mp_obj_t *pos_args,
   self->CCID_Handle = hUsbHostFS.pActiveClass->pData;
   if(self->process_state == process_state_ready)
   {
-        if(connection_slot_status(self) == ICC_INSERTED)
-        {
+        //if(connection_slot_status(self) == ICC_INSERTED)
+        //{
             notify_observers(self, event_insertion);
             USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
             hUsbHostFS.apduLen = CCID_ICC_LENGTH;
@@ -910,12 +834,12 @@ STATIC mp_obj_t connection_connect(size_t n_args, const mp_obj_t *pos_args,
             self->state = state_connecting;
             wait_connect_blocking(self);
             memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
-      }
-      else
-      {
-          notify_observers(self, event_removal);
-          raise_SmartcardException("3!!!smart card is not inserted");
-      }
+      //}
+      //else
+      //{
+      //    notify_observers(self, event_removal);
+      //   raise_SmartcardException("3!!!smart card is not inserted");
+      //}
   }
   else
   {
@@ -1179,6 +1103,25 @@ STATIC mp_obj_t connection_notifyAll(mp_obj_t self_in, mp_obj_t unused) {
   }
 }
 
+/**
+ * @brief Sets timeouts for blocking and non-blocking operations
+ *
+ * .. method:: CardConnection.setTimeouts( atrTimeout=None,
+ *                                         responseTimeout=None,
+ *                                         maxTimeout=None )
+ *
+ *  Configures protocol timeouts, all arguments are optional:
+ *
+ *    - *atrTimeout* ATR timeout in ms, -1 = default
+ *    - *responseTimeout* response timeout in ms, -1 = default
+ *    - *maxTimeout* maximal response timeout in ms used when smart card
+ *      (repeatedly) requesting timeout extension, -1 = default
+ *
+ * @param n_args    number of arguments
+ * @param pos_args  positional arguments
+ * @param kw_args   keyword arguments
+ * @return          None
+ */
 STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
                                        mp_map_t *kw_args) {
   // Get self
@@ -1197,16 +1140,28 @@ STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
                    MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
   // Check if connection is closed
-  //if(state_closed == self->state) {
-  //  raise_CardConnectionException("connection is closed");
-  //}
+  if(state_closed == self->state) {
+    raise_CardConnectionException("connection is closed");
+  }
 
   // Save parameters
-  self->atr_timeout_ms = mp_obj_get_int(args[ARG_atrTimeout].u_obj);
+  self->atr_timeout_ms =
+    mp_obj_is_type(args[ARG_atrTimeout].u_obj, &mp_type_NoneType) ?
+      proto_prm_unchanged : mp_obj_get_int(args[ARG_atrTimeout].u_obj);
 
-  self->rsp_timeout_ms = mp_obj_get_int(args[ARG_responseTimeout].u_obj);
+  self->rsp_timeout_ms =
+    mp_obj_is_type(args[ARG_responseTimeout].u_obj, &mp_type_NoneType) ?
+      proto_prm_unchanged : mp_obj_get_int(args[ARG_responseTimeout].u_obj);
 
-  self->max_timeout_ms = mp_obj_get_int(args[ARG_maxTimeout].u_obj);
+  self->max_timeout_ms =
+    mp_obj_is_type(args[ARG_maxTimeout].u_obj, &mp_type_NoneType) ?
+      proto_prm_unchanged : mp_obj_get_int(args[ARG_maxTimeout].u_obj);
+
+  // Configure protocol if it is initialized
+  if(self->protocol) {
+    self->protocol->set_timeouts(self->proto_handle, self->atr_timeout_ms,
+                                 self->rsp_timeout_ms, self->max_timeout_ms);
+  }
 
   return mp_const_none;
 }
@@ -1246,7 +1201,6 @@ STATIC mp_obj_t connection_close(mp_obj_t self_in) {
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_disconnect_obj, connection_disconnect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_connect_obj, 1, connection_connect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_obj, 1, connection_transmit);
-STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_t1_obj, 1, connection_transmit_t1);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_getATR_obj, connection_getATR);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_getAPDU_obj, connection_getAPDU);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_isCardInserted_obj, connection_isCardInserted);
@@ -1269,7 +1223,6 @@ STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   { MP_ROM_QSTR(MP_QSTR_connect),         MP_ROM_PTR(&connection_connect_obj)           },
   { MP_ROM_QSTR(MP_QSTR_disconnect),      MP_ROM_PTR(&connection_disconnect_obj)        },
   { MP_ROM_QSTR(MP_QSTR_transmit),        MP_ROM_PTR(&connection_transmit_obj)          },
-  { MP_ROM_QSTR(MP_QSTR_transmit_t1),        MP_ROM_PTR(&connection_transmit_t1_obj)    },
   { MP_ROM_QSTR(MP_QSTR_getATR),          MP_ROM_PTR(&connection_getATR_obj)            },
   { MP_ROM_QSTR(MP_QSTR_getAPDU),         MP_ROM_PTR(&connection_getAPDU_obj)           },
   { MP_ROM_QSTR(MP_QSTR_isCardInserted),  MP_ROM_PTR(&connection_isCardInserted_obj)    },

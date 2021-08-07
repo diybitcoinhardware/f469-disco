@@ -56,6 +56,7 @@ typedef enum state_ {
 
 /// Connection state
 typedef enum process_state_ {
+  process_state_closed,
   process_state_init,
   process_state_ready
 } process_state_t;
@@ -116,6 +117,7 @@ typedef struct usb_connection_obj_ {
   proto_handle_t proto_handle;   ///< Protocol handle
   bool blocking;                 ///< If true, all operations are blocking
   bool raise_on_error;           ///< Forces exception for non-blocking mode
+  uint32_t processTimer;         ///< Timer for USB Host process
 } usb_connection_obj_t;
 
 STATIC void usb_timer_init(usb_connection_obj_t* self); 
