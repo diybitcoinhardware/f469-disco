@@ -7,7 +7,10 @@
 // works only together with udisplay module, for now...
 #include "stm32469i_discovery_sdram.h"
 
-#define SDRAM_START_ADDRESS ((size_t)0xC0000000+480*800*4*2)
+#define PREALLOCATED_SDRAM_PTR 0xC02EE000 // 0xC0000000+480*800*4*2
+#define PREALLOCATED_SDRAM_SIZE 0x100000  // ~1 MB
+
+#define SDRAM_START_ADDRESS ((size_t)0xC03EE000)
 #define SDRAM_END_ADDRESS   ((size_t)0xC1000000)
 
 typedef struct _mp_obj_sdram_ramdevice_t {
@@ -113,6 +116,16 @@ STATIC mp_obj_t sdram_init() {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(sdram_init_obj, sdram_init);
 
+/***************** 1MB preallocated memory ***************/
+STATIC mp_obj_t sdram_preallocated_ptr() {
+    return mp_obj_new_int_from_ull(PREALLOCATED_SDRAM_PTR);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_0(sdram_preallocated_ptr_obj, sdram_preallocated_ptr);
+
+STATIC mp_obj_t sdram_preallocated_size() {
+    return mp_obj_new_int_from_ull(PREALLOCATED_SDRAM_SIZE);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_0(sdram_preallocated_size_obj, sdram_preallocated_size);
 
 /****************************** MODULE ******************************/
 
@@ -120,6 +133,9 @@ STATIC const mp_rom_map_elem_t sdram_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_sdram) },
     { MP_ROM_QSTR(MP_QSTR_RAMDevice), MP_ROM_PTR(&sdram_ramdevice_type) },
     { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&sdram_init_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_preallocated_ptr), MP_ROM_PTR(&sdram_preallocated_ptr_obj) },
+    { MP_ROM_QSTR(MP_QSTR_preallocated_size), MP_ROM_PTR(&sdram_preallocated_size_obj) },
 };
 
 STATIC MP_DEFINE_CONST_DICT(sdram_module_globals, sdram_module_globals_table);
