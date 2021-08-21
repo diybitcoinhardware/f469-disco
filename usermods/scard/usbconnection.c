@@ -520,11 +520,6 @@ STATIC mp_obj_t connection_disconnect(mp_obj_t self_in)
           hUsbHostFS.apdu = self->IccCmd;
           connection_ccid_transmit_raw(self, &hUsbHostFS, hUsbHostFS.apdu, sizeof(self->IccCmd));
           connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
-          for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
-          {
-            printf("0x%X ", hUsbHostFS.rawRxData[i]);
-          }
-          printf("\n\n");
           memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
           //Stop USB CCID communication
           USBH_CCID_Stop(&hUsbHostFS);
