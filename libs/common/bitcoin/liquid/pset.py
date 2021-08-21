@@ -26,6 +26,15 @@ class LInputScope(InputScope):
         self.range_proof = None
         super().__init__(unknown, **kwargs)
 
+    def clear_metadata(self):
+        """Removes metadata like derivations, utxos etc except final or partial sigs"""
+        super().clear_metadata()
+        self.range_proof = None
+        self.value_blinding_factor = None
+        self.asset_blinding_factor = None
+        self.value = None
+        self.asset = None
+
     def unblind(self, blinding_key):
         if self.range_proof is None:
             return
@@ -111,10 +120,50 @@ class LOutputScope(OutputScope):
         self.ecdh_pubkey = None
         self.blinding_pubkey = None
         self.asset = None
+        self.blinder_index = None
         if vout:
             self.asset = vout.asset
+        self._verified = False
         # super calls parse_unknown() at the end
         super().__init__(unknown, vout=vout, **kwargs)
+
+    @property
+    def is_verified(self):
+        return self._verified
+
+    def verify(self):
+        self._verified = False
+        gen = None
+        e = PSBTError("Invalid commitments")
+        if self.asset and self.asset_commitment:
+            # we can't verify asset
+            if not self.asset_blinding_factor:
+                raise e
+            gen = secp256k1.generator_generate_blinded(self.asset, self.asset_blinding_factor)
+            if self.asset_commitment != secp256k1.generator_serialize(gen):
+                raise e
+
+        if self.value and self.value_commitment:
+            if gen is None:
+                raise e
+            value_commitment = secp256k1.pedersen_commit(self.value_blinding_factor, self.value, gen)
+            if self.value_commitment != secp256k1.pedersen_commitment_serialize(value_commitment):
+                raise e
+        self._verified = True
+        return self._verified
+
+    def clear_metadata(self):
+        """Removes metadata like derivations, utxos etc except final or partial sigs"""
+        super().clear_metadata()
+        self.range_proof = None
+        self.surjection_proof = None
+        self.value_blinding_factor = None
+        self.asset_blinding_factor = None
+        if self.value_commitment:
+            self.value = None
+        if self.asset_commitment:
+            self.asset = None
+        self.blinder_index = None
 
     @property
     def vout(self):
@@ -190,6 +239,8 @@ class LOutputScope(OutputScope):
                 self.blinding_pubkey = v
             elif k in [b'\xfc\x08elements\x07', b'\xfc\x04pset\x07']:
                 self.ecdh_pubkey = v
+            elif k == b"\xfc\x04pset\x08":
+                self.blinder_index = int.from_bytes(v, 'little')
             else:
                 self.unknown[k] = v
 
@@ -248,6 +299,9 @@ class LOutputScope(OutputScope):
             else:
                 r += ser_string(stream, b'\xfc\x08elements\x05')
             r += ser_string(stream, self.surjection_proof)
+        if self.blinder_index is not None:
+            r += ser_string(stream, b"\xfc\x04pset\x08")
+            r += ser_string(stream, self.blinder_index.to_bytes(4, 'little'))
         # separator
         if not skip_separator:
             r += stream.write(b"\x00")
@@ -342,22 +396,13 @@ class PSET(PSBT):
     def sign_with(self, root, sighash=LSIGHASH.ALL) -> int:
         return super().sign_with(root, sighash)
 
-    def verify(self):
+    @property
+    def is_verified(self):
+        return all([sc.is_verified for sc in self.inputs + self.outputs])
+
+    def verify(self, *args, **kwargs):
         """Checks that all commitments, values and assets are consistent"""
-        super().verify()
-        for i, vout in enumerate(self.tx.vout):
-            out = self.outputs[i]
-            if out.is_blinded:
-                gen = secp256k1.generator_generate_blinded(vout.asset[1:], out.asset_blinding_factor)
-                if out.asset_commitment:
-                    if secp256k1.generator_serialize(gen) != out.asset_commitment:
-                        raise PSBTError("asset commitment is invalid")
-                else:
-                    out.asset_commitment = secp256k1.generator_serialize(gen)
-                commit = secp256k1.pedersen_commit(out.value_blinding_factor, vout.value, gen)
-                sec = secp256k1.pedersen_commitment_serialize(commit)
-                if out.value_commitment:
-                    if sec != out.value_commitment:
-                        raise PSBTError("value commitment is invalid")
-                else:
-                    out.value_commitment = sec
+        super().verify(*args, **kwargs)
+        for out in self.outputs:
+            out.verify()
+        return self.is_verified
