@@ -73,6 +73,7 @@ STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
   self->blocking = true;
   self->process_state = process_state_closed;
   self->processTimer = 150;
+  self->dwFeatures = 0;
 
   usb_timer_init(self);
   printf("\r\nNew USB smart card connection\n");
@@ -372,6 +373,22 @@ static bool objects_to_buf(uint8_t* buf, const mp_obj_t* objects,
 static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
 {
   uint8_t voltage = 0;
+  if (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_CONF_ATR)
+  {
+    printf("Auto conf atr\n");
+  }
+  if (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_PPS_PROP)
+  {
+    printf("Auto PPS prop\n");
+  }
+  if (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_PPS_CUR)
+  {
+    printf("Auto PPS curr \n");
+  }
+  if (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_IFSD)
+  {
+    printf("Auto ifsd\n");
+  }
   if ((ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_VOLTAGE)
     || (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_ACTIVATION))
     voltage = 0;	/* automatic voltage selection */
@@ -421,18 +438,32 @@ STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t *tx_buffer, un
 	cmd[9] = (rx_length >> 8) & 0xFF;
 	memcpy(cmd+10, tx_buffer, tx_length);
 }
+
+STATIC void connection_ccid_transmit_get_parameters(usb_connection_obj_t* self, USBH_HandleTypeDef *phost)
+{
+  USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+  uint8_t cmd[10];
+  cmd[0] = 0x6C; /* GetParameters */
+	cmd[1] = cmd[2] = cmd[3] = cmd[4] = 0;
+	cmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
+	cmd[6] = self->pbSeq++;
+	cmd[7] = cmd[8] = cmd[9] = 0; /* RFU */
+  USBH_CCID_Transmit(phost, cmd, sizeof(cmd));
+  CCID_ProcessTransmission(phost);
+}
 STATIC void connection_ccid_transmit_set_parameters(usb_connection_obj_t* self, USBH_HandleTypeDef *phost)
 {
 	USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
   uint8_t cmd[17];
 	uint8_t param[] = {
-			0x11,	/* Fi/Di		*/
-			0x10,	/* TCCKS		*/
-			0x00,	/* GuardTime	*/
-			0x4D,	/* BWI/CWI		*/
-			0x00,	/* ClockStop	*/
-			0x20,	/* IFSC			*/
-			0x00	/* NADValue		*/
+    0x95,	/* Fi/Di		*/
+    //0x11,
+    0x10,	/* TCCKS		*/
+    0x00,	/* GuardTime	*/
+    0x4D,	/* BWI/CWI		*/
+    0x00,	/* ClockStop	*/
+    0x20,	/* IFSC			*/
+    0x00	/* NADValue		*/
 	};
   cmd[0] = 0x61; /* SetParameters */
 	i2dw(sizeof(param), cmd+1);	/* APDU length */
@@ -443,6 +474,26 @@ STATIC void connection_ccid_transmit_set_parameters(usb_connection_obj_t* self, 
   memcpy(cmd+10, param, sizeof(param));
   USBH_CCID_Transmit(phost, cmd, sizeof(cmd));
   CCID_ProcessTransmission(phost);
+  /*
+  ACS Reader
+  61 SetParameters
+  07 APDU length
+  00
+  00
+  00
+  00 slot number 
+  0f pbSeq
+  01 bProtocolNum
+  00 RFU 
+  00 RFU
+  95 Fi/Di	
+  10 TCCKS
+  00 GuardTime
+  4d BWI/CWI
+  00 ClockStop
+  20 IFSC
+  00 NADValue
+  */
 }
 
 STATIC void connection_ccid_transmit_xfr_block(usb_connection_obj_t* self, USBH_HandleTypeDef *phost, 
@@ -477,7 +528,7 @@ static inline void wait_connect_blocking(usb_connection_obj_t* self) {
   while(self->state == state_connecting) {
       memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
       connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
-      mp_hal_delay_ms(100);
+      mp_hal_delay_ms(50);
       uint16_t length = USBH_LL_GetLastXferSize(&hUsbHostFS, self->CCID_Handle->DataItf.InPipe);
       if(length != 0)
       {
@@ -588,10 +639,18 @@ static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
       }
       break;
     case proto_ev_pps_exchange_done:
-      connection_ccid_transmit_set_parameters(self, &hUsbHostFS);
-      memset(rcv, 0, sizeof(rcv));
-      connection_ccid_receive(&hUsbHostFS, rcv, 64);
-      mp_hal_delay_ms(150);
+      if(self->state == state_connecting)
+      {
+        connection_ccid_transmit_set_parameters(self, &hUsbHostFS);
+        memset(rcv, 0, sizeof(rcv));
+        connection_ccid_receive(&hUsbHostFS, rcv, 64);
+        for(int i = 0; i < 64; i++)
+        {
+          printf(" 0x%x", rcv[i]);
+        }
+        printf("\n");
+        mp_hal_delay_ms(150);
+      }
       break;
     case proto_ev_error:
       connection_disconnect(self);
@@ -771,6 +830,128 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
   return mp_const_none;
 }
 
+STATIC mp_obj_t connection_poweron(size_t n_args, const mp_obj_t *pos_args,
+                                   mp_map_t *kw_args) {
+  // Get self
+  assert(n_args >= 1U);
+  usb_connection_obj_t* self = (usb_connection_obj_t*)MP_OBJ_TO_PTR(pos_args[0]);
+
+  // Parse and check arguments
+  enum { ARG_protocol = 0 };
+  static const mp_arg_t allowed_args[] = {
+    { MP_QSTR_protocol, MP_ARG_INT, { .u_int = protocol_na } },
+  };
+  mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+  mp_arg_parse_all(n_args - 1U, pos_args + 1U, kw_args,
+                   MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+  
+  // Change smart card protocol if requested
+  mp_int_t new_protocol = (protocol_na != args[ARG_protocol].u_int) ?
+    args[ARG_protocol].u_int : self->next_protocol;
+  self->next_protocol = protocol_na;
+  // If protocol not defined, use default protocol
+  new_protocol = (protocol_na == new_protocol) ? protocol_any : new_protocol;
+  change_protocol( self, new_protocol, true, true );
+
+  self->CCID_Handle = hUsbHostFS.pActiveClass->pData;
+  if(self->process_state == process_state_ready)
+  {
+    notify_observers(self, event_insertion);
+    USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+    hUsbHostFS.apduLen = CCID_ICC_LENGTH;
+    self->IccCmd[0] = 0x62; 
+    self->IccCmd[1] = 0x00;
+    self->IccCmd[2] = 0x00;
+    self->IccCmd[3] = 0x00;
+    self->IccCmd[4] = 0x00;
+    self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	
+    self->IccCmd[6] = self->pbSeq++;
+    self->IccCmd[7] = getVoltageSupport(&chipCardDesc);
+    self->IccCmd[8] = 0x00;
+    self->IccCmd[9] = 0x00;
+    hUsbHostFS.apdu = self->IccCmd;
+    notify_observers_command(self, self->IccCmd);
+    // Send PowerOn
+    connection_ccid_transmit_raw(self, &hUsbHostFS, hUsbHostFS.apdu, hUsbHostFS.apduLen);
+    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
+    mp_hal_delay_ms(150);
+    printf("ATR\n");
+    for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+    {
+      printf("0x%X ", hUsbHostFS.rawRxData[i]);
+    }
+    printf("\n");
+    // Send PPS
+    //uint8_t pps[] = {0xFF, 0x01, 0xFE};
+    uint8_t pps[] = {0xff, 0x11, 0x95, 0x7b};
+    /*
+    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    connection_ccid_transmit_xfr_block(self, &hUsbHostFS, (uint8_t*)pps, sizeof(pps));
+    connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
+    mp_hal_delay_ms(150);
+    printf("PPS\n");
+    for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+    {
+      printf("0x%X ", hUsbHostFS.rawRxData[i]);
+    }
+    printf("\n");
+    */
+    // Get param
+    connection_ccid_transmit_get_parameters(self, &hUsbHostFS);
+    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    printf("GET PARAM\n");
+    connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, 64);
+    for(int i = 0; i < 64; i++)
+    {
+      printf(" 0x%x", hUsbHostFS.rawRxData[i]);
+    }
+    printf("\n");
+    mp_hal_delay_ms(150);
+    // Set param
+    connection_ccid_transmit_set_parameters(self, &hUsbHostFS);
+    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    printf("SET PARAM\n");
+    connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, 64);
+    for(int i = 0; i < 64; i++)
+    {
+      printf(" 0x%x", hUsbHostFS.rawRxData[i]);
+    }
+    printf("\n");
+    mp_hal_delay_ms(150);
+    // Send IFSD 00 C1 01 FE 3E ( 00 C1 01 F7 37 )
+    uint8_t ifsd[] = {0x00, 0xC1, 0x01, 0xF7, 0x37};
+    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    connection_ccid_transmit_xfr_block(self, &hUsbHostFS, (uint8_t*)ifsd, sizeof(ifsd));
+    connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
+    mp_hal_delay_ms(150);
+    printf("IFSD\n");
+    for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+    {
+      printf("0x%X ", hUsbHostFS.rawRxData[i]);
+    }
+    printf("\n");
+    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+    // Send APDU Select  00 00 0B 00 A4 04 00 06 B0 0B 51 11 CA 01 9D 
+    uint8_t apdu_select[] = {0x00, 0x00, 0x0B, 0x00, 0xA4, 0x04, 0x00, 0x06, 0xB0, 0x0B, 0x51, 0x11, 0xCA, 0x01, 0x9D};
+    connection_ccid_transmit_xfr_block(self, &hUsbHostFS, (uint8_t*)apdu_select, sizeof(apdu_select));
+    connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
+    mp_hal_delay_ms(150);
+    printf("SELECT\n");
+    for(int i = 0; i < sizeof(hUsbHostFS.rawRxData); i++)
+    {
+      printf("0x%X ", hUsbHostFS.rawRxData[i]);
+    }
+    // Send APDU 
+    //self->state = state_connected;
+  }
+  else
+  {
+      raise_SmartcardException("3smart card reader is not connected");
+  }
+  return mp_const_none;
+}
+
 /**
  * @brief Connects to a smart card
  *
@@ -803,14 +984,14 @@ STATIC mp_obj_t connection_connect(size_t n_args, const mp_obj_t *pos_args,
   // If protocol not defined, use default protocol
   new_protocol = (protocol_na == new_protocol) ? protocol_any : new_protocol;
   change_protocol( self, new_protocol, true, true );
-
+  USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+  self->dwFeatures = chipCardDesc.dwFeatures;
   self->CCID_Handle = hUsbHostFS.pActiveClass->pData;
   if(self->process_state == process_state_ready)
   {
         //if(connection_slot_status(self) == ICC_INSERTED)
         //{
             notify_observers(self, event_insertion);
-            USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
             hUsbHostFS.apduLen = CCID_ICC_LENGTH;
             self->IccCmd[0] = 0x62; 
             self->IccCmd[1] = 0x00;
@@ -1195,6 +1376,7 @@ STATIC mp_obj_t connection_close(mp_obj_t self_in) {
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_disconnect_obj, connection_disconnect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_connect_obj, 1, connection_connect);
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_poweron_obj, 1, connection_poweron);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_obj, 1, connection_transmit);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_getATR_obj, connection_getATR);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_getAPDU_obj, connection_getAPDU);
@@ -1216,6 +1398,7 @@ STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   { MP_ROM_QSTR(MP_QSTR___enter__),       MP_ROM_PTR(&mp_identity_obj)                  },
   { MP_ROM_QSTR(MP_QSTR___exit__),        MP_ROM_PTR(&connection_close_obj)             },
   { MP_ROM_QSTR(MP_QSTR_connect),         MP_ROM_PTR(&connection_connect_obj)           },
+  { MP_ROM_QSTR(MP_QSTR_poweron),         MP_ROM_PTR(&connection_poweron_obj)           },
   { MP_ROM_QSTR(MP_QSTR_disconnect),      MP_ROM_PTR(&connection_disconnect_obj)        },
   { MP_ROM_QSTR(MP_QSTR_transmit),        MP_ROM_PTR(&connection_transmit_obj)          },
   { MP_ROM_QSTR(MP_QSTR_getATR),          MP_ROM_PTR(&connection_getATR_obj)            },
