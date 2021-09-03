@@ -297,7 +297,18 @@ static void set_timeouts_t1(proto_handle_t handle, int32_t atr_timeout_ms,
     }
   }
 }
-
+static void set_usb_features_t1(proto_handle_t handle, uint32_t dwFeatures, uint8_t maxIFSD)
+{
+  if(handle) {
+    bool ok = set_t1_config(handle, t1_cfg_dw_fetures, dwFeatures);
+    ok = ok && set_t1_config(handle, t1_cfg_ifsd, maxIFSD);
+    ok = ok && set_t1_config(handle, t1_cfg_is_usb_reader, 1);
+    ok = ok && set_t1_config(handle, t1_cfg_pps_size, 4);
+    if(!ok) {
+      emit_error(handle, "error configuring dwFeatures");
+    }
+  }
+}
 /// Implementations of protocols
 const proto_impl_t protocols[] = {
   {
@@ -309,7 +320,8 @@ const proto_impl_t protocols[] = {
     .timer_task    = timer_task_t1,
     .serial_in     = serial_in_t1,
     .transmit_apdu = transmit_apdu_t1,
-    .set_timeouts  = set_timeouts_t1
+    .set_timeouts  = set_timeouts_t1,
+    .set_usb_features = set_usb_features_t1
   }
 };
 

@@ -40,7 +40,6 @@
 /// change presence of smart card
 #define CARD_PRESENCE_CYCLES            (5U)
 /* Features from dwFeatures */
-/* Features from dwFeatures */
 #define CCID_CLASS_AUTO_CONF_ATR	  0x00000002
 #define CCID_CLASS_AUTO_ACTIVATION	0x00000004
 #define CCID_CLASS_AUTO_VOLTAGE		  0x00000008
@@ -128,7 +127,9 @@ typedef struct usb_connection_obj_ {
   bool blocking;                 ///< If true, all operations are blocking
   bool raise_on_error;           ///< Forces exception for non-blocking mode
   uint32_t processTimer;         ///< Timer for USB Host process
-  uint32_t dwFeatures;           /// Card reader features field
+  uint32_t dwFeatures;           ///< Card reader features field
+  uint8_t TA_1;                  ///< Fi/Di value required by cardreader
+  USBH_ChipCardDescTypeDef chipCardDesc; ///< Smart Card descriptor
 } usb_connection_obj_t;
 
 STATIC void usb_timer_init(usb_connection_obj_t* self); 

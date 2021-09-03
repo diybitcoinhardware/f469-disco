@@ -74,6 +74,7 @@ STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
   self->process_state = process_state_closed;
   self->processTimer = 150;
   self->dwFeatures = 0;
+  self->TA_1 = 0x11;
 
   usb_timer_init(self);
   printf("\r\nNew USB smart card connection\n");
@@ -373,22 +374,6 @@ static bool objects_to_buf(uint8_t* buf, const mp_obj_t* objects,
 static uint8_t getVoltageSupport(USBH_ChipCardDescTypeDef* ccidDescriptor)
 {
   uint8_t voltage = 0;
-  if (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_CONF_ATR)
-  {
-    printf("Auto conf atr\n");
-  }
-  if (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_PPS_PROP)
-  {
-    printf("Auto PPS prop\n");
-  }
-  if (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_PPS_CUR)
-  {
-    printf("Auto PPS curr \n");
-  }
-  if (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_IFSD)
-  {
-    printf("Auto ifsd\n");
-  }
   if ((ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_VOLTAGE)
     || (ccidDescriptor->dwFeatures & CCID_CLASS_AUTO_ACTIVATION))
     voltage = 0;	/* automatic voltage selection */
@@ -456,14 +441,13 @@ STATIC void connection_ccid_transmit_set_parameters(usb_connection_obj_t* self, 
 	USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
   uint8_t cmd[17];
 	uint8_t param[] = {
-    0x95,	/* Fi/Di		*/
-    //0x11,
-    0x10,	/* TCCKS		*/
-    0x00,	/* GuardTime	*/
-    0x4D,	/* BWI/CWI		*/
-    0x00,	/* ClockStop	*/
-    0x20,	/* IFSC			*/
-    0x00	/* NADValue		*/
+    self->TA_1,	/* Fi/Di		  */
+    0x10,	      /* TCCKS		  */
+    0x00,	      /* GuardTime	*/
+    0x4D,	      /* BWI/CWI		*/
+    0x00,	      /* ClockStop	*/
+    0x20,	      /* IFSC			  */
+    0x00	      /* NADValue	  */
 	};
   cmd[0] = 0x61; /* SetParameters */
 	i2dw(sizeof(param), cmd+1);	/* APDU length */
@@ -619,6 +603,7 @@ static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
     case proto_ev_atr_received:
       self->atr = mp_obj_new_bytes(prm.atr_received->atr,
                                    prm.atr_received->len);
+      self->TA_1 = prm.atr_received->atr[2];
       break;
 
     case proto_ev_connect:
@@ -984,9 +969,10 @@ STATIC mp_obj_t connection_connect(size_t n_args, const mp_obj_t *pos_args,
   // If protocol not defined, use default protocol
   new_protocol = (protocol_na == new_protocol) ? protocol_any : new_protocol;
   change_protocol( self, new_protocol, true, true );
-  USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-  self->dwFeatures = chipCardDesc.dwFeatures;
+  self->chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+  self->dwFeatures = self->chipCardDesc.dwFeatures;
   self->CCID_Handle = hUsbHostFS.pActiveClass->pData;
+  self->protocol->set_usb_features(self->proto_handle,self->chipCardDesc.dwFeatures, self->chipCardDesc.dwMaxIFSD);
   if(self->process_state == process_state_ready)
   {
         //if(connection_slot_status(self) == ICC_INSERTED)
@@ -998,9 +984,9 @@ STATIC mp_obj_t connection_connect(size_t n_args, const mp_obj_t *pos_args,
             self->IccCmd[2] = 0x00;
             self->IccCmd[3] = 0x00;
             self->IccCmd[4] = 0x00;
-            self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	
+            self->IccCmd[5] = self->chipCardDesc.bCurrentSlotIndex;	
             self->IccCmd[6] = self->pbSeq++;
-            self->IccCmd[7] = getVoltageSupport(&chipCardDesc);
+            self->IccCmd[7] = getVoltageSupport(&self->chipCardDesc);
             self->IccCmd[8] = 0x00;
             self->IccCmd[9] = 0x00;
             hUsbHostFS.apdu = self->IccCmd;

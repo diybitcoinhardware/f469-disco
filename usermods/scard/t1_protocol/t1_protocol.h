@@ -29,6 +29,19 @@
   /// Maximal timeout in milliseconds
   #define T1_MAX_TIMEOUT_MS             (100*1000L)
 #endif
+/* Features from dwFeatures */
+#define CCID_CLASS_AUTO_CONF_ATR	  0x00000002
+#define CCID_CLASS_AUTO_ACTIVATION	0x00000004
+#define CCID_CLASS_AUTO_VOLTAGE		  0x00000008
+#define CCID_CLASS_AUTO_BAUD		    0x00000020
+#define CCID_CLASS_AUTO_PPS_PROP	  0x00000040
+#define CCID_CLASS_AUTO_PPS_CUR		  0x00000080
+#define CCID_CLASS_AUTO_IFSD		    0x00000400
+#define CCID_CLASS_CHARACTER		    0x00000000
+#define CCID_CLASS_TPDU				      0x00010000
+#define CCID_CLASS_SHORT_APDU		    0x00020000
+#define CCID_CLASS_EXTENDED_APDU	  0x00040000
+#define CCID_CLASS_EXCHANGE_MASK	  0x00070000
 
 /// Protocol events
 ///
@@ -60,8 +73,13 @@ typedef enum {
   t1_cfg_tm_response_max,  ///< Maximal response timeout in ms after WTX request
   t1_cfg_use_crc,          ///< Error detection code: 0 - LRC, 1 - CRC
   t1_cfg_ifsc,             ///< IFSC, card's maximum information block size
+  t1_cfg_ifsd,             ///< IFSD, card's maximum information block size
   t1_cfg_rx_skip_bytes,    ///< Number of dummy bytes to skip while receiving
-  t1_config_size           ///< Size of configuration, not an identifier
+  t1_cfg_is_usb_reader,    ///< Is Usb cardreader flag
+  t1_cfg_pps_size,         ///< Size of PPS
+  t1_cfg_dw_fetures,       ///< dwFeatures field of the USB cardreader 
+  t1_cfg_ta1_value,        ///< TA1 byte which contains Fi/Di value
+  t1_config_size,          ///< Size of configuration, not an identifier
 } t1_config_prm_id_t;
 
 /**

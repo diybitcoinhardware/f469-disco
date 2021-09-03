@@ -176,17 +176,21 @@ typedef void (*proto_set_timeouts_t)(proto_handle_t handle,
                                      int32_t rsp_timeout_ms,
                                      int32_t max_timeout_ms);
 
+typedef void (*proto_set_usb_features_t)(proto_handle_t handle,
+                                     uint32_t dwFeatures, uint8_t maxIFSD);
+
 /// Abstract implementation of a protocol
 typedef struct proto_implementation_ {
-  protocol_t            id;            ///< Protocol identifier
-  const char*           name;          ///< Protocol name
-  proto_init_t          init;          ///< Initialization function
-  proto_deinit_t        deinit;        ///< Deinitialization function
-  proto_reset_t         reset;         ///< Reset function
-  proto_timer_task_t    timer_task;    ///< Timer task function
-  proto_serial_in_t     serial_in;     ///< Serial input function
-  proto_transmit_apdu_t transmit_apdu; ///< APDU transmission function
-  proto_set_timeouts_t  set_timeouts;  ///< Timeout configuration function
+  protocol_t                id;               ///< Protocol identifier
+  const char*               name;             ///< Protocol name
+  proto_init_t              init;             ///< Initialization function
+  proto_deinit_t            deinit;           ///< Deinitialization function
+  proto_reset_t             reset;            ///< Reset function
+  proto_timer_task_t        timer_task;       ///< Timer task function
+  proto_serial_in_t         serial_in;        ///< Serial input function
+  proto_transmit_apdu_t     transmit_apdu;    ///< APDU transmission function
+  proto_set_timeouts_t      set_timeouts;     ///< Timeout configuration function
+  proto_set_usb_features_t  set_usb_features; ///< Set additional parameters for USB connection
 } proto_impl_t;
 
 /**
