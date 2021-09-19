@@ -52,7 +52,6 @@ CCID_DataStateTypeDef;
 typedef enum
 {
   CCID_IDLE_STATE= 0,
-  CCID_GET_SLOT_STATUS, 
   CCID_DATA_RECEIVED, 
   CCID_ERROR_STATE, 
 }

@@ -7,6 +7,8 @@
 
 #include "usbconnection.h"
 
+static void card_detection_task(usb_connection_obj_t* self, USBH_HandleTypeDef *phost);
+static bool card_present(usb_connection_obj_t* self, USBH_HandleTypeDef *phost);
 /**
  * @brief Constructor of UsbCardConnection
  *
@@ -291,6 +293,7 @@ static void timer_task(usb_connection_obj_t* self) {
         {
           self->process_state = process_state_init;
         }
+        card_detection_task(self, &hUsbHostFS);
     }
     if(self->processTimer == 0)
     {
@@ -458,26 +461,6 @@ STATIC void connection_ccid_transmit_set_parameters(usb_connection_obj_t* self, 
   memcpy(cmd+10, param, sizeof(param));
   USBH_CCID_Transmit(phost, cmd, sizeof(cmd));
   CCID_ProcessTransmission(phost);
-  /*
-  ACS Reader
-  61 SetParameters
-  07 APDU length
-  00
-  00
-  00
-  00 slot number 
-  0f pbSeq
-  01 bProtocolNum
-  00 RFU 
-  00 RFU
-  95 Fi/Di	
-  10 TCCKS
-  00 GuardTime
-  4d BWI/CWI
-  00 ClockStop
-  20 IFSC
-  00 NADValue
-  */
 }
 
 STATIC void connection_ccid_transmit_xfr_block(usb_connection_obj_t* self, USBH_HandleTypeDef *phost, 
@@ -540,49 +523,41 @@ static inline void wait_connect_blocking(usb_connection_obj_t* self) {
  */
 STATIC mp_obj_t connection_disconnect(mp_obj_t self_in) 
 {
-    usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
-    USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-    if(self->state == state_connected || self->state == state_connecting)
-    {
-        if(connection_slot_status(self_in) == ICC_INSERTED)
-        {
-          notify_observers(self, event_insertion);
-          self->IccCmd[0] = 0x63; /* IccPowerOff */
-          self->IccCmd[1] = self->IccCmd[2] = self->IccCmd[3] = self->IccCmd[4] = 0;	/* dwLength */
-          self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
-          self->IccCmd[6] = self->pbSeq++;
-          self->IccCmd[7] = self->IccCmd[8] = self->IccCmd[9] = 0; /* RFU */
-          hUsbHostFS.apdu = self->IccCmd;
-          connection_ccid_transmit_raw(self, &hUsbHostFS, hUsbHostFS.apdu, sizeof(self->IccCmd));
-          connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
-          memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
-          //Stop USB CCID communication
-          USBH_CCID_Stop(&hUsbHostFS);
-          // Deinitialize timer
-          if(self->timer) 
-          {
-            mp_obj_t deinit_fn = mp_load_attr(self->timer, MP_QSTR_deinit);
-            (void)mp_call_function_0(deinit_fn);
-            self->timer = MP_OBJ_NULL;
-          }
-          // Detach from reader
-          usbreader_deleteConnection(self->reader, MP_OBJ_FROM_PTR(self));
-          self->reader = MP_OBJ_NULL;
-          // Mark connection object as closed
-          self->state = state_closed;
-          notify_observers(self, event_disconnect);
-        }
-        else
-        {
-          notify_observers(self, event_removal);
-          raise_SmartcardException("1smart card is not inserted");
-        }
-    }
-    else
-    {
-        raise_SmartcardException("\r\n1smart card reader is not connected\r\n");
-    }
-    return mp_const_none;
+  usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+  USBH_ChipCardDescTypeDef chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
+  if(self->process_state != process_state_ready)
+  {
+    raise_SmartcardException("smart card reader is not connected");
+  }
+  // Apply power off cmd to the card
+  if(!card_present(self, &hUsbHostFS))
+  {
+    raise_NoCardException("no card inserted");
+  }
+  self->IccCmd[0] = 0x63; /* IccPowerOff */
+  self->IccCmd[1] = self->IccCmd[2] = self->IccCmd[3] = self->IccCmd[4] = 0;	/* dwLength */
+  self->IccCmd[5] = chipCardDesc.bCurrentSlotIndex;	/* slot number */
+  self->IccCmd[6] = self->pbSeq++;
+  self->IccCmd[7] = self->IccCmd[8] = self->IccCmd[9] = 0; /* RFU */
+  hUsbHostFS.apdu = self->IccCmd;
+  connection_ccid_transmit_raw(self, &hUsbHostFS, hUsbHostFS.apdu, sizeof(self->IccCmd));
+  connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
+  memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
+  //Stop USB CCID communication
+  USBH_CCID_Stop(&hUsbHostFS);
+  // Deinitialize timer
+  if(self->timer) 
+  {
+    mp_obj_t deinit_fn = mp_load_attr(self->timer, MP_QSTR_deinit);
+    (void)mp_call_function_0(deinit_fn);
+    self->timer = MP_OBJ_NULL;
+  }
+  // Detach from reader
+  usbreader_deleteConnection(self->reader, MP_OBJ_FROM_PTR(self));
+  self->reader = MP_OBJ_NULL;
+  // Mark connection object as closed
+  self->state = state_closed;
+  return mp_const_none;
 }
 /**
  * Callback function that handles protocol events
@@ -629,11 +604,6 @@ static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
         connection_ccid_transmit_set_parameters(self, &hUsbHostFS);
         memset(rcv, 0, sizeof(rcv));
         connection_ccid_receive(&hUsbHostFS, rcv, 64);
-        for(int i = 0; i < 64; i++)
-        {
-          printf(" 0x%x", rcv[i]);
-        }
-        printf("\n");
         mp_hal_delay_ms(150);
       }
       break;
@@ -646,6 +616,84 @@ static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
         raise_SmartcardException(prm.error);
       }
       break;
+  }
+}
+
+/**
+ * Handles change of smart card presence state
+ *
+ * @param self       instance of CardConnection class
+ * @param new_state  new state: true - card present, false - card absent
+ */
+static void handle_card_presence_change(usb_connection_obj_t* self,
+                                        bool new_state) {
+  const char* err_unexp_removal = "unexpected card removal";
+
+  if(new_state != self->presence_state) {
+    self->presence_state = new_state;
+    if(new_state) { // Card present
+      notify_observers(self, event_insertion);
+    } else { // Card absent
+      notify_observers(self, event_removal);
+      // Check if the card is in use
+      if(state_connecting == self->state ||
+         state_connected  == self->state ) {
+        // Handle unexpected card removal
+        connection_disconnect(self);
+        self->state = state_error;
+        notify_observers_text(self, event_error, err_unexp_removal);
+        if(self->blocking) {
+          raise_SmartcardException(err_unexp_removal);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Checks if smart card is present
+ *
+ * @param self  an instance of CardConnection class
+ * @return      true if card present
+ */
+static bool card_present(usb_connection_obj_t* self, USBH_HandleTypeDef *phost) {
+  // Read pin with blocking debounce algorithm if no timer is created or
+  // non-blocking debounce algorithm has not come to a stable state yet.
+  if( MP_OBJ_NULL == self->timer ||
+      self->presence_cycles < CARD_PRESENCE_CYCLES ) {
+    handle_card_presence_change(self, (phost->iccSlotStatus == ICC_INSERTED) ? true : false);
+  }
+  return self->presence_state;
+}
+
+/**
+ * The periodic task that detects presence of smart card
+ *
+ * This task is called each 1ms ... 50ms.
+ *
+ * @param self  instance of CardConnection class
+ */
+static void card_detection_task(usb_connection_obj_t* self, USBH_HandleTypeDef *phost) {
+  bool state = phost->iccSlotStatus == ICC_INSERTED;
+  bool state_valid = false;
+
+  // Non-blocking debounce algorithm. When the pin is active, counter is
+  // incremented until it reaches threshold value; at that point pin state is
+  // considered valid. When the pin is inactive the counter is set to zero and
+  // pin state is valid (absent state).
+  if(state) { // Looks like the card is present
+    if(self->presence_cycles >= CARD_PRESENCE_CYCLES) {
+      state_valid = true;
+    } else {
+      ++self->presence_cycles;
+    }
+  } else { // Card is absent
+    self->presence_cycles = 0;
+    state_valid = true;
+  }
+
+  if(state_valid) {
+    handle_card_presence_change(self, state);
   }
 }
 
@@ -973,59 +1021,34 @@ STATIC mp_obj_t connection_connect(size_t n_args, const mp_obj_t *pos_args,
   self->dwFeatures = self->chipCardDesc.dwFeatures;
   self->CCID_Handle = hUsbHostFS.pActiveClass->pData;
   self->protocol->set_usb_features(self->proto_handle,self->chipCardDesc.dwFeatures, self->chipCardDesc.dwMaxIFSD);
-  if(self->process_state == process_state_ready)
+  if(self->process_state != process_state_ready)
   {
-        //if(connection_slot_status(self) == ICC_INSERTED)
-        //{
-            notify_observers(self, event_insertion);
-            hUsbHostFS.apduLen = CCID_ICC_LENGTH;
-            self->IccCmd[0] = 0x62; 
-            self->IccCmd[1] = 0x00;
-            self->IccCmd[2] = 0x00;
-            self->IccCmd[3] = 0x00;
-            self->IccCmd[4] = 0x00;
-            self->IccCmd[5] = self->chipCardDesc.bCurrentSlotIndex;	
-            self->IccCmd[6] = self->pbSeq++;
-            self->IccCmd[7] = getVoltageSupport(&self->chipCardDesc);
-            self->IccCmd[8] = 0x00;
-            self->IccCmd[9] = 0x00;
-            hUsbHostFS.apdu = self->IccCmd;
-            notify_observers_command(self, self->IccCmd);
-            connection_ccid_transmit_raw(self, &hUsbHostFS, hUsbHostFS.apdu, hUsbHostFS.apduLen);
-            // Update state
-            self->state = state_connecting;
-            wait_connect_blocking(self);
-            memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
-      //}
-      //else
-      //{
-      //    notify_observers(self, event_removal);
-      //   raise_SmartcardException("3!!!smart card is not inserted");
-      //}
+    raise_SmartcardException("smart card reader is not connected");
   }
-  else
+  // Apply power and reset the card
+  if(!card_present(self, &hUsbHostFS))
   {
-      raise_SmartcardException("3smart card reader is not connected");
+    raise_NoCardException("no card inserted");
   }
+  hUsbHostFS.apduLen = CCID_ICC_LENGTH;
+  self->IccCmd[0] = 0x62; 
+  self->IccCmd[1] = 0x00;
+  self->IccCmd[2] = 0x00;
+  self->IccCmd[3] = 0x00;
+  self->IccCmd[4] = 0x00;
+  self->IccCmd[5] = self->chipCardDesc.bCurrentSlotIndex;	
+  self->IccCmd[6] = self->pbSeq++;
+  self->IccCmd[7] = getVoltageSupport(&self->chipCardDesc);
+  self->IccCmd[8] = 0x00;
+  self->IccCmd[9] = 0x00;
+  hUsbHostFS.apdu = self->IccCmd;
+  notify_observers_command(self, self->IccCmd);
+  connection_ccid_transmit_raw(self, &hUsbHostFS, hUsbHostFS.apdu, hUsbHostFS.apduLen);
+  // Update state
+  self->state = state_connecting;
+  wait_connect_blocking(self);
+  memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
   return mp_const_none;
-}
-
-/**
- * @brief Connects to a smart card
- *
- * .. method:: UsbCardConnection.connection_slot_status()
- *  
- * Get status of usb smart card reader active slot.
- * 
- * @param self      instance of UsbCardConnection class
- * @return          hUsbHostFS.iccSlotStatus
- */
-STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in) 
-{
-    usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
-    self->CCID_Handle->state = CCID_GET_SLOT_STATUS;
-    mp_hal_delay_ms(100);
-    return hUsbHostFS.iccSlotStatus;
 }
 
 /**
@@ -1036,13 +1059,17 @@ STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in)
  * @param self_in   instance of CardConnection class
  * @return          True if smart card is inserted
  */
+/**
+ * @brief Checks if smart card is inserted
+ *
+ * .. method:: CardConnection.isCardInserted()
+ *
+ * @param self_in   instance of CardConnection class
+ * @return          True if smart card is inserted
+ */
 STATIC mp_obj_t connection_isCardInserted(mp_obj_t self_in) {
   usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
-  if(connection_slot_status(self_in) == ICC_INSERTED)
-  {
-      return mp_const_true;  
-  }
-  return mp_const_false;
+  return card_present(self, &hUsbHostFS) ? mp_const_true : mp_const_false;
 }
 
 /**

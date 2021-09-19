@@ -268,8 +268,6 @@ static USBH_StatusTypeDef USBH_CCID_Process (USBH_HandleTypeDef *phost)
       status = USBH_OK;
       USBH_InterruptReceiveData(phost, phost->RDR_to_PC_NotifySlotChange,
                               sizeof(phost->RDR_to_PC_NotifySlotChange), CCID_Handle->CommItf.NotifPipe);
-      break;
-    case CCID_GET_SLOT_STATUS:
       if(phost->RDR_to_PC_NotifySlotChange[0] == 0x50 && phost->RDR_to_PC_NotifySlotChange[1] == 0x02)
       {
         phost->iccSlotStatus = ICC_REMOVED;
