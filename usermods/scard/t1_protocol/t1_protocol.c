@@ -614,7 +614,7 @@ static inline bool tx_fifo_has_block(const t1_inst_t* inst) {
  */
 static event_t tx_fifo_send_last_block(t1_inst_t* inst) {
   if(tx_fifo_has_block(inst)) {
-    uint8_t buf[32];
+    uint8_t buf[256];
     block_hdr_t hdr;
     size_t read_idx = fifo_get_read_idx(&inst->tx_fifo);
 

@@ -703,7 +703,7 @@ static void card_detection_task(usb_connection_obj_t* self, USBH_HandleTypeDef *
  * @param self  instance of CardConnection class
  */
 static inline void wait_response_blocking(usb_connection_obj_t* self) {
-  uint8_t rx_buf[32] = {0};
+  uint8_t rx_buf[64] = {0};
   while(self->response == MP_OBJ_NULL) {
     memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
     connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
