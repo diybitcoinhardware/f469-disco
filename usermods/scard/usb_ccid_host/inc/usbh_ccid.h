@@ -236,8 +236,9 @@ CCID_HandleTypeDef;
 
 extern USBH_ClassTypeDef  CCID_Class;
 #define USBH_CCID_CLASS    &CCID_Class
+CCID_HandleTypeDef *CCID_Handle;
 
-void CCID_ProcessTransmission(USBH_HandleTypeDef *phost);
+USBH_StatusTypeDef CCID_ProcessTransmission(USBH_HandleTypeDef *phost);
 
 void CCID_ProcessReception(USBH_HandleTypeDef *phost);
 

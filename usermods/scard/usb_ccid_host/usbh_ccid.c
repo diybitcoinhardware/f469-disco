@@ -377,7 +377,7 @@ USBH_StatusTypeDef  USBH_CCID_Transmit(USBH_HandleTypeDef *phost, uint8_t *pbuff
 USBH_StatusTypeDef  USBH_CCID_Receive(USBH_HandleTypeDef *phost, uint8_t *pbuff, uint32_t length)
 {
   USBH_StatusTypeDef Status = USBH_BUSY;
-  CCID_HandleTypeDef *CCID_Handle =  phost->pActiveClass->pData;
+  CCID_Handle =  phost->pActiveClass->pData;
   
   if((CCID_Handle->state == CCID_IDLE_STATE))
   {
@@ -394,18 +394,18 @@ USBH_StatusTypeDef  USBH_CCID_Receive(USBH_HandleTypeDef *phost, uint8_t *pbuff,
 *  @param  pdev: Selected device
 * @retval None
 */
-void CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
+USBH_StatusTypeDef CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
 {
   CCID_HandleTypeDef *CCID_Handle =  phost->pActiveClass->pData;
   USBH_URBStateTypeDef URB_Status = USBH_URB_IDLE;
-  
+  USBH_StatusTypeDef res;
   switch(CCID_Handle->data_tx_state)
   {
  
   case CCID_SEND_DATA:
     if(CCID_Handle->TxDataLength > CCID_Handle->DataItf.OutEpSize)
     {
-      USBH_BulkSendData (phost,
+      res = USBH_BulkSendData (phost,
                          CCID_Handle->pTxData, 
                          CCID_Handle->DataItf.OutEpSize, 
                          CCID_Handle->DataItf.OutPipe,
@@ -413,7 +413,7 @@ void CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
     }
     else
     {
-      USBH_BulkSendData (phost,
+      res = USBH_BulkSendData (phost,
                          CCID_Handle->pTxData, 
                          CCID_Handle->TxDataLength, 
                          CCID_Handle->DataItf.OutPipe,
@@ -460,6 +460,7 @@ void CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
   default:
     break;
   }
+  return res;
 }
 /**
 * @brief  This function responsible for reception of data from the device
@@ -484,8 +485,7 @@ void CCID_ProcessReception(USBH_HandleTypeDef *phost)
                           CCID_Handle->DataItf.InPipe);
     
     URB_Status = USBH_LL_GetURBState(phost, CCID_Handle->DataItf.InPipe); 
-    
-    /*Check the status done for reception*/
+
     if(URB_Status == USBH_URB_DONE )
     {  
       length = USBH_LL_GetLastXferSize(phost, CCID_Handle->DataItf.InPipe);

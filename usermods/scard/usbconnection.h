@@ -81,6 +81,16 @@ typedef enum event_type_ {
   event_error      = MP_QSTR_error       ///< Error
 } event_type_t;
 
+/// Types of Bulk-In pipe messages
+typedef enum bulk_in_message_type_
+{
+  RDR_to_PC_DataBlock = 0x80,
+  RDR_to_PC_SlotStatus,
+  RDR_to_PC_Parameters,
+  RDR_to_PC_Escape,
+  RDR_to_PC_DataRateAndClockFrequency = 0x84
+} bulk_in_message_type_t;
+
 /// Event as a set of arguments of observer
 typedef struct event_ {
   /// Buffer with arguments of observer
@@ -129,6 +139,8 @@ typedef struct usb_connection_obj_ {
   uint32_t processTimer;         ///< Timer for USB Host process
   uint32_t dwFeatures;           ///< Card reader features field
   uint8_t TA_1;                  ///< Fi/Di value required by cardreader
+  bool waitForResponse;
+  uint32_t responseTimeout;
   USBH_ChipCardDescTypeDef chipCardDesc; ///< Smart Card descriptor
 } usb_connection_obj_t;
 

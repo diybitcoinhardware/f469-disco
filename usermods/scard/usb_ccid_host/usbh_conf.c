@@ -328,6 +328,17 @@ USBH_StatusTypeDef USBH_LL_ResetPort(USBH_HandleTypeDef *phost)
   * @param  pipe: Pipe index
   * @retval Packet size
   */
+uint32_t USBH_LL_GetLastXferPktSize(USBH_HandleTypeDef *phost, uint8_t pipe)
+{
+  return HAL_HCD_HC_GetXferPktCount(phost->pData, pipe);
+}
+
+/**
+  * @brief  Return the last transfered packet size.
+  * @param  phost: Host handle
+  * @param  pipe: Pipe index
+  * @retval Packet size
+  */
 uint32_t USBH_LL_GetLastXferSize(USBH_HandleTypeDef *phost, uint8_t pipe)
 {
   return HAL_HCD_HC_GetXferCount(phost->pData, pipe);
@@ -410,6 +421,7 @@ USBH_StatusTypeDef USBH_LL_SubmitURB(USBH_HandleTypeDef *phost, uint8_t pipe, ui
   HAL_StatusTypeDef hal_status = HAL_OK;
   USBH_StatusTypeDef usb_status = USBH_OK;
 
+  //void* hhcd = phost->pData;
   hal_status = HAL_HCD_HC_SubmitRequest(phost->pData, pipe, direction ,
                                         ep_type, token, pbuff, length,
                                         do_ping);

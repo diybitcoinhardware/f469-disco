@@ -9,6 +9,7 @@
 
 static void card_detection_task(usb_connection_obj_t* self, USBH_HandleTypeDef *phost);
 static bool card_present(usb_connection_obj_t* self, USBH_HandleTypeDef *phost);
+STATIC void connection_ccid_receive(USBH_HandleTypeDef *phost, uint8_t *pbuff, uint32_t length);
 /**
  * @brief Constructor of UsbCardConnection
  *
@@ -77,6 +78,8 @@ STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
   self->processTimer = 150;
   self->dwFeatures = 0;
   self->TA_1 = 0x11;
+  self->waitForResponse = false;
+  self->responseTimeout = 10;
 
   usb_timer_init(self);
   printf("\r\nNew USB smart card connection\n");
@@ -281,7 +284,6 @@ static void timer_task(usb_connection_obj_t* self) {
     mp_uint_t ticks_ms = mp_hal_ticks_ms();
     mp_uint_t elapsed = scard_ticks_diff(ticks_ms, self->prev_ticks_ms);
     self->prev_ticks_ms = ticks_ms;
-    uint32_t elapsed_ms = 0;
     if(connection_timer_elapsed(&self->processTimer, elapsed)) 
     {
         USBH_Process(&hUsbHostFS);
@@ -299,6 +301,33 @@ static void timer_task(usb_connection_obj_t* self) {
     {
       self->processTimer = 150;
     }
+    /*
+    if(connection_timer_elapsed(&self->responseTimeout, elapsed)) 
+    {
+      if(self->waitForResponse)
+      {
+        connection_ccid_receive(&hUsbHostFS, rawRxData, sizeof(rawRxData));
+        if(rawRxData[0] == RDR_to_PC_DataBlock)
+        {
+          uint16_t dwLength = rawRxData[1];
+          if(dwLength != 0)
+          {
+            uint8_t rx_buf[dwLength];
+            memcpy(rx_buf, rawRxData + CCID_ICC_LENGTH, dwLength); 
+            self->protocol->serial_in(self->proto_handle, rx_buf, dwLength);
+          }
+          else
+          {
+            raise_SmartcardException("lenght of bulk-in message is incorrect");
+          }
+        }
+      }
+    }
+    if(self->responseTimeout == 0)
+    {
+      self->responseTimeout = 10;
+    }
+    */
     // Run protocol timer task only when we are connecting or connected
     if(state_connecting == self->state || state_connected == self->state) 
     {
@@ -495,7 +524,7 @@ static inline void wait_connect_blocking(usb_connection_obj_t* self) {
   while(self->state == state_connecting) {
       memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
       connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
-      mp_hal_delay_ms(50);
+      mp_hal_delay_ms(150);
       uint16_t length = USBH_LL_GetLastXferSize(&hUsbHostFS, self->CCID_Handle->DataItf.InPipe);
       if(length != 0)
       {
@@ -703,20 +732,24 @@ static void card_detection_task(usb_connection_obj_t* self, USBH_HandleTypeDef *
  * @param self  instance of CardConnection class
  */
 static inline void wait_response_blocking(usb_connection_obj_t* self) {
-  uint8_t rx_buf[64] = {0};
   while(self->response == MP_OBJ_NULL) {
-    memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
     connection_ccid_receive(&hUsbHostFS, hUsbHostFS.rawRxData, sizeof(hUsbHostFS.rawRxData));
-    mp_hal_delay_ms(150);
-    uint16_t length = USBH_LL_GetLastXferSize(&hUsbHostFS, self->CCID_Handle->DataItf.InPipe);
-    if(length != 0)
+    if(hUsbHostFS.rawRxData[0] == RDR_to_PC_DataBlock)
     {
-      memset(rx_buf, 0, sizeof(rx_buf));
-      memcpy(rx_buf, hUsbHostFS.rawRxData + CCID_ICC_LENGTH, length - CCID_ICC_LENGTH);
-      self->protocol->serial_in(self->proto_handle, rx_buf, length - CCID_ICC_LENGTH);
-      timer_task(self);
-      MICROPY_EVENT_POLL_HOOK
+      uint16_t dwLength = hUsbHostFS.rawRxData[1];
+      if(dwLength != 0)
+      {
+        uint8_t rx_buf[dwLength];
+        memcpy(rx_buf, hUsbHostFS.rawRxData + CCID_ICC_LENGTH, dwLength); 
+        self->protocol->serial_in(self->proto_handle, rx_buf, dwLength);
+      }
+      else
+      {
+        raise_SmartcardException("lenght of bulk-in message is incorrect");
+      }
     }
+    timer_task(self);
+    MICROPY_EVENT_POLL_HOOK
   }
 }
 
@@ -846,6 +879,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
 
   // Transmit APDU
   self->response = MP_OBJ_NULL;
+  memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
   self->protocol->transmit_apdu(self->proto_handle, bufinfo.buf, bufinfo.len);
   // Let's free dynamic buffer manually to help the GC
   if(dynamic_buf) {
