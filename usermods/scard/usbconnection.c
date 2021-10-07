@@ -742,6 +742,7 @@ static inline void wait_response_blocking(usb_connection_obj_t* self) {
         uint8_t rx_buf[dwLength];
         memcpy(rx_buf, hUsbHostFS.rawRxData + CCID_ICC_LENGTH, dwLength); 
         self->protocol->serial_in(self->proto_handle, rx_buf, dwLength);
+        memset(hUsbHostFS.rawRxData, 0, sizeof(hUsbHostFS.rawRxData));
       }
       else
       {

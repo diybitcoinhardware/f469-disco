@@ -470,7 +470,6 @@ USBH_StatusTypeDef CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
 
 void CCID_ProcessReception(USBH_HandleTypeDef *phost)
 {
-  CCID_HandleTypeDef *CCID_Handle =  phost->pActiveClass->pData;
   USBH_URBStateTypeDef URB_Status = USBH_URB_IDLE;
   uint16_t length;
 
