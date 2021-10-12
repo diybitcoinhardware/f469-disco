@@ -501,7 +501,7 @@ typedef struct _USBH_HandleTypeDef
   USBH_SlotStatusTypeDef iccSlotStatus;
   uint8_t* apdu;
   size_t apduLen;
-  uint8_t rawRxData[64];
+  uint8_t rawRxData[0xFF];
   uint8_t RDR_to_PC_NotifySlotChange[4];
 #endif  
 #if (USBH_USE_OS == 1)

@@ -301,33 +301,6 @@ static void timer_task(usb_connection_obj_t* self) {
     {
       self->processTimer = 150;
     }
-    /*
-    if(connection_timer_elapsed(&self->responseTimeout, elapsed)) 
-    {
-      if(self->waitForResponse)
-      {
-        connection_ccid_receive(&hUsbHostFS, rawRxData, sizeof(rawRxData));
-        if(rawRxData[0] == RDR_to_PC_DataBlock)
-        {
-          uint16_t dwLength = rawRxData[1];
-          if(dwLength != 0)
-          {
-            uint8_t rx_buf[dwLength];
-            memcpy(rx_buf, rawRxData + CCID_ICC_LENGTH, dwLength); 
-            self->protocol->serial_in(self->proto_handle, rx_buf, dwLength);
-          }
-          else
-          {
-            raise_SmartcardException("lenght of bulk-in message is incorrect");
-          }
-        }
-      }
-    }
-    if(self->responseTimeout == 0)
-    {
-      self->responseTimeout = 10;
-    }
-    */
     // Run protocol timer task only when we are connecting or connected
     if(state_connecting == self->state || state_connected == self->state) 
     {
@@ -511,7 +484,7 @@ STATIC void connection_ccid_transmit_raw(usb_connection_obj_t* self, USBH_Handle
 STATIC void connection_ccid_receive(USBH_HandleTypeDef *phost, uint8_t *pbuff, uint32_t length)
 {
     USBH_CCID_Receive(phost, pbuff, length);
-    CCID_ProcessReception(phost);  
+    CCID_ProcessReception(phost);
 }
 
 /**
@@ -1055,7 +1028,8 @@ STATIC mp_obj_t connection_connect(size_t n_args, const mp_obj_t *pos_args,
   self->chipCardDesc = hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
   self->dwFeatures = self->chipCardDesc.dwFeatures;
   self->CCID_Handle = hUsbHostFS.pActiveClass->pData;
-  self->protocol->set_usb_features(self->proto_handle,self->chipCardDesc.dwFeatures, self->chipCardDesc.dwMaxIFSD);
+  //Set IFSD=0x32 because we can receive more than 64 bytes per attempt
+  self->protocol->set_usb_features(self->proto_handle,self->chipCardDesc.dwFeatures, 0x32);
   if(self->process_state != process_state_ready)
   {
     raise_SmartcardException("smart card reader is not connected");

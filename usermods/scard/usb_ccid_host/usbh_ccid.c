@@ -443,7 +443,22 @@ USBH_StatusTypeDef CCID_ProcessTransmission(USBH_HandleTypeDef *phost)
       
       if( CCID_Handle->TxDataLength > 0)
       {
-       CCID_Handle->data_tx_state = CCID_SEND_DATA; 
+        if(CCID_Handle->TxDataLength > CCID_Handle->DataItf.OutEpSize)
+        {
+          res = USBH_BulkSendData (phost,
+                            CCID_Handle->pTxData, 
+                            CCID_Handle->DataItf.OutEpSize, 
+                            CCID_Handle->DataItf.OutPipe,
+                            1);
+        }
+        else
+        {
+          res = USBH_BulkSendData (phost,
+                            CCID_Handle->pTxData, 
+                            CCID_Handle->TxDataLength, 
+                            CCID_Handle->DataItf.OutPipe,
+                            1);
+        } 
       }
       else
       {
@@ -493,7 +508,10 @@ void CCID_ProcessReception(USBH_HandleTypeDef *phost)
       {
         CCID_Handle->RxDataLength -= length ;
         CCID_Handle->pRxData += length;
-        CCID_Handle->data_rx_state = CCID_RECEIVE_DATA; 
+        USBH_BulkReceiveData (phost,
+                      CCID_Handle->pRxData, 
+                      CCID_Handle->DataItf.InEpSize, 
+                      CCID_Handle->DataItf.InPipe); 
       }
       else
       {

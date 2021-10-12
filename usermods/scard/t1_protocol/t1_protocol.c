@@ -614,7 +614,7 @@ static inline bool tx_fifo_has_block(const t1_inst_t* inst) {
  */
 static event_t tx_fifo_send_last_block(t1_inst_t* inst) {
   if(tx_fifo_has_block(inst)) {
-    uint8_t buf[256];
+    uint8_t buf[64];
     block_hdr_t hdr;
     size_t read_idx = fifo_get_read_idx(&inst->tx_fifo);
 
@@ -1095,7 +1095,6 @@ static void handle_pps_data(t1_inst_t* inst, const uint8_t* buf,
       inst->rx_buf[inst->rx_buf_idx++] = *p_byte++;
     }
     if(inst->rx_buf_idx == inst->config[t1_cfg_pps_size]) { // Handle PPS response
-      inst->tmr_response_timeout = 50U;
       int res;
       if(inst->rx_buf_idx == 3)
       {
