@@ -80,6 +80,7 @@
 /// MAximal number of events in a list
 #define MAX_EVENTS                      3
 
+#define MAX_PPS_SIZE                    5
 /// Transmission protocol or qualification of interface bytes
 typedef enum {
   atr_prot_t0 = 0,  ///< T=0 protocol
@@ -983,7 +984,7 @@ static bool timer_elapsed(uint32_t *p_timer, uint32_t elapsed_ms) {
  * @return      event or empty event with event_t::code = t1_ev_none
  */
 static event_t send_pps_request(t1_inst_t* inst) {
-  uint8_t buf[inst->config[t1_cfg_pps_size]];
+  uint8_t buf[MAX_PPS_SIZE];
 
   // Create request
   if(!inst->config[t1_cfg_is_usb_reader])
@@ -1001,7 +1002,7 @@ static event_t send_pps_request(t1_inst_t* inst) {
   }
 
   // Transmit request
-  if(!inst->cb_serial_out(buf, sizeof(buf), inst->p_user_prm)) {
+  if(!inst->cb_serial_out(buf, inst->config[t1_cfg_pps_size], inst->p_user_prm)) {
     return event(t1_ev_err_serial_out);
   }
   inst->tmr_response_timeout = inst->config[t1_cfg_tm_response];

@@ -40,20 +40,24 @@
 /// change presence of smart card
 #define CARD_PRESENCE_CYCLES            (5U)
 /* Features from dwFeatures */
-#define CCID_CLASS_AUTO_CONF_ATR	  0x00000002
-#define CCID_CLASS_AUTO_ACTIVATION	0x00000004
-#define CCID_CLASS_AUTO_VOLTAGE		  0x00000008
-#define CCID_CLASS_AUTO_BAUD		    0x00000020
-#define CCID_CLASS_AUTO_PPS_PROP	  0x00000040
-#define CCID_CLASS_AUTO_PPS_CUR		  0x00000080
-#define CCID_CLASS_AUTO_IFSD		    0x00000400
-#define CCID_CLASS_CHARACTER		    0x00000000
-#define CCID_CLASS_TPDU				      0x00010000
-#define CCID_CLASS_SHORT_APDU		    0x00020000
-#define CCID_CLASS_EXTENDED_APDU	  0x00040000
-#define CCID_CLASS_EXCHANGE_MASK	  0x00070000
-/// Length of ICC power on command
-#define CCID_ICC_LENGTH    (10U)
+#define CCID_CLASS_AUTO_CONF_ATR     0x00000002
+#define CCID_CLASS_AUTO_ACTIVATION   0x00000004
+#define CCID_CLASS_AUTO_VOLTAGE      0x00000008
+#define CCID_CLASS_AUTO_BAUD         0x00000020
+#define CCID_CLASS_AUTO_PPS_PROP     0x00000040
+#define CCID_CLASS_AUTO_PPS_CUR      0x00000080
+#define CCID_CLASS_AUTO_IFSD         0x00000400
+#define CCID_CLASS_CHARACTER         0x00000000
+#define CCID_CLASS_TPDU              0x00010000
+#define CCID_CLASS_SHORT_APDU        0x00020000
+#define CCID_CLASS_EXTENDED_APDU     0x00040000
+#define CCID_CLASS_EXCHANGE_MASK     0x00070000
+/// Length of ICC header
+#define CCID_ICC_HEADER_LENGTH    (10U)
+/// CCID maximum data message length
+#define CCID_MAX_DATA_LENGTH      (261U)
+/// CCID maximum data length
+#define CCID_MAX_RESP_LENGTH      (254U)
 /// Connection state
 typedef enum state_ {
   state_closed       = MP_QSTR_closed,       ///< Connection is closed
@@ -100,39 +104,39 @@ typedef struct event_ {
 } event_t;
 
 typedef struct usb_ccid_apdu_ {
-  const uint8_t *apdu; ///< Pointer to buffer containing APDU
-  size_t len;          ///< Length of APDU in bytes
+  const uint8_t *apdu;  ///< Pointer to buffer containing APDU
+  size_t len;           ///< Length of APDU in bytes
 } usb_ccid_apdu_t;
 
 typedef struct usb_ccid_atr_ {
-  const uint8_t *atr;   ///< Pointer to buffer containing ATR
+  const uint8_t *atr;  ///< Pointer to buffer containing ATR
   size_t len;          ///< Length of ATR in bytes
 } usb_ccid_atr_t;
 typedef struct usb_connection_obj_ {
-  mp_obj_base_t base;              ///< Pointer to type of base class
-  mp_obj_t reader;                 ///< Reader to which connection is bound
-  state_t state;                   ///< Connection state
-  process_state_t process_state;   ///<  USB host process state
-  mp_obj_t timer;                  ///< Timer object
-  mp_obj_t atr;                    ///< ATR as bytes object
-  mp_obj_t apdu;                   ///< APDU as bytes object
-  mp_uint_t prev_ticks_ms;         ///< Previous value of millisecond ticks
-  mp_obj_t observers;              ///< List of observers
-  event_t event_buf[MAX_EVENTS];   ///< Event buffer
-  size_t event_idx;                ///< Event index within event_buf[]
-  int32_t atr_timeout_ms;          ///< ATR timeout in ms
-  int32_t rsp_timeout_ms;          ///< Response timeout in ms
-  int32_t max_timeout_ms;          ///< Maximal response timeout in ms
-  CCID_HandleTypeDef *CCID_Handle; ///< Structure for CCID process
-  uint8_t pbSeq;                   ///< Sequence number for command. 
-  uint8_t IccCmd[10];              ///< CCID command
-  usb_ccid_apdu_t apdu_recived;    ///< Received APDU
-  usb_ccid_atr_t  atr_received;    ///< Received ATR
-  mp_obj_t response;             ///< Card response, a list [data, sw1, sw2]
-  mp_int_t next_protocol;        ///< ID of the protocol for the next op.
+  mp_obj_base_t base;               ///< Pointer to type of base class
+  mp_obj_t reader;                  ///< Reader to which connection is bound
+  state_t state;                    ///< Connection state
+  process_state_t process_state;    ///<  USB host process state
+  mp_obj_t timer;                   ///< Timer object
+  mp_obj_t atr;                     ///< ATR as bytes object
+  mp_obj_t apdu;                    ///< APDU as bytes object
+  mp_uint_t prev_ticks_ms;          ///< Previous value of millisecond ticks
+  mp_obj_t observers;               ///< List of observers
+  event_t event_buf[MAX_EVENTS];    ///< Event buffer
+  size_t event_idx;                 ///< Event index within event_buf[]
+  int32_t atr_timeout_ms;           ///< ATR timeout in ms
+  int32_t rsp_timeout_ms;           ///< Response timeout in ms
+  int32_t max_timeout_ms;           ///< Maximal response timeout in ms
+  CCID_HandleTypeDef *CCID_Handle;  ///< Structure for CCID process
+  uint8_t pbSeq;                    ///< Sequence number for command.
+  uint8_t IccCmd[10];               ///< CCID command
+  usb_ccid_apdu_t apdu_recived;     ///< Received APDU
+  usb_ccid_atr_t atr_received;      ///< Received ATR
+  mp_obj_t response;                ///< Card response, a list [data, sw1, sw2]
+  mp_int_t next_protocol;           ///< ID of the protocol for the next op.
   uint16_t presence_cycles;      ///< Counter of card presence cycles (debounce)
   bool presence_state;           ///< Card presence state
-  const proto_impl_t* protocol;  ///< Protocol used to communicate with card
+  const proto_impl_t *protocol;  ///< Protocol used to communicate with card
   proto_handle_t proto_handle;   ///< Protocol handle
   bool blocking;                 ///< If true, all operations are blocking
   bool raise_on_error;           ///< Forces exception for non-blocking mode
@@ -141,14 +145,15 @@ typedef struct usb_connection_obj_ {
   uint8_t TA_1;                  ///< Fi/Di value required by cardreader
   bool waitForResponse;
   uint32_t responseTimeout;
-  USBH_ChipCardDescTypeDef chipCardDesc; ///< Smart Card descriptor
+  USBH_ChipCardDescTypeDef chipCardDesc;  ///< Smart Card descriptor
 } usb_connection_obj_t;
 
-STATIC void usb_timer_init(usb_connection_obj_t* self); 
-static void timer_task(usb_connection_obj_t* self);
+STATIC void usb_timer_init(usb_connection_obj_t *self);
+static void timer_task(usb_connection_obj_t *self);
 STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in);
-STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t *tx_buffer, unsigned int tx_length, uint8_t *cmd, 
-                                            unsigned short rx_length, uint8_t bBWI);
+STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t *tx_buffer,
+                                        unsigned int tx_length, uint8_t *cmd,
+                                        unsigned short rx_length, uint8_t bBWI);
 /// Connection class type
 extern const mp_obj_type_t scard_UsbCardConnection_type;
 #endif
