@@ -870,7 +870,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
 
   return mp_const_none;
 }
-
+#ifdef USB_DEBUG
 STATIC mp_obj_t connection_poweron(size_t n_args, const mp_obj_t *pos_args,
                                    mp_map_t *kw_args) {
   // Get self
@@ -992,7 +992,7 @@ STATIC mp_obj_t connection_poweron(size_t n_args, const mp_obj_t *pos_args,
   }
   return mp_const_none;
 }
-
+#endif
 /**
  * @brief Connects to a smart card
  *
@@ -1119,6 +1119,27 @@ STATIC mp_obj_t connection_isActive(mp_obj_t self_in) {
       return mp_const_false;
   }
 }
+
+/**
+ * @brief Checks if smart card reader is ready for connection
+ *
+ * .. method:: UsbCardConnection.isReady()
+ *
+ *  Checks connection state, returning True if card is inserted and powered
+ *
+ * @param self_in  instance of UsbCardConnection class
+ * @return         connection state: True - active, False - not active
+ */
+STATIC mp_obj_t connection_isReady(mp_obj_t self_in) {
+  usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
+  switch(self->process_state) {
+    case process_state_ready:
+      return mp_const_true;
+    default:
+      return mp_const_false;
+  }
+}
+
 
 /**
  * @brief Returns APDU sentence received from the smart card
@@ -1398,7 +1419,6 @@ STATIC mp_obj_t connection_close(mp_obj_t self_in) {
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_disconnect_obj, connection_disconnect);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_connect_obj, 1, connection_connect);
-STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_poweron_obj, 1, connection_poweron);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_transmit_obj, 1, connection_transmit);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_getATR_obj, connection_getATR);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_getAPDU_obj, connection_getAPDU);
@@ -1406,6 +1426,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_isCardInserted_obj, connection_isCar
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_getReader_obj, connection_getReader);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_getState_obj, connection_getState);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_isActive_obj, connection_isActive);
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_isReady_obj, connection_isReady);
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(connection_addObserver_obj, connection_addObserver);
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(connection_deleteObserver_obj, connection_deleteObserver);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_deleteObservers_obj, connection_deleteObservers);
@@ -1413,14 +1434,18 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_countObservers_obj, connection_count
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(connection_notifyAll_obj, connection_notifyAll);
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(connection_close_obj, connection_close);
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_setTimeouts_obj, 1, connection_setTimeouts);
-
+#ifdef USB_DEBUG
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_poweron_obj, 1, connection_poweron);
+#endif
 STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   // Instance methods
   { MP_ROM_QSTR(MP_QSTR___del__),         MP_ROM_PTR(&connection_close_obj)             },
   { MP_ROM_QSTR(MP_QSTR___enter__),       MP_ROM_PTR(&mp_identity_obj)                  },
   { MP_ROM_QSTR(MP_QSTR___exit__),        MP_ROM_PTR(&connection_close_obj)             },
   { MP_ROM_QSTR(MP_QSTR_connect),         MP_ROM_PTR(&connection_connect_obj)           },
+#ifdef USB_DEBUG
   { MP_ROM_QSTR(MP_QSTR_poweron),         MP_ROM_PTR(&connection_poweron_obj)           },
+#endif
   { MP_ROM_QSTR(MP_QSTR_disconnect),      MP_ROM_PTR(&connection_disconnect_obj)        },
   { MP_ROM_QSTR(MP_QSTR_transmit),        MP_ROM_PTR(&connection_transmit_obj)          },
   { MP_ROM_QSTR(MP_QSTR_getATR),          MP_ROM_PTR(&connection_getATR_obj)            },
@@ -1429,6 +1454,7 @@ STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
   { MP_ROM_QSTR(MP_QSTR_getReader),       MP_ROM_PTR(&connection_getReader_obj)         },
   { MP_ROM_QSTR(MP_QSTR_getState),        MP_ROM_PTR(&connection_getState_obj)          },
   { MP_ROM_QSTR(MP_QSTR_isActive),        MP_ROM_PTR(&connection_isActive_obj)          },
+  { MP_ROM_QSTR(MP_QSTR_isReady),         MP_ROM_PTR(&connection_isReady_obj)           },
   { MP_ROM_QSTR(MP_QSTR_addObserver),     MP_ROM_PTR(&connection_addObserver_obj)       },
   { MP_ROM_QSTR(MP_QSTR_deleteObserver),  MP_ROM_PTR(&connection_deleteObserver_obj)    },
   { MP_ROM_QSTR(MP_QSTR_deleteObservers), MP_ROM_PTR(&connection_deleteObservers_obj)   },
