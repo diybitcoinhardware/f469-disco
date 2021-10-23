@@ -175,7 +175,13 @@ typedef void (*proto_set_timeouts_t)(proto_handle_t handle,
                                      int32_t atr_timeout_ms,
                                      int32_t rsp_timeout_ms,
                                      int32_t max_timeout_ms);
-
+/**
+ * Configures parameters of USB transfer
+ *
+ * @param handle          protocol handle
+ * @param dwFeatures      dwFeatures value
+ * @param maxIFSD         IFSD value for USB transfer
+ */
 typedef void (*proto_set_usb_features_t)(proto_handle_t handle,
                                      uint32_t dwFeatures, uint8_t maxIFSD);
 

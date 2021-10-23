@@ -51,9 +51,8 @@ typedef enum {
   t1_ev_atr_received,       ///< ATR is received; parameter: t1_atr_decoded_t*
   t1_ev_connect,            ///< Connection established
   t1_ev_apdu_received,      ///< APDU is received; parameter: t1_apdu_t*
-  t1_ev_pps_exchange_done,   ///< PPS exchange done
-  t1_ev_set_param,
-  t1_ev_ifsc_exchage,
+  t1_ev_pps_exchange_done,  ///< PPS exchange done
+  t1_ev_set_param,          ///< Send set parameters command (for USB mode only)
   t1_ev_err_internal = 100, ///< Internal error, also beginning of error codes
   t1_ev_err_serial_out,     ///< Serial output error
   t1_ev_err_comm_failure,   ///< Smart card connection failed
@@ -62,7 +61,7 @@ typedef enum {
   t1_ev_err_incompatible,   ///< Incompatible card; parameter: t1_atr_decoded_t*
   t1_ev_err_oversized_apdu, ///< Received APDU does not fit in buffer
   t1_ev_err_sc_abort,       ///< Operation aborted by smart card
-  t1_ev_pps_failed         ///< PPS exchange failed
+  t1_ev_pps_failed          ///< PPS exchange failed
 } t1_ev_code_t;
 
 /// Identifiers of configuration parameters

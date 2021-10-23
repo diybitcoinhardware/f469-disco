@@ -69,9 +69,9 @@ typedef enum state_ {
 
 /// Connection state
 typedef enum process_state_ {
-  process_state_closed,
-  process_state_init,
-  process_state_ready
+  process_state_closed, ///< USB Host prosecc is not running
+  process_state_init,   ///< USB Host process initialization state
+  process_state_ready   ///< USB Host process ready to connect
 } process_state_t;
 
 /// Types of connection events
@@ -88,11 +88,11 @@ typedef enum event_type_ {
 /// Types of Bulk-In pipe messages
 typedef enum bulk_in_message_type_
 {
-  RDR_to_PC_DataBlock = 0x80,
-  RDR_to_PC_SlotStatus,
-  RDR_to_PC_Parameters,
-  RDR_to_PC_Escape,
-  RDR_to_PC_DataRateAndClockFrequency = 0x84
+  RDR_to_PC_DataBlock = 0x80, ///< Data block message
+  RDR_to_PC_SlotStatus,       ///< Slot status message
+  RDR_to_PC_Parameters,       ///< Usb transfer parameters message
+  RDR_to_PC_Escape,           ///< Escape message
+  RDR_to_PC_DataRateAndClockFrequency = 0x84 ///< Data rate and clock frequency message
 } bulk_in_message_type_t;
 
 /// Event as a set of arguments of observer
@@ -143,17 +143,12 @@ typedef struct usb_connection_obj_ {
   uint32_t processTimer;         ///< Timer for USB Host process
   uint32_t dwFeatures;           ///< Card reader features field
   uint8_t TA_1;                  ///< Fi/Di value required by cardreader
-  bool waitForResponse;
-  uint32_t responseTimeout;
   USBH_ChipCardDescTypeDef chipCardDesc;  ///< Smart Card descriptor
 } usb_connection_obj_t;
-
+// Initializing usb timer
 STATIC void usb_timer_init(usb_connection_obj_t *self);
+// Usb timer task
 static void timer_task(usb_connection_obj_t *self);
-STATIC USBH_SlotStatusTypeDef connection_slot_status(mp_obj_t self_in);
-STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t *tx_buffer,
-                                        unsigned int tx_length, uint8_t *cmd,
-                                        unsigned short rx_length, uint8_t bBWI);
 /// Connection class type
 extern const mp_obj_type_t scard_UsbCardConnection_type;
 #endif

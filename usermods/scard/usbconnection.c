@@ -78,8 +78,6 @@ STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
   self->processTimer = 150;
   self->dwFeatures = 0;
   self->TA_1 = 0x11;
-  self->waitForResponse = false;
-  self->responseTimeout = 10;
 
   usb_timer_init(self);
   printf("\r\nNew USB smart card connection\n");

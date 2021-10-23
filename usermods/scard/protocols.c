@@ -297,6 +297,16 @@ static void set_timeouts_t1(proto_handle_t handle, int32_t atr_timeout_ms,
     }
   }
 }
+
+/**
+ * T=1: Configures parameters of USB transfer
+ *
+ * This function accept special values for timeout parameters:
+ * proto_prm_unchanged, proto_prm_default.
+ *
+ * @param handle          protocol handle
+ * @param maxIFSD         IFSD value for USB transfer
+ */
 static void set_usb_features_t1(proto_handle_t handle, uint32_t dwFeatures, uint8_t maxIFSD)
 {
   if(handle) {

@@ -57,10 +57,12 @@
 #define INTERFACE_DESC_TYPE               0x04
 #define ENDPOINT_DESC_TYPE                0x05
 #define INTERFACE_DESC_SIZE               0x09
+
 static inline unsigned int dw2i(uint8_t *a, unsigned int x)
 {
-  return (((((a[x+12] << 8) + a[x+11]) << 8) + a[x+10]) << 8) + a[x+9];
+  return (((((a[x+3] << 8) + a[x+2]) << 8) + a[x+1]) << 8) + a[x];
 }
+
 /**
   * @}
   */ 
