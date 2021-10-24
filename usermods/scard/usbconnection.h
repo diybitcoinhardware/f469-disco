@@ -95,6 +95,45 @@ typedef enum bulk_in_message_type_
   RDR_to_PC_DataRateAndClockFrequency = 0x84 ///< Data rate and clock frequency message
 } bulk_in_message_type_t;
 
+/// Format of PC_to_RDR_XfrBlock command
+typedef enum {
+  ccid_xfrblock_cmd_code = 0,        ///< Command code
+  ccid_xfrblock_apdu_len,            ///< APDU length
+  ccid_xfrblock_cmd_slot = ccid_xfrblock_apdu_len + 4, ///< CCID slot
+  ccid_xfrblock_cmd_pbseq,           ///< pbSeq number
+  ccid_xfrblock_cmd_bwi,                 ///< Block waiting time
+  ccid_xfrblock_cmd_wlevelparam_0,       ///< Expected length, in character mode only
+  ccid_xfrblock_cmd_wlevelparam_1,       ///< Expected length, in character mode only
+  ccid_xfrblock_cmd_cmd_hdr_len          ///<< Command length
+} ccid_xfrblock_cmd_t;
+
+/// Format of PC_To_RDR_SetParameters command
+typedef enum {
+  ccid_setparam_cmd_code = 0,        ///< Command code
+  ccid_setparam_apdu_len,            ///< APDU length
+  ccid_setparam_cmd_slot = ccid_setparam_apdu_len + 4, ///< CCID slot
+  ccid_setparam_cmd_pbseq,           ///< pbSeq number
+  ccid_setparam_protocol_num,        ///< Protocol number
+  ccid_setparam_cmd_rfu_0,  ///<< Bytes reserved for future use
+  ccid_setparam_cmd_rfu_1, ///<< Bytes reserved for future use
+  ccid_setparam_cmd_hdr_len          ///<< Command length
+} ccid_setparam_cmd_t;
+
+/// Format of PC_To_RDR_GetParameters command
+typedef enum {
+  ccid_getparam_cmd_code = 0,    ///< Command code
+  ccid_getparam_cmd_dwlength_0,  ///< Message specific data length
+  ccid_getparam_cmd_dwlength_1,  ///< Message specific data length
+  ccid_getparam_cmd_dwlength_2,  ///< Message specific data length
+  ccid_getparam_cmd_dwlength_3,  ///< Message specific data length
+  ccid_getparam_cmd_slot,        ///< CCID slot
+  ccid_getparam_cmd_pbseq,       ///< pbSeq number
+  ccid_getparam_cmd_rfu_1,       ///<< Bytes reserved for future use
+  ccid_getparam_cmd_rfu_2,       ///<< Bytes reserved for future use
+  ccid_getparam_cmd_rfu_3,       ///<< Bytes reserved for future use
+  ccid_getparam_cmd_hdr_len      ///<< Command length
+} ccid_getparam_cmd_t;
+
 /// Event as a set of arguments of observer
 typedef struct event_ {
   /// Buffer with arguments of observer

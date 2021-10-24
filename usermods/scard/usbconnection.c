@@ -414,14 +414,14 @@ STATIC void connection_prepare_xfrblock(mp_obj_t self_in, uint8_t* tx_buffer,
   usb_connection_obj_t* self = (usb_connection_obj_t*)self_in;
   USBH_ChipCardDescTypeDef chipCardDesc =
       hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-  cmd[0] = 0x6F;                           /* XfrBlock */
-  i2dw(tx_length, cmd + 1);                /* APDU length */
-  cmd[5] = chipCardDesc.bCurrentSlotIndex; /* slot number */
-  cmd[6] = self->pbSeq++;
-  cmd[7] = bBWI;             /* extend block waiting timeout */
-  cmd[8] = rx_length & 0xFF; /* Expected length, in character mode only */
-  cmd[9] = (rx_length >> 8) & 0xFF;
-  memcpy(cmd + 10, tx_buffer, tx_length);
+  cmd[ccid_xfrblock_cmd_code] = 0x6F;                           /* XfrBlock */
+  i2dw(tx_length, cmd + ccid_xfrblock_apdu_len);                /* APDU length */
+  cmd[ccid_xfrblock_cmd_slot] = chipCardDesc.bCurrentSlotIndex; /* slot number */
+  cmd[ccid_xfrblock_cmd_pbseq] = self->pbSeq++;
+  cmd[ccid_xfrblock_cmd_bwi] = bBWI;             /* extend block waiting timeout */
+  cmd[ccid_xfrblock_cmd_wlevelparam_0] = rx_length & 0xFF; /* Expected length, in character mode only */
+  cmd[ccid_xfrblock_cmd_wlevelparam_1] = (rx_length >> 8) & 0xFF;
+  memcpy(cmd + ccid_xfrblock_cmd_cmd_hdr_len, tx_buffer, tx_length);
 }
 
 /**
@@ -434,12 +434,12 @@ STATIC void connection_ccid_transmit_get_parameters(usb_connection_obj_t* self,
                                                     USBH_HandleTypeDef* phost) {
   USBH_ChipCardDescTypeDef chipCardDesc =
       hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-  uint8_t cmd[10];
-  cmd[0] = 0x6C; /* GetParameters */
-  cmd[1] = cmd[2] = cmd[3] = cmd[4] = 0;
-  cmd[5] = chipCardDesc.bCurrentSlotIndex; /* slot number */
-  cmd[6] = self->pbSeq++;
-  cmd[7] = cmd[8] = cmd[9] = 0; /* RFU */
+  uint8_t cmd[ccid_getparam_cmd_hdr_len];
+  cmd[ccid_getparam_cmd_code] = 0x6C; /* GetParameters */
+  cmd[ccid_getparam_cmd_dwlength_0] = cmd[ccid_getparam_cmd_dwlength_1] = cmd[ccid_getparam_cmd_dwlength_2] = cmd[ccid_getparam_cmd_dwlength_3] = 0;
+  cmd[ccid_getparam_cmd_slot] = chipCardDesc.bCurrentSlotIndex; /* slot number */
+  cmd[ccid_getparam_cmd_pbseq] = self->pbSeq++;
+  cmd[ccid_getparam_cmd_rfu_1] = cmd[ccid_getparam_cmd_rfu_2] = cmd[ccid_getparam_cmd_rfu_3] = 0; /* RFU */
   USBH_CCID_Transmit(phost, cmd, sizeof(cmd));
   CCID_ProcessTransmission(phost);
 }
@@ -454,7 +454,6 @@ STATIC void connection_ccid_transmit_set_parameters(usb_connection_obj_t* self,
                                                     USBH_HandleTypeDef* phost) {
   USBH_ChipCardDescTypeDef chipCardDesc =
       hUsbHostFS.device.CfgDesc.Itf_Desc[0].CCD_Desc;
-  uint8_t cmd[17];
   uint8_t param[] = {
       self->TA_1, /* Fi/Di		  */
       0x10,       /* TCCKS		  */
@@ -464,13 +463,14 @@ STATIC void connection_ccid_transmit_set_parameters(usb_connection_obj_t* self,
       0x20,       /* IFSC			  */
       0x00        /* NADValue	  */
   };
-  cmd[0] = 0x61;                           /* SetParameters */
-  i2dw(sizeof(param), cmd + 1);            /* APDU length */
-  cmd[5] = chipCardDesc.bCurrentSlotIndex; /* slot number */
-  cmd[6] = self->pbSeq++;
-  cmd[7] = 0x01;       /* bProtocolNum */
-  cmd[8] = cmd[9] = 0; /* RFU */
-  memcpy(cmd + 10, param, sizeof(param));
+  uint8_t cmd[ccid_setparam_cmd_hdr_len + sizeof(param)];
+  cmd[ccid_setparam_cmd_code] = 0x61;                           /* SetParameters */
+  i2dw(sizeof(param), cmd + ccid_setparam_apdu_len);            /* APDU length */
+  cmd[ccid_setparam_cmd_slot] = chipCardDesc.bCurrentSlotIndex; /* slot number */
+  cmd[ccid_setparam_cmd_pbseq] = self->pbSeq++;
+  cmd[ccid_setparam_protocol_num] = 0x01;       /* bProtocolNum */
+  cmd[ccid_setparam_cmd_rfu_0] = cmd[ccid_setparam_cmd_rfu_1] = 0; /* RFU */
+  memcpy(cmd + ccid_setparam_cmd_hdr_len, param, sizeof(param));
   USBH_CCID_Transmit(phost, cmd, sizeof(cmd));
   CCID_ProcessTransmission(phost);
 }
