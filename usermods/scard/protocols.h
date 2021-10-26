@@ -34,11 +34,12 @@ typedef enum proto_prm_special_ {
 ///
 /// If parameter is not specified it equals to NULL.
 typedef enum proto_ev_code_ {
-  proto_ev_none = 0,      ///< Not an event
-  proto_ev_atr_received,  ///< ATR is received; parameter: proto_atr_t*
-  proto_ev_connect,       ///< Connection established
-  proto_ev_apdu_received, ///< APDU is received; parameter: proto_apdu_t*
-  proto_ev_error          ///< Error; parameter: const char string
+  proto_ev_none = 0,          ///< Not an event
+  proto_ev_atr_received,      ///< ATR is received; parameter: proto_atr_t*
+  proto_ev_connect,           ///< Connection established
+  proto_ev_apdu_received,     ///< APDU is received; parameter: proto_apdu_t*
+  proto_ev_pps_exchange_done,  ///< PPS exchange done
+  proto_ev_error              ///< Error; parameter: const char string
 } proto_ev_code_t;
 
 /// Parameter of proto_ev_atr_received
@@ -98,6 +99,7 @@ typedef struct proto_inst_ {
   proto_cb_handle_event_t cb_handle_event;  ///< Callback handling events
   mp_obj_t cb_self;                         ///< Self parameter for callback
   uint8_t tx_errors;                        ///< Counter of transmit errors
+  proto_ev_code_t user_event;
 } proto_inst_t, *proto_handle_t;
 
 /**
@@ -173,18 +175,28 @@ typedef void (*proto_set_timeouts_t)(proto_handle_t handle,
                                      int32_t atr_timeout_ms,
                                      int32_t rsp_timeout_ms,
                                      int32_t max_timeout_ms);
+/**
+ * Configures parameters of USB transfer
+ *
+ * @param handle          protocol handle
+ * @param dwFeatures      dwFeatures value
+ * @param maxIFSD         IFSD value for USB transfer
+ */
+typedef void (*proto_set_usb_features_t)(proto_handle_t handle,
+                                     uint32_t dwFeatures, uint8_t maxIFSD);
 
 /// Abstract implementation of a protocol
 typedef struct proto_implementation_ {
-  protocol_t            id;            ///< Protocol identifier
-  const char*           name;          ///< Protocol name
-  proto_init_t          init;          ///< Initialization function
-  proto_deinit_t        deinit;        ///< Deinitialization function
-  proto_reset_t         reset;         ///< Reset function
-  proto_timer_task_t    timer_task;    ///< Timer task function
-  proto_serial_in_t     serial_in;     ///< Serial input function
-  proto_transmit_apdu_t transmit_apdu; ///< APDU transmission function
-  proto_set_timeouts_t  set_timeouts;  ///< Timeout configuration function
+  protocol_t                id;               ///< Protocol identifier
+  const char*               name;             ///< Protocol name
+  proto_init_t              init;             ///< Initialization function
+  proto_deinit_t            deinit;           ///< Deinitialization function
+  proto_reset_t             reset;            ///< Reset function
+  proto_timer_task_t        timer_task;       ///< Timer task function
+  proto_serial_in_t         serial_in;        ///< Serial input function
+  proto_transmit_apdu_t     transmit_apdu;    ///< APDU transmission function
+  proto_set_timeouts_t      set_timeouts;     ///< Timeout configuration function
+  proto_set_usb_features_t  set_usb_features; ///< Set additional parameters for USB connection
 } proto_impl_t;
 
 /**

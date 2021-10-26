@@ -21,11 +21,23 @@ SRC_USERMOD += $(SCARD_IO_MOD_DIR)/connection.c
 SRC_USERMOD += $(SCARD_IO_MOD_DIR)/protocols.c
 SRC_USERMOD += $(SCARD_IO_MOD_DIR)/t1_protocol/t1_protocol.c
 SRC_USERMOD += $(SCARD_IO_MOD_DIR)/ports/stm32/scard_io.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usbreader.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usbscard.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usbconnection.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usb_ccid_host/usbh_ccid.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usb_ccid_host/usbh_conf.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usb_ccid_host/usbh_core.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usb_ccid_host/usbh_ctlreq.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usb_ccid_host/usbh_ioreq.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usb_ccid_host/usbh_pipes.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usb_ccid_host/usbh_platform.c
+SRC_USERMOD += $(SCARD_IO_MOD_DIR)/usb_ccid_host/usb_host.c
 
 # We can add our module folder to include paths if needed
 CFLAGS_USERMOD += -I$(SCARD_IO_MOD_DIR)
 CFLAGS_USERMOD += -I$(SCARD_IO_MOD_DIR)/t1_protocol
 CFLAGS_USERMOD += -I$(SCARD_IO_MOD_DIR)/ports/stm32
+CFLAGS_USERMOD += -I$(SCARD_IO_MOD_DIR)/usb_ccid_host/inc
 
 else # MCU_SERIES == [f0, f4, f7, l0, l4, wb]
 

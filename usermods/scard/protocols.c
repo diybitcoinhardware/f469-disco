@@ -138,8 +138,11 @@ static void t1_cb_handle_event(t1_ev_code_t ev_code, const void* ev_prm,
           proto_ev_prm_t prm = { .apdu_received = &apdu };
           handle->cb_handle_event(handle->cb_self, proto_ev_apdu_received, prm);
         }
+      case t1_ev_pps_exchange_done: {
+          proto_ev_prm_t prm = { .connect = NULL };
+          handle->cb_handle_event(handle->cb_self, proto_ev_pps_exchange_done, prm);
+        }
         break;
-
       default:
         break; // Ignore unknown event
     }
@@ -295,6 +298,27 @@ static void set_timeouts_t1(proto_handle_t handle, int32_t atr_timeout_ms,
   }
 }
 
+/**
+ * T=1: Configures parameters of USB transfer
+ *
+ * This function accept special values for timeout parameters:
+ * proto_prm_unchanged, proto_prm_default.
+ *
+ * @param handle          protocol handle
+ * @param maxIFSD         IFSD value for USB transfer
+ */
+static void set_usb_features_t1(proto_handle_t handle, uint32_t dwFeatures, uint8_t maxIFSD)
+{
+  if(handle) {
+    bool ok = set_t1_config(handle, t1_cfg_dw_fetures, dwFeatures);
+    ok = ok && set_t1_config(handle, t1_cfg_ifsd, maxIFSD);
+    ok = ok && set_t1_config(handle, t1_cfg_is_usb_reader, 1);
+    ok = ok && set_t1_config(handle, t1_cfg_pps_size, 4);
+    if(!ok) {
+      emit_error(handle, "error configuring USB card reader features");
+    }
+  }
+}
 /// Implementations of protocols
 const proto_impl_t protocols[] = {
   {
@@ -306,7 +330,8 @@ const proto_impl_t protocols[] = {
     .timer_task    = timer_task_t1,
     .serial_in     = serial_in_t1,
     .transmit_apdu = transmit_apdu_t1,
-    .set_timeouts  = set_timeouts_t1
+    .set_timeouts  = set_timeouts_t1,
+    .set_usb_features = set_usb_features_t1
   }
 };
 

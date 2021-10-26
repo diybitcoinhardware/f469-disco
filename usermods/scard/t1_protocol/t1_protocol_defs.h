@@ -24,13 +24,14 @@
 
 /// Sate of main protocol FSM
 typedef enum {
-  t1_st_wait_atr = 0,  ///< Waiting for ATR
-  t1_st_pps_exchange,  ///< PPS exchange
-  t1_st_ifsd_setup,    ///< IFSD setup
-  t1_st_idle,          ///< Idle state, ready to transmit
-  t1_st_wait_response, ///< Waiting for response
-  t1_st_resync,        ///< Resynchronization
-  t1_st_error          ///< Error
+  t1_st_wait_atr = 0,       ///< Waiting for ATR
+  t1_st_pps_exchange,       ///< PPS exchange
+  t1_st_ifsd_setup,         ///< IFSD setup
+  t1_st_ifsd_setup_prepare, ///< IFSD setup prepare
+  t1_st_idle,               ///< Idle state, ready to transmit
+  t1_st_wait_response,      ///< Waiting for response
+  t1_st_resync,             ///< Resynchronization
+  t1_st_error               ///< Error
 } t1_fsm_state_t;
 
 /// Sate of receive FSM

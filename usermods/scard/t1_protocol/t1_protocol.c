@@ -80,6 +80,7 @@
 /// MAximal number of events in a list
 #define MAX_EVENTS                      3
 
+#define MAX_PPS_SIZE                    5
 /// Transmission protocol or qualification of interface bytes
 typedef enum {
   atr_prot_t0 = 0,  ///< T=0 protocol
@@ -101,6 +102,15 @@ enum {
   pps_pps0,     ///< PPS0 byte
   pps_pck,      ///< PCK, XOR checksum
   pps_size      ///< Size of PPS request/response
+};
+
+// PPS request/response fields
+enum {
+  usb_pps_ppss = 0, ///< PPS request/response identifier
+  usb_pps_pps0,     ///< PPS0 byte
+  usb_pps_pps1,     ///< PPS1 byte
+  usb_pps_pck,      ///< PCK, XOR checksum
+  usb_pps_size      ///< Size of PPS request/response
 };
 
 /// One entry in extended configuration data table
@@ -177,13 +187,18 @@ static const uint16_t crc_tbl[256] = {
 
 /// Extended configuration data
 static const ext_config_entry_t ext_config[t1_config_size] = {
-  [t1_cfg_tm_interbyte]    = { .min = 1,       .max = TM_MAX,  .def = 200    },
-  [t1_cfg_tm_atr]          = { .min = 1,       .max = TM_MAX,  .def = 1000   },
-  [t1_cfg_tm_response]     = { .min = 1,       .max = TM_MAX,  .def = 2000   },
-  [t1_cfg_tm_response_max] = { .min = 1,       .max = TM_MAX,  .def = 4000   },
-  [t1_cfg_use_crc]         = { .min = 0,       .max = 1,       .def = 0      },
-  [t1_cfg_ifsc]            = { .min = IFS_MIN, .max = IFS_MAX, .def = 32     },
-  [t1_cfg_rx_skip_bytes]   = { .min = 0,       .max = 255,     .def = 0      }
+  [t1_cfg_tm_interbyte]    = { .min = 1,       .max = TM_MAX,     .def = 200     },
+  [t1_cfg_tm_atr]          = { .min = 1,       .max = TM_MAX,     .def = 1000    },
+  [t1_cfg_tm_response]     = { .min = 1,       .max = TM_MAX,     .def = 2000    },
+  [t1_cfg_tm_response_max] = { .min = 1,       .max = TM_MAX,     .def = 4000    },
+  [t1_cfg_use_crc]         = { .min = 0,       .max = 1,          .def = 0       },
+  [t1_cfg_ifsc]            = { .min = IFS_MIN, .max = IFS_MAX,    .def = 32      },
+  [t1_cfg_ifsd]            = { .min = IFS_MIN, .max = IFS_MAX,    .def = IFS_MAX },
+  [t1_cfg_dw_fetures]      = { .min = 0,       .max = 0x7FFFFFFF, .def = 0       },
+  [t1_cfg_pps_size]        = { .min = 3,       .max = 5,          .def = 3       },
+  [t1_cfg_ta1_value]       = { .min = 0,       .max = 0xFF,       .def = 0x11    },
+  [t1_cfg_is_usb_reader]   = { .min = 0,       .max = 1,          .def = 0       },
+  [t1_cfg_rx_skip_bytes]   = { .min = 0,       .max = 255,        .def = 0       }
 };
 
 /**
@@ -600,7 +615,7 @@ static inline bool tx_fifo_has_block(const t1_inst_t* inst) {
  */
 static event_t tx_fifo_send_last_block(t1_inst_t* inst) {
   if(tx_fifo_has_block(inst)) {
-    uint8_t buf[32];
+    uint8_t buf[64];
     block_hdr_t hdr;
     size_t read_idx = fifo_get_read_idx(&inst->tx_fifo);
 
@@ -854,6 +869,11 @@ static bool handle_atr(t1_inst_t* inst, t1_atr_decoded_t* p_atr,
     if(p_atr->t1_bytes[t1_atr_ta2] == -1 && p_needs_ppsx) {
       *p_needs_ppsx = true;
     }
+    // If the USB card reader has Auto PPS feature in the dwFeatures field, it is non necessary to send PPS
+    // It will be done automatically by the card reader
+    if(inst->config[t1_cfg_dw_fetures] & CCID_CLASS_AUTO_PPS_CUR){
+      *p_needs_ppsx = false;
+    }
     return true;
   }
   return false;
@@ -964,15 +984,25 @@ static bool timer_elapsed(uint32_t *p_timer, uint32_t elapsed_ms) {
  * @return      event or empty event with event_t::code = t1_ev_none
  */
 static event_t send_pps_request(t1_inst_t* inst) {
-  uint8_t buf[pps_size];
+  uint8_t buf[MAX_PPS_SIZE];
 
   // Create request
-  buf[pps_ppss] = PPSS;               // PPS identifier
-  buf[pps_pps0] = atr_prot_t1;        // T=1 protocol, PPS1-PPS3 are absent
-  buf[pps_pck ] = PPSS ^ atr_prot_t1; // XOR checksum
+  if(!inst->config[t1_cfg_is_usb_reader])
+  {
+      buf[pps_ppss] = PPSS;               // PPS identifier
+      buf[pps_pps0] = atr_prot_t1;        // T=1 protocol, PPS1-PPS3 are absent
+      buf[pps_pck ] = PPSS ^ atr_prot_t1; // XOR checksum
+  }
+  else
+  {
+     buf[usb_pps_ppss] = PPSS;               // PPS identifier
+     buf[usb_pps_pps0] = atr_prot_t1 | 0x10; // T=1 protocol, PPS2-PPS3 are absent
+     buf[usb_pps_pps1] = inst->config[t1_cfg_ta1_value];
+     buf[usb_pps_pck ] = PPSS ^ buf[usb_pps_pps0] ^ buf[usb_pps_pps1]; // XOR checksum
+  }
 
   // Transmit request
-  if(!inst->cb_serial_out(buf, sizeof(buf), inst->p_user_prm)) {
+  if(!inst->cb_serial_out(buf, inst->config[t1_cfg_pps_size], inst->p_user_prm)) {
     return event(t1_ev_err_serial_out);
   }
   inst->tmr_response_timeout = inst->config[t1_cfg_tm_response];
@@ -988,7 +1018,7 @@ static event_t send_pps_request(t1_inst_t* inst) {
  * @return      event or empty event with event_t::code = t1_ev_none
  */
 static event_t send_ifsd_request(t1_inst_t* inst) {
-  event_t ev = send_sblock(inst, t1_sblock_cmd_ifs, false, T1_MAX_LEN_VALUE);
+  event_t ev = send_sblock(inst, t1_sblock_cmd_ifs, false, inst->config[t1_cfg_ifsd]);
   if(!is_error(ev)) {
     inst->tmr_response_timeout = inst->config[t1_cfg_tm_response];
   }
@@ -1030,7 +1060,25 @@ static bool check_pps_response(t1_inst_t* inst, const uint8_t* buf,
   }
   return false;
 }
-
+/**
+ * Checks Usb PPS response. 
+ * If we use USB cardreader, we need to check additional PPS1 field.
+ * @param inst  protocol instance
+ * @param buf   buffer holding PPS response
+ * @param size  size of PPS response
+ * @return      true if PPS response is valid
+ */
+static bool check_usb_pps_response(t1_inst_t* inst, const uint8_t* buf,
+                               size_t size) {
+  if( usb_pps_size == size &&
+      PPSS == buf[usb_pps_ppss] &&
+      atr_prot_t1 | 0x10 == buf[usb_pps_pps0] &&
+      inst->config[t1_cfg_ta1_value] == buf[usb_pps_pps1] &&
+      0U == buf[usb_pps_ppss]^ buf[usb_pps_pps1] ^ buf[usb_pps_pps0] ^ buf[usb_pps_pck] ) {
+    return true;
+  }
+  return false;
+}
 /**
  * Handles PPS data
  * @param inst       protocol instance
@@ -1042,17 +1090,25 @@ static bool check_pps_response(t1_inst_t* inst, const uint8_t* buf,
 static void handle_pps_data(t1_inst_t* inst, const uint8_t* buf,
                             size_t len, event_list_t* p_events) {
 
-  if(pps_size <= T1_RX_BUF_SIZE && inst->rx_buf_idx < T1_RX_BUF_SIZE) {
+  if(inst->config[t1_cfg_pps_size] <= T1_RX_BUF_SIZE && inst->rx_buf_idx < T1_RX_BUF_SIZE) {
     const uint8_t* p_byte = buf;
-    while(inst->rx_buf_idx < pps_size && p_byte < (buf + len)) {
+    while(inst->rx_buf_idx < inst->config[t1_cfg_pps_size] && p_byte < (buf + len)) {
       inst->rx_buf[inst->rx_buf_idx++] = *p_byte++;
     }
-    if(inst->rx_buf_idx == pps_size) { // Handle PPS response
-      inst->tmr_response_timeout = 0U;
-      if(check_pps_response(inst, inst->rx_buf, inst->rx_buf_idx)) {
+    if(inst->rx_buf_idx == inst->config[t1_cfg_pps_size]) { // Handle PPS response
+      int res;
+      if(inst->rx_buf_idx == 3)
+      {
+        res = check_pps_response(inst, inst->rx_buf, inst->rx_buf_idx);
+      }
+      else
+      {
+        res = check_usb_pps_response(inst, inst->rx_buf, inst->rx_buf_idx);
+      }
+      if(res) {
         reset_rx(inst);
-        event_add(p_events, send_ifsd_request(inst));
-        inst->fsm_state = t1_st_ifsd_setup;
+        event_add(p_events, event(t1_ev_pps_exchange_done));
+        inst->fsm_state = t1_st_ifsd_setup_prepare;
       } else {
         event_add(p_events, event(t1_ev_pps_failed));
       }
@@ -1067,10 +1123,16 @@ void t1_timer_task(t1_inst_t* inst, uint32_t elapsed_ms) {
     event_list_t events = { .len = 0U };
     t1_atr_decoded_t atr_decoded;
 
+    if(inst->fsm_state == t1_st_ifsd_setup_prepare)
+    {
+      event_add(&events, send_ifsd_request(inst));
+      inst->fsm_state = t1_st_ifsd_setup;
+    }
     // Process all timers
     if(timer_elapsed(&inst->tmr_interbyte_timeout, elapsed_ms)) {
       if(inst->fsm_state == t1_st_wait_atr) {
         if(parse_atr(inst->rx_buf, inst->rx_buf_idx, &atr_decoded)) {
+          inst->config[t1_cfg_ta1_value] = atr_decoded.atr[2];
           bool needs_ppsx = false;
           if(handle_atr(inst, &atr_decoded, &needs_ppsx)) {
             event_add(&events, event_ext(t1_ev_atr_received, &atr_decoded));
@@ -1078,8 +1140,8 @@ void t1_timer_task(t1_inst_t* inst, uint32_t elapsed_ms) {
               event_add(&events, send_pps_request(inst));
               inst->fsm_state = t1_st_pps_exchange;
             } else { // needs_ppsx
-              event_add(&events, send_ifsd_request(inst));
-              inst->fsm_state = t1_st_ifsd_setup;
+              event_add(&events, event(t1_ev_pps_exchange_done));
+              inst->fsm_state = t1_st_ifsd_setup_prepare;
             }
           } else { // handle_atr(...)
             event_add(&events, event_ext(t1_ev_err_incompatible, &atr_decoded));
