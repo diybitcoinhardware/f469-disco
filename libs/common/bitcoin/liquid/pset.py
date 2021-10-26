@@ -9,7 +9,7 @@ from .. import compact, hashes
 from ..psbt import *
 from collections import OrderedDict
 from io import BytesIO
-from .transaction import LTransaction, LTransactionOutput, LTransactionInput, TxOutWitness, Proof, LSIGHASH, unblind
+from .transaction import LTransaction, LTransactionOutput, LTransactionInput, TxOutWitness, Proof, RangeProof, LSIGHASH, unblind
 from . import slip77
 import hashlib, gc
 
@@ -40,10 +40,13 @@ class LInputScope(InputScope):
             return
 
         pk = slip77.blinding_key(blinding_key, self.utxo.script_pubkey)
-
-        value, asset, vbf, in_abf, extra, min_value, max_value = unblind(
-            self.utxo.ecdh_pubkey, pk.secret, self.range_proof, self.utxo.value, self.utxo.asset, self.utxo.script_pubkey
-        )
+        try:
+            value, asset, vbf, in_abf, extra, min_value, max_value = unblind(
+                self.utxo.ecdh_pubkey, pk.secret, self.range_proof, self.utxo.value, self.utxo.asset, self.utxo.script_pubkey
+            )
+        # failed to unblind
+        except:
+            return
         # verify
         gen = secp256k1.generator_generate_blinded(asset, in_abf)
         assert gen == secp256k1.generator_parse(self.utxo.asset)
@@ -121,6 +124,8 @@ class LOutputScope(OutputScope):
         self.blinding_pubkey = None
         self.asset = None
         self.blinder_index = None
+        self.value_proof = None
+        self.asset_proof = None
         if vout:
             self.asset = vout.asset
         self._verified = False
@@ -137,18 +142,39 @@ class LOutputScope(OutputScope):
         e = PSBTError("Invalid commitments")
         if self.asset and self.asset_commitment:
             # we can't verify asset
-            if not self.asset_blinding_factor:
+            if not self.asset_blinding_factor and not self.asset_proof:
                 raise e
-            gen = secp256k1.generator_generate_blinded(self.asset, self.asset_blinding_factor)
-            if self.asset_commitment != secp256k1.generator_serialize(gen):
-                raise e
+            gen = secp256k1.generator_parse(self.asset_commitment)
+            # we have blinding factor
+            if self.asset_blinding_factor:
+                if gen != secp256k1.generator_generate_blinded(self.asset, self.asset_blinding_factor):
+                    raise e
+            # otherwise use asset proof
+            else:
+                surj_proof = secp256k1.surjectionproof_parse(self.asset_proof)
+                gen_asset = secp256k1.generator_generate(self.asset)
+                if not secp256k1.surjectionproof_verify(surj_proof, [gen_asset], gen):
+                    raise e
 
         if self.value and self.value_commitment:
-            if gen is None:
+            if not gen or not (self.value_blinding_factor or self.value_proof):
                 raise e
-            value_commitment = secp256k1.pedersen_commit(self.value_blinding_factor, self.value, gen)
-            if self.value_commitment != secp256k1.pedersen_commitment_serialize(value_commitment):
-                raise e
+            # we have blinding factor
+            if self.value_blinding_factor:
+                value_commitment = secp256k1.pedersen_commit(self.value_blinding_factor, self.value, gen)
+                if self.value_commitment != secp256k1.pedersen_commitment_serialize(value_commitment):
+                    raise e
+            # otherwise use value proof
+            else:
+                value_commitment = secp256k1.pedersen_commitment_parse(self.value_commitment)
+                min_value, max_value = secp256k1.rangeproof_verify(
+                    self.value_proof,
+                    value_commitment,
+                    b"",
+                    gen,
+                )
+                if (min_value != max_value) or (self.value != min_value):
+                    raise e
         self._verified = True
         return self._verified
 
@@ -159,6 +185,8 @@ class LOutputScope(OutputScope):
         self.surjection_proof = None
         self.value_blinding_factor = None
         self.asset_blinding_factor = None
+        self.asset_proof = None
+        self.value_proof = None
         if self.value_commitment:
             self.value = None
         if self.asset_commitment:
@@ -169,7 +197,7 @@ class LOutputScope(OutputScope):
     def vout(self):
         return LTransactionOutput(
                     self.asset or self.asset_commitment,
-                    self.value or self.value_commitment,
+                    self.value if self.value is not None else self.value_commitment,
                     self.script_pubkey,
                     None if self.asset else self.ecdh_pubkey)
 
@@ -180,7 +208,7 @@ class LOutputScope(OutputScope):
                     self.value_commitment or self.value,
                     self.script_pubkey,
                     self.ecdh_pubkey,
-                    None if not self.surjection_proof else TxOutWitness(Proof(self.surjection_proof), Proof(self.range_proof))
+                    None if not self.surjection_proof else TxOutWitness(Proof(self.surjection_proof), RangeProof(self.range_proof))
         )
 
     def reblind(self, nonce, blinding_pubkey=None, extra_message=b""):
@@ -241,6 +269,10 @@ class LOutputScope(OutputScope):
                 self.ecdh_pubkey = v
             elif k == b"\xfc\x04pset\x08":
                 self.blinder_index = int.from_bytes(v, 'little')
+            elif k == b'\xfc\x04pset\x09':
+                self.value_proof = v
+            elif k == b'\xfc\x04pset\x0a':
+                self.asset_proof = v
             else:
                 self.unknown[k] = v
 
@@ -302,6 +334,12 @@ class LOutputScope(OutputScope):
         if self.blinder_index is not None:
             r += ser_string(stream, b"\xfc\x04pset\x08")
             r += ser_string(stream, self.blinder_index.to_bytes(4, 'little'))
+        if self.value_proof is not None:
+            r += ser_string(stream, b"\xfc\x04pset\x09")
+            r += ser_string(stream, self.value_proof)
+        if self.asset_proof is not None:
+            r += ser_string(stream, b"\xfc\x04pset\x0a")
+            r += ser_string(stream, self.asset_proof)
         # separator
         if not skip_separator:
             r += stream.write(b"\x00")
@@ -341,10 +379,18 @@ class PSET(PSBT):
         if len(blinding_outs) == 0:
             raise PSBTError("Nothing to blind")
         # calculate last vbf
-        vals = [sc.value or sc.utxo.value for sc in self.inputs] + [sc.value for sc in blinding_outs]
-        abfs = [sc.asset_blinding_factor or b"\x00"*32 for sc in self.inputs + blinding_outs]
-        vbfs = [sc.value_blinding_factor or b"\x00"*32 for sc in self.inputs + blinding_outs]
-        last_vbf = secp256k1.pedersen_blind_generator_blind_sum(vals, abfs, vbfs, len(self.inputs))
+        vals = []
+        abfs = []
+        vbfs = []
+        for sc in self.inputs + blinding_outs:
+            value = sc.value if sc.value is not None else sc.utxo.value
+            asset = sc.asset or sc.utxo.asset
+            if not (isinstance(value, int) and len(asset) == 32):
+                continue
+            vals.append(value)
+            abfs.append(sc.asset_blinding_factor or b"\x00" * 32)
+            vbfs.append(sc.value_blinding_factor or b"\x00" * 32)
+        last_vbf = secp256k1.pedersen_blind_generator_blind_sum(vals, abfs, vbfs, len(vals)-len(blinding_outs))
         blinding_outs[-1].value_blinding_factor = last_vbf
 
         # calculate commitments (surj proof etc)
@@ -378,6 +424,24 @@ class PSET(PSBT):
             # generate range proof
             rangeproof_nonce = hashes.tagged_hash("liquid/range_proof", txseed+i.to_bytes(4,'little'))
             out.reblind(rangeproof_nonce)
+
+            # generate asset proof
+            gen_asset = secp256k1.generator_generate(out.asset)
+            proof, idx = secp256k1.surjectionproof_initialize([out.asset], out.asset, b"\x00"*32, 1, 1)
+            proof = secp256k1.surjectionproof_generate(proof, idx, [gen_asset], gen, b"\x00"*32, out.asset_blinding_factor)
+            out.asset_proof = secp256k1.surjectionproof_serialize(proof)
+
+            # generate value proof
+            value_proof_nonce = hashes.tagged_hash("liquid/value_proof", txseed+i.to_bytes(4,'little'))
+            out.value_proof = secp256k1.rangeproof_sign(
+                value_proof_nonce, out.value, value_commitment,
+                out.value_blinding_factor, b"",
+                b"", gen,
+                out.value, # min_value
+                -1, # exp
+                0, # min bits
+            )
+
 
     def fee(self):
         fee = 0
