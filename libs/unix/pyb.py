@@ -32,7 +32,13 @@ class UART(TCPHost):
     def __init__(self, name, *args, **kwargs):
         # port will be 5941 for YA
         port = int.from_bytes(name.encode(), "big")
-        super().__init__(port)
+        # find first available port, stop after 10 attempts
+        for i in range(10):
+            try:
+                super().__init__(port)
+                break
+            except:
+                port += 1
         print("Running TCP-UART on 127.0.0.1 port %d - connect with telnet" % port)
 
     def init(self, *args, **kwargs):
@@ -48,7 +54,13 @@ class USB_VCP(TCPHost):
 
     def __init__(self, *args, **kwargs):
         port = 8789
-        super().__init__(port)
+        # find first available port, stop after 10 attempts
+        for i in range(10):
+            try:
+                super().__init__(port)
+                break
+            except:
+                port += 1
         print("Running TCP-USB_VCP on 127.0.0.1 port %d - connect with telnet" % port)
 
     def init(self, *args, **kwargs):
