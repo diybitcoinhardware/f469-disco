@@ -3,19 +3,12 @@
 #
 # Copyright © 2020 Foundation Devices, Inc.
 # Licensed under the "BSD-2-Clause Plus Patent License"
+# Updated by Stepan Snigirev
 #
 
-import sys
-try:
-    import uhashlib as hashlib
-except:
-    try:
-        import hashlib
-    except:
-        sys.exit("ERROR: No hashlib or uhashlib implementation found (required for sha256)")
+import hashlib
 
-from ur.utils import string_to_bytes, int_to_bytes
-from ur.constants import MAX_UINT64
+MAX_UINT64 = 0xffffffffffffffff
 
 # Original Info:
 # Written in 2018 by David Blackman and Sebastiano Vigna (vigna@acm.org)
@@ -47,11 +40,9 @@ class Xoshiro256:
     def __init__(self, arr = None):
         self.s = [0] * 4
         if arr != None:
-            self.s[0] = arr[0]
-            self.s[1] = arr[1]
-            self.s[2] = arr[2]
-            self.s[3] = arr[3]
-
+            assert len(arr) >= 4
+            for i in range(4):
+                self.s[i] = arr[i]
 
     def _set_s(self, arr):
         for i in range(4):
@@ -63,10 +54,7 @@ class Xoshiro256:
             self.s[i] = v
 
     def _hash_then_set_s(self, buf):
-        m = hashlib.sha256()
-        m.update(buf)
-        digest = m.digest()
-        self._set_s(digest)
+        self._set_s(hashlib.sha256(buf).digest())
 
     @classmethod
     def from_int8_array(cls, arr):
@@ -83,14 +71,14 @@ class Xoshiro256:
     @classmethod
     def from_crc32(cls, crc32):
         x = Xoshiro256()
-        buf = int_to_bytes(crc32)
+        buf = crc32.to_bytes(4, 'big')
         x._hash_then_set_s(buf)
         return x
 
     @classmethod
     def from_string(cls, s):
         x = Xoshiro256()
-        buf = string_to_bytes(s)
+        buf = s.encode()
         x._hash_then_set_s(buf)
         return x
 
@@ -126,44 +114,20 @@ class Xoshiro256:
             result.append(self.next_byte())
         return result
 
-    def jump(self):
-        global JUMP
-
-        s0 = 0
-        s1 = 0
-        s2 = 0
-        s3 = 0
-        for i in range(len(JUMP)):
+    def _jump(self, table=JUMP):
+        s = [0 for i in range(4)]
+        for i in range(len(table)):
             for b in range(64):
-                if JUMP[i] & (1 << b):
-                    s0 ^= self.s[0]
-                    s1 ^= self.s[1]
-                    s2 ^= self.s[2]
-                    s3 ^= self.s[3]
+                if table[i] & (1 << b):
+                    for k in range(4):
+                        s[k] ^= self.s[k]
                 self.next()
 
-        self.s[0] = s0
-        self.s[1] = s1
-        self.s[2] = s2
-        self.s[3] = s3
+        for k in range(4):
+            self.s[k] = s[k]
+
+    def jump(self):
+        return self._jump(table=JUMP)
 
     def long_jump(self):
-        global LONG_JUMP
-
-        s0 = 0
-        s1 = 0
-        s2 = 0
-        s3 = 0
-        for i in range(len(LONG_JUMP)):
-            for b in range(64):
-                if LONG_JUMP[i] & (1 << b):
-                    s0 ^= self.s[0]
-                    s1 ^= self.s[1]
-                    s2 ^= self.s[2]
-                    s3 ^= self.s[3]
-                self.next()
-
-        self.s[0] = s0
-        self.s[1] = s1
-        self.s[2] = s2
-        self.s[3] = s3
+        return self._jump(table=LONG_JUMP)
