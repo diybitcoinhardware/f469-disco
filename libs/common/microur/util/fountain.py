@@ -3,28 +3,23 @@ from .xoshiro256 import Xoshiro256
 
 CACHE = {}
 
-def shuffled(seq_len, rng, degree=None):
-    degree = degree or seq_len
-    result = [seq_len for i in range(degree)]
-    i = 0
-    while i < degree:
-        index = rng.next_int(0, seq_len - 1 - i)
-        item = index
-        for idx in result:
-            if idx < index:
-                item += 1
-        result[i] = item
-        i += 1
-
+def shuffled(seq_len, rng, degree):
+    remaining = list(range(seq_len))
+    result = []
+    while len(result) < degree:
+        index = rng.next_int(0, len(remaining) - 1)
+        item = remaining.pop(index)
+        result.append(item)
     return result
 
 def choose_degree(seq_len, rng):
-    if CACHE.get("n") != seq_len or not CACHE.get("sampler"):
-        degree_chooser = RandomSampler([1.0/i for i in range(1, seq_len+1)])
-        CACHE.update({"n": seq_len, "sampler": degree_chooser})
+    if CACHE.get("n") == seq_len:
+        sampler = CACHE.get("sampler")
     else:
-        degree_chooser = CACHE.get("sampler")
-    return degree_chooser.next(lambda: rng.next_double()) + 1
+        sampler = RandomSampler([1.0/i for i in range(1, seq_len+1)])
+        CACHE["n"] = seq_len
+        CACHE["sampler"] = sampler
+    return sampler.next(lambda: rng.next_double()) + 1
 
 def choose_fragments(seq_num, seq_len, checksum):
     # The first `seq_len` parts are the "pure" fragments, not mixed with any
