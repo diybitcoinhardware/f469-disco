@@ -1,6 +1,6 @@
 from .util import bytewords, cbor
 from .util.fountain import part_sets_is_complete, part_sets_add, reduce_parts
-from .util.ur import decode_header, decode_hrp, decode_write
+from .util.ur import decode_header, decode_hrp, decode_write, SCRATCH_SIZE
 from io import BytesIO
 import os
 
@@ -11,7 +11,9 @@ class URDecoderBase:
     but not as RAM-efficient as FileURDecoder that uses a tempdir for storage.
     Feel free to inherit according to your needs.
     """
-    def __init__(self):
+    def __init__(self, scratch=None):
+        self.scratch = scratch or bytearray(SCRATCH_SIZE)
+        assert len(self.scratch) >= SCRATCH_SIZE
         self.part_sets = set()
         self.part_seq = []
         self.seq_len = None
@@ -20,6 +22,8 @@ class URDecoderBase:
         self.payload_len = None
         self.ur_type = None
         self._is_complete = False
+        self._b1 = None
+        self._b2 = None
 
     def exists(self, part_set):
         """
@@ -53,7 +57,7 @@ class URDecoderBase:
                 f.write(data)
             self._is_complete = True
         else:
-            newset, seq_num, seq_len, msg_len, checksum, payload_len = decode_header(stream)
+            newset, seq_num, seq_len, msg_len, checksum, payload_len = decode_header(stream, scratch=self.scratch)
             assert seq_num == seq_num_hrp
             assert seq_len == seq_len_hrp
             self.seq_len = self.seq_len or seq_len
@@ -84,8 +88,8 @@ class URDecoderBase:
 
     def _reduce(self, p1, p2):
         newp = p1.difference(p2)
-        b1 = bytearray(self.payload_len)
-        b2 = bytearray(self.payload_len)
+        b1 = self._b1 or bytearray(self.payload_len)
+        b2 = self._b2 or bytearray(self.payload_len)
         with self.open(p1) as in1:
             assert in1.readinto(b1) == self.payload_len
         with self.open(p2) as in2:
@@ -154,7 +158,7 @@ class URDecoderBase:
         if self.exists(part_set):
             return 0
         with self.open(part_set, "w") as out:
-            *otherstuff, payload_len = decode_write(in_stream, out)
+            *otherstuff, payload_len = decode_write(in_stream, out, self.scratch)
         return payload_len
 
 

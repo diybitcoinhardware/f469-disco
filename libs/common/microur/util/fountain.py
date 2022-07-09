@@ -1,22 +1,29 @@
 from .random_sampler import RandomSampler
 from .xoshiro256 import Xoshiro256
 
-def shuffled(items, rng):
-    remaining = items
-    result = []
-    while len(remaining) > 0:
-        index = rng.next_int(0, len(remaining) - 1)
-        item = remaining.pop(index)
-        result.append(item)
+CACHE = {}
+
+def shuffled(seq_len, rng, degree=None):
+    degree = degree or seq_len
+    result = [seq_len for i in range(degree)]
+    i = 0
+    while i < degree:
+        index = rng.next_int(0, seq_len - 1 - i)
+        item = index
+        for idx in result:
+            if idx < index:
+                item += 1
+        result[i] = item
+        i += 1
 
     return result
 
 def choose_degree(seq_len, rng):
-    degree_probabilities = []
-    for i in range(1, seq_len + 1):
-        degree_probabilities.append(1.0 / i)
-
-    degree_chooser = RandomSampler(degree_probabilities)
+    if CACHE.get("n") != seq_len or not CACHE.get("sampler"):
+        degree_chooser = RandomSampler([1.0/i for i in range(1, seq_len+1)])
+        CACHE.update({"n": seq_len, "sampler": degree_chooser})
+    else:
+        degree_chooser = CACHE.get("sampler")
     return degree_chooser.next(lambda: rng.next_double()) + 1
 
 def choose_fragments(seq_num, seq_len, checksum):
@@ -24,17 +31,13 @@ def choose_fragments(seq_num, seq_len, checksum):
     # others. This means that if you only generate the first `seq_len` parts,
     # then you have all the parts you need to decode the message.
     if seq_num <= seq_len:
-        return set([seq_num - 1])
+        return frozenset({seq_num - 1})
     else:
         seed = seq_num.to_bytes(4, 'big') + checksum.to_bytes(4, 'big')
         rng = Xoshiro256.from_bytes(seed)
         degree = choose_degree(seq_len, rng)
-        indexes = []
-
-        for i in range(seq_len):
-            indexes.append(i)
-        shuffled_indexes = shuffled(indexes, rng)
-        return set(shuffled_indexes[0:degree])
+        shuffled_indexes = shuffled(seq_len, rng, degree)
+        return frozenset(shuffled_indexes)
 
 def part_sets_is_complete(part_sets, seq_len):
     return all([frozenset({i}) in part_sets for i in range(seq_len)])

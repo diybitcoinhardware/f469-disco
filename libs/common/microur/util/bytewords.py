@@ -4,7 +4,7 @@ LOOKUP_TABLE = [4, 14, 29, 37, -1, -1, 73, -1, 99, -1, -1, 128, -1, -1, -1, 177,
 from io import BytesIO
 from binascii import crc32
 
-def stream_pos(stream):
+def stream_pos(stream, scratch=None):
     """
     Returns a tuple: current position and total length of the readable stream.
     Works even with streams that don't have tell() method
@@ -15,7 +15,7 @@ def stream_pos(stream):
         stream.seek(cur, 0)
         return cur, sz
     else:
-        b = bytearray(32)
+        b = scratch or bytearray(32)
         n = stream.readinto(b)
         till_end = n
         while n > 0:
@@ -81,6 +81,15 @@ def stream_decode_check(fin, fout, maxread=0, crc=0):
     # read checksum but ignore it for now
     assert crc.to_bytes(4,'big') == decode(fin.read(8))
     return written
+
+def decodeinto(bytewords, buf, length=None):
+    if length is None:
+        length = len(bytewords)
+    assert length%2 == 0
+    assert len(buf) >= length//2
+    for i in range(length//2):
+        buf[i] = LOOKUP_TABLE[_minus_aA(bytewords[2*i+1])*ALPHABET_LEN + _minus_aA(bytewords[2*i])]
+    return length//2
 
 def decode(bytewords):
     """Decodes bytes or string with bytewords to bytes"""

@@ -4,6 +4,8 @@ from io import BytesIO
 
 # ur:crypto-psbt/99999-99999/ + some extra
 MAX_HRP_LEN = 30
+# size of the scratch space for header parsing
+SCRATCH_SIZE = 52
 
 def decode_hrp(stream):
     hrp = stream.read(30).decode().lower()
@@ -36,25 +38,36 @@ def write_header(seq_num, seq_len, msg_len, checksum, payload_len, out):
     written += cbor.write_uint(payload_len, out, extra=cbor.CBOR_BYTES)
     return written
 
-def decode_header(stream):
+def decode_header(stream, scratch=None):
     # max header len = 1 + 5 + 5 + 5 + 5 + 5 = 26
     # x2 because of the encoding
-    payload = stream.read(52)
-    stream.seek(-len(payload), 1)
-    cbor_data = bytewords.decode(payload)
-    b = BytesIO(cbor_data)
+    scratch = scratch or bytearray(SCRATCH_SIZE)
+    assert len(scratch) >= SCRATCH_SIZE
+    l = stream.readinto(scratch)
+    stream.seek(-l, 1)
+    l = bytewords.decodeinto(scratch, scratch, l)
+    b = BytesIO(scratch)
     seq_num, seq_len, msg_len, checksum, payload_len = _read_header(b)
     parts_set = choose_fragments(seq_num, seq_len, checksum)
-    return frozenset(parts_set), seq_num, seq_len, msg_len, checksum, payload_len
+    return parts_set, seq_num, seq_len, msg_len, checksum, payload_len
 
-def decode_write(stream, out):
+def decode_write(stream, out, scratch=None):
+    scratch = scratch or bytearray(SCRATCH_SIZE)
+    assert len(scratch) >= SCRATCH_SIZE
+    parts_set, seq_num, seq_len, msg_len, checksum, payload_len = decode_header(stream, scratch)
     # TODO: optimize so we read in chunks?
-    payload = stream.read()
-    cbor_data = bytewords.decode(payload)
-    b = BytesIO(cbor_data)
-    seq_num, seq_len, msg_len, checksum, payload_len = _read_header(b)
-    parts_set = choose_fragments(seq_num, seq_len, checksum)
-    data = b.read(payload_len)
-    assert len(data) == payload_len
-    out.write(data)
-    return frozenset(parts_set), seq_num, seq_len, msg_len, checksum, payload_len
+    header_len = 1 + sum([cbor.len_uint(v) for v in [seq_num, seq_len, msg_len, checksum, payload_len]])
+    stream.seek(header_len*2, 1)
+    written = 0
+    mv = memoryview(scratch)
+    while True:
+        l = stream.readinto(scratch)
+        assert l%2 == 0
+        if l == 0:
+            break
+        l = bytewords.decodeinto(scratch, scratch, l)
+        if written + l > payload_len:
+            written += out.write(mv[:(payload_len-written)])
+            break
+        written += out.write(mv[:l])
+    return parts_set, seq_num, seq_len, msg_len, checksum, payload_len

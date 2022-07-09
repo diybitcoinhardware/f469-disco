@@ -18,6 +18,19 @@ def read_len(stream, v=None):
     assert len(b) == l
     return int.from_bytes(b, 'big')
 
+def len_uint(v):
+    if v < 0:
+        raise ValueError("Value must be positive")
+    if v < 0x18:
+        return 1
+    order = 0
+    # TODO: can be done with math.ceil(math.log2(v)/8)-1
+    while v >> (8 * (2 ** order)):
+        order += 1
+    if order > 3:
+        raise ValueError("Integer %d is too large" % v)
+    return 1 + 2 ** order
+
 def read_uint(stream):
     return read_len(stream)
 
