@@ -50,6 +50,10 @@ class UREncoder:
 
     def get_part_payload(self, idx, buf=None):
         buf = buf if buf is not None else self.buf
+        # zero buffer if last part
+        if idx == self.seq_len - 1:
+            for i in range(len(buf)):
+                buf[i] = 0
         if idx < self.seq_len:
             if idx == 0: # first one needs cbor part
                 self._p1.readinto(buf)

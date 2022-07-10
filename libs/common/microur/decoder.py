@@ -130,17 +130,18 @@ class URDecoderBase:
 
     @property
     def progress(self):
-        if self.is_complete:
-            return 1
+        p = 0
         if self.seq_len is None:
             return 0
-        return round(
-            min(0.99,
-                max(
-                    sum([0.8 if len(p) == 1 else 0.1 for p in self.part_sets])/self.seq_len,
-                    len(self.part_seq)/self.seq_len/1.3
-                )
-            ), 2)
+        for i in range(self.seq_len):
+            v = 0
+            for s in self.part_sets:
+                if i in s:
+                    v = max(v, 1/len(s))
+                if v == 1:
+                    break
+            p += v
+        return round(p/self.seq_len, 2)
 
     def exists(self, part_set) -> bool:
         # check if element is in storage
