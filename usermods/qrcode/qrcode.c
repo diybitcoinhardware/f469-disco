@@ -13,8 +13,21 @@ STATIC mp_obj_t qrcode_encode(mp_obj_t text_obj){
     
     uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX];
     uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
-    bool ok = qrcodegen_encodeText(bufinfo.buf, tempBuffer, qrcode, errCorLvl,
-        qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+    memcpy(tempBuffer, bufinfo.buf, bufinfo.len);
+    bool ok = false;
+    bool is_bytes = false;
+    for(int i = 0; i < bufinfo.len; i++){
+        if(tempBuffer[i] == 0){ // \x00 will cut the byte array
+            is_bytes = true;
+        }
+    }
+    if(is_bytes){
+        ok = qrcodegen_encodeBinary(tempBuffer, bufinfo.len, qrcode, errCorLvl,
+            qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+    }else{
+        ok = qrcodegen_encodeText(bufinfo.buf, tempBuffer, qrcode, errCorLvl,
+            qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+    }
     if(!ok){
         mp_raise_ValueError("Failed to encode");
     }
