@@ -1,6 +1,6 @@
-from bitcoin import script
-from bitcoin import ec
-from bitcoin.networks import NETWORKS
+from embit import script
+from embit import ec
+from embit.networks import NETWORKS
 from ubinascii import unhexlify, hexlify
 
 def main():

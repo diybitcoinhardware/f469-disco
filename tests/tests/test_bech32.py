@@ -22,7 +22,7 @@
 """Reference tests for segwit adresses"""
 
 import binascii
-import bitcoin.bech32 as segwit_addr
+import embit.bech32 as segwit_addr
 from unittest import TestCase
 
 

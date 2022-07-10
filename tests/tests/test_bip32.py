@@ -2,7 +2,7 @@
 # https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Test_Vectors
 
 from binascii import unhexlify
-from bitcoin.bip32 import HDKey
+from embit.bip32 import HDKey
 from unittest import TestCase
 
 HARD = lambda x: x + 0x80000000

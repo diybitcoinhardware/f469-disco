@@ -6,7 +6,7 @@ Examples:
 
 ```python
 from ubinascii import unhexlify, hexlify
-from bitcoin import ec, bip32, script
+from embit import ec, bip32, script
 
 pubkey = ec.PublicKey.parse(unhexlify("03fa7024c13f5a71550237bec1d31c98f4e00acdff20a86f83c358f0cba43085ec"))
 sig = ec.Signature.parse(unhexlify("3044022030c4962a980dee217de79f31f30bca8e1400f761165751012e8e989ce097559802200907e3eb97f8187b6e7597675196178579f6efe06e905a8b9692d1f7217dc940"))
@@ -28,7 +28,7 @@ For some classes that have a human-readable form there is `.to_base58()` method 
 Examples:
 
 ```python
-from bitcoin import ec, bip32
+from embit import ec, bip32
 
 pk = ec.PrivateKey.from_base58("L1168XhX8EEdkLMD6rcnt15xuUJamedVME1ksHQGck2PFp6ovuhW")
 hdprv = bip32.HDKey.from_base58("xprvA1eEfjteSrXB4PEcFnyZwQMcvZWKyJvBLEEgERF5u4C2KfGxMKfANB4HbSFHRnATsXXTe1L8CmkVx8tk1EccS8CP1RoJ14hZydzMv9ZLPjs")
@@ -53,7 +53,7 @@ In most cases you don't want to call constructors explicitly - use `.parse(bytes
 Example:
 
 ```python
-from bitcoin import ec
+from embit import ec
 from ubinascii import hexlify, unhexlify
 import hashlib
 
@@ -117,7 +117,7 @@ Functions to manage recovery phrases defined in [BIP-39](https://github.com/bitc
 Example:
 
 ```python
-from bitcoin import bip39
+from embit import bip39
 from ubinascii import hexlify
 import hashlib
 
@@ -165,8 +165,8 @@ Both HD private key and HD master key share the same class - `bip32.HDKey`.
 Example:
 
 ```python
-from bitcoin import bip32, bip39
-from bitcoin.networks import NETWORKS
+from embit import bip32, bip39
+from embit.networks import NETWORKS
 
 seed = bip39.mnemonic_to_seed("lab blade movie crater bulb only prize cloth unfold smile boring talent")
 

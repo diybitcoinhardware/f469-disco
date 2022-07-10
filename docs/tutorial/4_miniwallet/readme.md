@@ -13,8 +13,8 @@ It should be able to give us the master public key with fingerprint and derivati
 This class has nothing to do with the GUI, we will keep it bitcoin-only. Most of the code here is adapted from the previous parts of the tutorial.
 
 ```py
-from bitcoin import bip32, bip39, psbt, script
-from bitcoin.networks import NETWORKS
+from embit import bip32, bip39, psbt, script
+from embit.networks import NETWORKS
 
 class KeyStore:
     def __init__(self, mnemonic, password="", network=NETWORKS["test"]):

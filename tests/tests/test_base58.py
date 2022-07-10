@@ -1,7 +1,7 @@
 # Tests adapted from base58:
 # https://github.com/keis/base58/blob/master/test_base58.py
 
-from bitcoin.base58 import encode, decode, encode_check, decode_check
+from embit.base58 import encode, decode, encode_check, decode_check
 from unittest import TestCase
 
 

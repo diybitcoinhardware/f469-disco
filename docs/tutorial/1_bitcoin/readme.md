@@ -23,7 +23,7 @@ Entropy corresponding to the recovery phrase above is `64d3e4a0a387e28021df55a51
 We will leave entropy generation for now and use predefined entropy. The code below converts entropy bytes to recovery phrase and then converts recovery phrase and a password `mysecurepassword` to the 64-byte seed:
 
 ```python
-from bitcoin import bip39
+from embit import bip39
 from ubinascii import hexlify
 
 entropy = b'\x64\xd3\xe4\xa0\xa3\x87\xe2\x80\x21\xdf\x55\xa5\x1d\x45\x4d\xcf'
@@ -54,9 +54,9 @@ Derivation paths are also kinda standartized. We have [BIP-44](https://github.co
 Let's use BIP-84 and generate an extended public key for testnet. We can import this extended public key to Bitcoin Core or Electrum and watch our addresses.
 
 ```python
-from bitcoin import bip32
+from embit import bip32
 # NETWORKS contains all constants for HD keys and addresses
-from bitcoin.networks import NETWORKS
+from embit.networks import NETWORKS
 # we will use testnet:
 network = NETWORKS["test"]
 
@@ -86,7 +86,7 @@ Common single-key bitcoin scripts are:
 - modern pay-to-witness-pubkey-hash nested in legacy pay-to-script-hash for backward compatibility with legacy wallets
 
 ```python
-from bitcoin import script
+from embit import script
 
 xpub_bip44 = root_key.derive("m/44h/1h/0h").to_public()
 print("\nLegacy xpub:", xpub_bip44.to_base58(version=network["xpub"]))

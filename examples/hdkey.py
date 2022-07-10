@@ -1,7 +1,7 @@
-from bitcoin import script
-from bitcoin import bip32
-from bitcoin import bip39
-from bitcoin.networks import NETWORKS
+from embit import script
+from embit import bip32
+from embit import bip39
+from embit.networks import NETWORKS
 from ubinascii import unhexlify, hexlify
 import urandom
 

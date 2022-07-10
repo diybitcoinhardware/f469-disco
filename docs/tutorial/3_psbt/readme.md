@@ -17,8 +17,8 @@ Descriptor for native segwit addresses looks like this: `wpkh([fingerprint/<deri
 Fingerprint is a `hash160` of the root public key and works as an identifier of our root key.
 
 ```python
-from bitcoin import bip39, bip32
-from bitcoin.networks import NETWORKS
+from embit import bip39, bip32
+from embit.networks import NETWORKS
 from ubinascii import hexlify
 
 # convert bip-39 mnemonic to root HD key
@@ -78,7 +78,7 @@ We have two ways to generate addresses - on the hardware wallet or in bitcoin co
 On the hardware wallet we can use our address navigator from the previous part of the tutorial, or just write a small script:
 
 ```python
-from bitcoin import script
+from embit import script
 
 child = bip84_xpub.derive("m/0/0")
 first_addr = script.p2wpkh(child).address(NETWORKS["regtest"])
@@ -115,7 +115,7 @@ cHNidP8BAHICAAAAAcAiqnT66whblrAy+sRnAxMqusYBCt5CObq1YdO7RDqUAAAAAAD+////AgAgECQB
 ## Parsing PSBT in MicroPython
 
 ```python
-from bitcoin import psbt
+from embit import psbt
 from ubinascii import a2b_base64
 
 # parse psbt transaction

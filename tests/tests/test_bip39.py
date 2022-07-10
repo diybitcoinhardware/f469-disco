@@ -2,8 +2,8 @@
 # https://github.com/trezor/python-mnemonic/blob/master/test_mnemonic.py
 
 from binascii import hexlify, unhexlify
-from bitcoin.bip32 import HDKey
-from bitcoin.bip39 import (
+from embit.bip32 import HDKey
+from embit.bip39 import (
     find_candidates,
     mnemonic_from_bytes,
     mnemonic_is_valid,

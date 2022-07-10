@@ -1,7 +1,7 @@
 from ubinascii import hexlify
-from bitcoin import bip32, bip39, script
+from embit import bip32, bip39, script
 # NETWORKS contains all constants for HD keys and addresses
-from bitcoin.networks import NETWORKS
+from embit.networks import NETWORKS
 # we will use testnet:
 network = NETWORKS["test"]
 

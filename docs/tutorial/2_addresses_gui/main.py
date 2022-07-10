@@ -1,8 +1,8 @@
 import display
 import lvgl as lv
 from lvqr import QRCode
-from bitcoin import bip32, script
-from bitcoin.networks import NETWORKS
+from embit import bip32, script
+from embit.networks import NETWORKS
 
 # inherits from lv.obj class - any object, will be a screen in our case
 class AddressNavigator(lv.obj):

@@ -1,5 +1,5 @@
-from bitcoin import script, bip32, bip39, psbt
-from bitcoin.networks import NETWORKS
+from embit import script, bip32, bip39, psbt
+from embit.networks import NETWORKS
 # hex and base64 encodings
 from ubinascii import unhexlify, hexlify, a2b_base64, b2a_base64
 

@@ -2,9 +2,9 @@
 # https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki#Test_Vectors
 
 from binascii import hexlify, unhexlify
-from bitcoin.bip32 import HDKey
-from bitcoin.ec import PublicKey
-from bitcoin.psbt import PSBT
+from embit.bip32 import HDKey
+from embit.ec import PublicKey
+from embit.psbt import PSBT
 from unittest import TestCase
 
 INVALID_VECTORS = [

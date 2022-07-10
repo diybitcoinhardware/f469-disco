@@ -17,8 +17,8 @@ Here is our first GUI that prints the address:
 ```python
 import display
 import lvgl as lv
-from bitcoin import bip32, script
-from bitcoin.networks import NETWORKS
+from embit import bip32, script
+from embit.networks import NETWORKS
 
 # parse xpub
 xpub = bip32.HDKey.from_base58("vpub5ZEy1ogdkmtEHB4kRUZ6o6r7RREFckx7Mh4df39FEDPYkyQYLDnTqV68z7Knnmj5eGT9res4JfQbXEMiPrnzRGKS62zQPa4uNsXM1aS8iyP")
@@ -101,8 +101,8 @@ Looks good, but using `global` is not great. It also makes sense to refactor thi
 import display
 import lvgl as lv
 from lvqr import QRCode
-from bitcoin import bip32, script
-from bitcoin.networks import NETWORKS
+from embit import bip32, script
+from embit.networks import NETWORKS
 
 # inherits from lv.obj class - any object, will be a screen in our case
 class AddressNavigator(lv.obj):

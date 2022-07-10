@@ -1,9 +1,9 @@
-from bitcoin import script
-from bitcoin import ec
-from bitcoin.networks import NETWORKS
+from embit import script
+from embit import ec
+from embit.networks import NETWORKS
 from ubinascii import unhexlify, hexlify
-from bitcoin.transaction import Transaction, TransactionInput, TransactionOutput
-from bitcoin import compact
+from embit.transaction import Transaction, TransactionInput, TransactionOutput
+from embit import compact
 
 def main():
     # all from the same private key
