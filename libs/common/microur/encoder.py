@@ -15,7 +15,6 @@ class UREncoder:
             raise NotImplementedError()
         self.stream = stream
         self.ur_type = ur_type
-        self.part_len = part_len
         # detect data_len if not provided
         self.cur, sz = stream_pos(stream)
         if data_len is None:
@@ -25,18 +24,21 @@ class UREncoder:
         self.idx = 0
         self.cbor_prefix = cbor.encode_uint(data_len, cbor.CBOR_BYTES)
         self.msg_len = data_len + len(self.cbor_prefix)
-        self.part_len = min(part_len, self.msg_len)
-        self.seq_len = math.ceil(self.msg_len/part_len)
-        self.payload_len = math.ceil(self.msg_len/self.seq_len)
-        self.buf = bytearray(self.payload_len)
+        self._part_len = min(part_len, self.msg_len)
+        self._seq_len = math.ceil(self.msg_len/part_len)
+        self._payload_len = math.ceil(self.msg_len/self.seq_len)
+        self._buf = bytearray(self.payload_len)
         crc = crc32(self.cbor_prefix)
         processed = 0
         while processed+self.payload_len < data_len:
-            processed += stream.readinto(self.buf)
-            crc = crc32(self.buf, crc)
+            processed += stream.readinto(self._buf)
+            crc = crc32(self._buf, crc)
         self.checksum = crc32(stream.read(data_len-processed), crc)
         # rewind back to start
         stream.seek(self.cur, 0)
+        self._calculate_p1()
+
+    def _calculate_p1(self):
         self._singlepart = None
         self._p1 = None
         if self.seq_len == 1:
@@ -48,8 +50,28 @@ class UREncoder:
             self.stream.seek(self.cur, 0)
             self._p1.seek(0, 0)
 
+    @property
+    def part_len(self):
+        return self._part_len
+
+    @property
+    def seq_len(self):
+        return self._seq_len
+
+    @property
+    def payload_len(self):
+        return self._payload_len
+
+    @part_len.setter
+    def part_len(self, part_len):
+        self._part_len = min(part_len, self.msg_len)
+        self._seq_len = math.ceil(self.msg_len/part_len)
+        self._payload_len = math.ceil(self.msg_len/self.seq_len)
+        self._buf = bytearray(self.payload_len)
+        self._calculate_p1()
+
     def get_part_payload(self, idx, buf=None):
-        buf = buf if buf is not None else self.buf
+        buf = buf if buf is not None else self._buf
         # zero buffer if last part
         if idx == self.seq_len - 1:
             for i in range(len(buf)):
@@ -95,7 +117,7 @@ class UREncoder:
         b.write(("%d-%d/" % (idx+1, self.seq_len)).encode())
         _, crc = self.write_header(idx, b)
         payload = self.get_part_payload(idx)
-        bytewords.stream_encode(BytesIO(payload), len(self.buf), b)
+        bytewords.stream_encode(BytesIO(payload), len(self._buf), b)
         crc = crc32(payload, crc)
         bytewords.stream_encode(BytesIO(crc.to_bytes(4,'big')), 4, b)
         return b.getvalue().decode()
