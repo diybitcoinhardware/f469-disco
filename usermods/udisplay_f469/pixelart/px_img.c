@@ -153,17 +153,22 @@ static bool px_img_design(lv_obj_t * img, const lv_area_t * mask, lv_design_mode
 
         uint16_t idx = 0;
         const uint8_t * data = (uint8_t *)dsc->data;
+        lv_color_t c = style->text.color;
+        uint16_t border = style->body.border.width;
+        if(border > scale){
+            border = scale-1; // at least one dark point should remain
+        }
         for(lv_coord_t x = 0; x < ww; x++){
             for(lv_coord_t y = 0; y < (ext->h-1); y++){
                 cords_tmp.x1 = coords.x1 + off + x*scale;
-                cords_tmp.x2 = cords_tmp.x1 + scale;
+                cords_tmp.x2 = cords_tmp.x1 + scale - border;
                 cords_tmp.y1 = coords.y1 + off + y*scale;
-                cords_tmp.y2 = cords_tmp.y1 + scale;
+                cords_tmp.y2 = cords_tmp.y1 + scale - border;
                 idx = x + y*ext->h;
                 uint8_t b = data[idx/8];
                 uint8_t s = 7-(idx % 8);
                 if((b>>s)&1){
-                    lv_draw_fill(&cords_tmp, mask, LV_COLOR_MAKE(0,0,0), opa_scale);            
+                    lv_draw_fill(&cords_tmp, mask, c, opa_scale);
                 }
             }
         }
