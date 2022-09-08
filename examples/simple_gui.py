@@ -10,6 +10,7 @@ HOR_RES = const(480)
 VER_RES = const(800)
 
 class CounterScreen:
+    display.init()
 
     def __init__(self):
         # counter to increase/decrease
