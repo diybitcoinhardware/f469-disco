@@ -153,6 +153,22 @@ class Descriptor(DescriptorBase):
                 None, self.sh, self.wsh, self.key.derive(idx, branch_index), self.wpkh, self.taproot
             )
 
+    def to_public(self):
+        if self.miniscript:
+            return type(self)(
+                self.miniscript.to_public(),
+                self.sh,
+                self.wsh,
+                None,
+                self.wpkh,
+                self.taproot,
+            )
+        else:
+            return type(self)(
+                None, self.sh, self.wsh, self.key.to_public(), self.wpkh, self.taproot
+            )
+
+
     def owns(self, psbt_scope):
         """Checks if psbt input or output belongs to this descriptor"""
         # we can't check if we don't know script_pubkey
@@ -162,6 +178,17 @@ class Descriptor(DescriptorBase):
         if psbt_scope.script_pubkey.script_type() != self.scriptpubkey_type():
             return False
         for pub, der in psbt_scope.bip32_derivations.items():
+            # check of the fingerprints
+            for k in self.keys:
+                if not k.is_extended:
+                    continue
+                res = k.check_derivation(der)
+                if res:
+                    idx, branch_idx = res
+                    sc = self.derive(idx, branch_index=branch_idx).script_pubkey()
+                    # if derivation is found but scriptpubkey doesn't match - fail
+                    return (sc == psbt_scope.script_pubkey)
+        for pub, (leafs, der) in psbt_scope.taproot_bip32_derivations.items():
             # check of the fingerprints
             for k in self.keys:
                 if not k.is_extended:
