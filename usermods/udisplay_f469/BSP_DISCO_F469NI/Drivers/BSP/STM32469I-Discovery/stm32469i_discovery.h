@@ -7,32 +7,21 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2017 STMicroelectronics</center></h2>
+  * Copyright (c) 2017 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
+
+/* IMPORTANT: One of the following flags must be defined in the preprocessor */
+/* options in order to select the target board revision: !!!!!!!!!! */
+/* USE_STM32469I_DISCO_REVA */
+/* USE_STM32469I_DISCO_REVB */
+/* USE_STM32469I_DISCO_REVC */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __STM32469I_DISCOVERY_H
@@ -42,11 +31,9 @@
  extern "C" {
 #endif
 
+
  /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
-
-// mbed
-void wait_ms(int ms);
 
 /** @addtogroup BSP
   * @{
@@ -69,14 +56,14 @@ void wait_ms(int ms);
   */
 typedef enum
 {
- DISCO_LED1 = 0,
- DISCO_LED_GREEN = DISCO_LED1,
- DISCO_LED2 = 1,
- DISCO_LED_ORANGE = DISCO_LED2,
- DISCO_LED3 = 2,
- DISCO_LED_RED = DISCO_LED3,
- DISCO_LED4 = 3,
- DISCO_LED_BLUE = DISCO_LED4
+ LED1 = 0,
+ LED_GREEN = LED1,
+ LED2 = 1,
+ LED_ORANGE = LED2,
+ LED3 = 2,
+ LED_RED = LED3,
+ LED4 = 3,
+ LED_BLUE = LED4
 
 } Led_TypeDef;
 
@@ -321,6 +308,11 @@ typedef enum
 #define DISCO_I2C2_EV_IRQn                     I2C2_EV_IRQn
 #define DISCO_I2C2_ER_IRQn                     I2C2_ER_IRQn
 
+#if !defined(USE_STM32469I_DISCO_REVA) && \
+    !defined(USE_STM32469I_DISCO_REVB) && \
+    !defined(USE_STM32469I_DISCO_REVC)
+#define USE_STM32469I_DISCO_REVC
+#endif
 
 /**
   * @}
@@ -368,5 +360,3 @@ uint32_t         BSP_PB_GetState(Button_TypeDef Button);
 #endif
 
 #endif /* __STM32469I_DISCOVERY_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

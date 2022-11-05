@@ -45,7 +45,7 @@ STATIC mp_obj_t display_set_rotation(mp_obj_t rot_obj){
     if(rot_int == 1){
         rot = LCD_ORIENTATION_LANDSCAPE;
     }
-    BSP_LCD_InitEx(rot);
+    BSP_LCD_InitEx(rot, 0);
     BSP_LCD_LayerDefaultInit(LTDC_ACTIVE_LAYER_BACKGROUND, LCD_FB_START_ADDRESS);
     BSP_LCD_SelectLayer(LTDC_ACTIVE_LAYER_BACKGROUND);
     BSP_LCD_Clear(0xFFFFFFFF);
