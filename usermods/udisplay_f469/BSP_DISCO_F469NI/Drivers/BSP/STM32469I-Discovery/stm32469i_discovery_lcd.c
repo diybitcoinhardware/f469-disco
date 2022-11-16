@@ -7,29 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2017 STMicroelectronics</center></h2>
+  * Copyright (c) 2017 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -180,7 +163,7 @@ static void LL_ConvertLineToARGB8888(void * pSrc, void *pDst, uint32_t xSize, ui
   */
 uint8_t BSP_LCD_Init(void)
 {
-  return (BSP_LCD_InitEx(LCD_ORIENTATION_LANDSCAPE));
+  uint8_t status = BSP_LCD_InitEx(LCD_ORIENTATION_PORTRAIT, 0);
 }
 
 /**
@@ -192,7 +175,7 @@ uint8_t BSP_LCD_Init(void)
   *     - OTM8009A LCD Display IC Driver ititialization
   * @retval LCD state
   */
-uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
+uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation, uint8_t is_revc)
 {
   DSI_PLLInitTypeDef dsiPllInit;
   DSI_PHY_TimerTypeDef  PhyTimings;
@@ -267,12 +250,21 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
   VACT = lcd_y_size;
   
   /* The following values are same for portrait and landscape orientations */
-  VSA  = OTM8009A_480X800_VSYNC;
-  VBP  = OTM8009A_480X800_VBP;
-  VFP  = OTM8009A_480X800_VFP;
-  HSA  = OTM8009A_480X800_HSYNC;
-  HBP  = OTM8009A_480X800_HBP;
-  HFP  = OTM8009A_480X800_HFP;
+  if(is_revc){
+    VSA  = NT35510_480X800_VSYNC;
+    VBP  = NT35510_480X800_VBP;
+    VFP  = NT35510_480X800_VFP;
+    HSA  = NT35510_480X800_HSYNC;
+    HBP  = NT35510_480X800_HBP;
+    HFP  = NT35510_480X800_HFP;
+  }else{
+    VSA  = OTM8009A_480X800_VSYNC;
+    VBP  = OTM8009A_480X800_VBP;
+    VFP  = OTM8009A_480X800_VFP;
+    HSA  = OTM8009A_480X800_HSYNC;
+    HBP  = OTM8009A_480X800_HBP;
+    HFP  = OTM8009A_480X800_HFP;
+  }
   
   
   hdsivideo_handle.VirtualChannelID = LCD_OTM8009A_ID;
@@ -369,6 +361,15 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
      To avoid any synchronization issue, the DSI shall be started after enabling the LTDC */
   HAL_DSI_Start(&(hdsi_eval));
   
+  // check display model, if revc detected - re-run init with corresponding flag.
+  if(is_revc == 0){
+    uint8_t arr[5] = { 0 };
+    BSP_LCD_ReadDisplayModel(arr, sizeof(arr));
+    if(arr[0] == 0){
+      return BSP_LCD_InitEx(orientation, 1);
+    }
+  }
+
 #if !defined(DATA_IN_ExtSDRAM)
   /* Initialize the SDRAM */
   BSP_SDRAM_Init();
@@ -379,16 +380,24 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
   
 /************************End LTDC Initialization*******************************/
   
+  if(is_revc){
+  /***********************NT35510 Initialization********************************/  
   
-/***********************OTM8009A Initialization********************************/  
+    /* Initialize the NT35510 LCD Display IC Driver (TechShine LCD IC Driver)
+     * depending on configuration set in 'hdsivideo_handle'.
+     */
+    NT35510_Init(NT35510_FORMAT_RGB888, orientation);
+  /***********************End NT35510 Initialization****************************/
+  }else{
+  /***********************OTM8009A Initialization********************************/  
   
-  /* Initialize the OTM8009A LCD Display IC Driver (KoD LCD IC Driver)
-  *  depending on configuration set in 'hdsivideo_handle'.
-  */
-  OTM8009A_Init(OTM8009A_FORMAT_RGB888, orientation);
-  
+    /* Initialize the OTM8009A LCD Display IC Driver (KoD LCD IC Driver)
+    *  depending on configuration set in 'hdsivideo_handle'.
+    */
+    OTM8009A_Init(OTM8009A_FORMAT_RGB888, orientation);
 /***********************End OTM8009A Initialization****************************/ 
-  
+  }
+
   return LCD_OK;
 }
 
@@ -401,14 +410,19 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
 void BSP_LCD_Reset(void)
 {
 #if !defined(USE_STM32469I_DISCO_REVA)
-/* EVAL Rev B and beyond : reset the LCD by activation of XRES (active low) connected to PH7 */
+  /* Disco Rev B and beyond : reset the LCD by activation of XRES (active low) connected to PH7 */
   GPIO_InitTypeDef  gpio_init_structure;
 
   __HAL_RCC_GPIOH_CLK_ENABLE();
 
     /* Configure the GPIO on PH7 */
     gpio_init_structure.Pin   = GPIO_PIN_7;
+#if defined(USE_STM32469I_DISCO_REVC)
+    /* Push Pull Mode is required for TechShine LCD (NT35510) */
+    gpio_init_structure.Mode  = GPIO_MODE_OUTPUT_PP;
+#else
     gpio_init_structure.Mode  = GPIO_MODE_OUTPUT_OD;
+#endif
     gpio_init_structure.Pull  = GPIO_NOPULL;
     gpio_init_structure.Speed = GPIO_SPEED_HIGH;
 
@@ -418,16 +432,14 @@ void BSP_LCD_Reset(void)
     HAL_GPIO_WritePin(GPIOH, GPIO_PIN_7, GPIO_PIN_RESET);
 
     HAL_Delay(20); /* wait 20 ms */
-    // wait_ms(20);
-  
+
     /* Desactivate XRES */
     HAL_GPIO_WritePin(GPIOH, GPIO_PIN_7, GPIO_PIN_SET);
     
-    /* Wait for 10ms after releasing XRES before sending commands */
-    HAL_Delay(10);
-    // wait_ms(10);    
+    /* Wait for 20ms after releasing XRES before sending commands */
+    HAL_Delay(20);    
 #else
-  
+  /* Nothing to do in case of Disco Rev A */
 #endif /* USE_STM32469I_DISCO_REVA == 0 */
 }
 
@@ -1289,6 +1301,20 @@ void BSP_LCD_DisplayOff(void)
   
 }
 
+
+uint32_t BSP_LCD_ReadDisplayModel(uint8_t * arr, uint16_t len){
+  HAL_StatusTypeDef status = HAL_DSI_ConfigFlowControl(&(hdsi_eval), DSI_FLOW_CONTROL_BTA);
+  if (status != HAL_OK){
+    return LCD_ERROR;
+  }
+ 
+  status = HAL_DSI_Read(&(hdsi_eval), LCD_OTM8009A_ID, arr, len, DSI_GEN_SHORT_PKT_READ_P1, 0, (uint8_t[]){0xA1, 0});
+  if (status != HAL_OK){
+    return LCD_ERROR;
+  }
+  return LCD_OK;
+}
+
 /**
   * @brief  DCS or Generic short/long write command
   * @param  NbrParams: Number of parameters. It indicates the write command mode:
@@ -1706,5 +1732,3 @@ uint8_t BSP_LCD_DrawBitmapRaw(uint32_t Xpos, uint32_t Ypos, uint32_t Width, uint
 /**
   * @}
   */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

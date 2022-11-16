@@ -5,33 +5,16 @@
   * @brief   This file provides a set of firmware functions to manage LEDs,
   *          push-buttons, external SDRAM, external QSPI Flash, RF EEPROM,
   *          available on STM32469I-Discovery
-  *          board (MB1189) RevA/B from STMicroelectronics.
+  *          board (MB1189) RevA/B/C from STMicroelectronics.
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2017 STMicroelectronics</center></h2>
+  * Copyright (c) 2017 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -62,10 +45,10 @@
   * @{
   */
 /**
- * @brief STM32469I Discovery BSP Driver version number V2.0.1
+ * @brief STM32469I Discovery BSP Driver version number V2.1.1
    */
 #define __STM32469I_DISCOVERY_BSP_VERSION_MAIN   (0x02) /*!< [31:24] main version */
-#define __STM32469I_DISCOVERY_BSP_VERSION_SUB1   (0x00) /*!< [23:16] sub1 version */
+#define __STM32469I_DISCOVERY_BSP_VERSION_SUB1   (0x01) /*!< [23:16] sub1 version */
 #define __STM32469I_DISCOVERY_BSP_VERSION_SUB2   (0x01) /*!< [15:8]  sub2 version */
 #define __STM32469I_DISCOVERY_BSP_VERSION_RC     (0x00) /*!< [7:0]  release candidate */
 #define __STM32469I_DISCOVERY_BSP_VERSION        ((__STM32469I_DISCOVERY_BSP_VERSION_MAIN << 24)\
@@ -152,6 +135,7 @@ uint16_t TS_IO_ReadMultiple(uint8_t Addr, uint8_t Reg, uint8_t *Buffer, uint16_t
 void    TS_IO_WriteMultiple(uint8_t Addr, uint8_t Reg, uint8_t *Buffer, uint16_t Length);
 void    TS_IO_Delay(uint32_t Delay);
 void     OTM8009A_IO_Delay(uint32_t Delay);
+void     NT35510_IO_Delay(uint32_t Delay);
 /**
   * @}
   */
@@ -182,7 +166,7 @@ void BSP_LED_Init(Led_TypeDef Led)
 {
   GPIO_InitTypeDef  gpio_init_structure;
 
-  if (Led <= DISCO_LED4)
+  if (Led <= LED4)
   {
     /* Configure the GPIO_LED pin */
     gpio_init_structure.Pin   = GPIO_PIN[Led];
@@ -192,16 +176,16 @@ void BSP_LED_Init(Led_TypeDef Led)
 
     switch(Led)
     {
-    case DISCO_LED1 :
+    case LED1 :
       LED1_GPIO_CLK_ENABLE();
       break;
-    case DISCO_LED2 :
+    case LED2 :
       LED2_GPIO_CLK_ENABLE();
       break;
-    case DISCO_LED3 :
+    case LED3 :
       LED3_GPIO_CLK_ENABLE();
       break;
-    case DISCO_LED4 :
+    case LED4 :
       LED4_GPIO_CLK_ENABLE();
       break;
     default :
@@ -233,7 +217,7 @@ void BSP_LED_DeInit(Led_TypeDef Led)
 {
   GPIO_InitTypeDef  gpio_init_structure;
 
-  if (Led <= DISCO_LED4)
+  if (Led <= LED4)
   {
     /* DeInit the GPIO_LED pin */
     gpio_init_structure.Pin = GPIO_PIN[Led];
@@ -256,7 +240,7 @@ void BSP_LED_DeInit(Led_TypeDef Led)
   */
 void BSP_LED_On(Led_TypeDef Led)
 {
-  if (Led <= DISCO_LED4)
+  if (Led <= LED4)
   {
      HAL_GPIO_WritePin(GPIO_PORT[Led], GPIO_PIN[Led], GPIO_PIN_RESET);
   }
@@ -274,7 +258,7 @@ void BSP_LED_On(Led_TypeDef Led)
   */
 void BSP_LED_Off(Led_TypeDef Led)
 {
-  if (Led <= DISCO_LED4)
+  if (Led <= LED4)
   {
     HAL_GPIO_WritePin(GPIO_PORT[Led], GPIO_PIN[Led], GPIO_PIN_SET);
   }
@@ -291,7 +275,7 @@ void BSP_LED_Off(Led_TypeDef Led)
   */
 void BSP_LED_Toggle(Led_TypeDef Led)
 {
-  if (Led <= DISCO_LED4)
+  if (Led <= LED4)
   {
      HAL_GPIO_TogglePin(GPIO_PORT[Led], GPIO_PIN[Led]);
   }
@@ -398,6 +382,24 @@ static void I2C1_MspInit(void)
   /*** Configure the GPIOs ***/
   /* Enable GPIO clock */
   DISCO_I2C1_SCL_SDA_GPIO_CLK_ENABLE();
+
+#if defined(USE_STM32469I_DISCO_REVC)
+  /* Perform 10 pulses on SCL to unlock I2C devices if previous I2C transaction aborted.*/
+  /* This configuration is needed with STM32F469i Disco RevC when using touch screen controller FT6336U */
+  gpio_init_structure.Pin = DISCO_I2C1_SCL_PIN;
+  gpio_init_structure.Mode = GPIO_MODE_OUTPUT_OD;
+  gpio_init_structure.Pull = GPIO_NOPULL;
+  gpio_init_structure.Speed = GPIO_SPEED_FAST;
+  gpio_init_structure.Alternate = 0;
+  HAL_GPIO_Init( DISCO_I2C1_SCL_SDA_GPIO_PORT, &gpio_init_structure );
+  for(uint8_t count = 10; count > 0; count-- )
+  {
+    HAL_GPIO_WritePin( DISCO_I2C1_SCL_SDA_GPIO_PORT, DISCO_I2C1_SCL_PIN, GPIO_PIN_SET );
+    HAL_Delay(1);
+    HAL_GPIO_WritePin( DISCO_I2C1_SCL_SDA_GPIO_PORT, DISCO_I2C1_SCL_PIN, GPIO_PIN_RESET );
+    HAL_Delay(1);
+  }
+#endif /* USE_STM32469I_DISCO_REVC */
 
   /* Configure I2C Tx as alternate function */
   gpio_init_structure.Pin = DISCO_I2C1_SCL_PIN;
@@ -783,7 +785,6 @@ uint8_t AUDIO_IO_Read(uint8_t Addr, uint8_t Reg)
 void AUDIO_IO_Delay(uint32_t Delay)
 {
   HAL_Delay(Delay);
-  // wait_ms(Delay);
 }
 
 /******************************** LINK I2C EEPROM *****************************/
@@ -903,7 +904,6 @@ void TS_IO_WriteMultiple(uint8_t Addr, uint8_t Reg, uint8_t *Buffer, uint16_t Le
 void TS_IO_Delay(uint32_t Delay)
 {
   HAL_Delay(Delay);
-  // wait_ms(Delay);
 }
 
 /**************************** LINK OTM8009A (Display driver) ******************/
@@ -914,7 +914,16 @@ void TS_IO_Delay(uint32_t Delay)
 void OTM8009A_IO_Delay(uint32_t Delay)
 {
   HAL_Delay(Delay);
-  // wait_ms(Delay);
+}
+
+/**************************** LINK NT35510 (Display driver) ******************/
+/**
+  * @brief  NT35510 delay
+  * @param  Delay: Delay in ms
+  */
+void NT35510_IO_Delay(uint32_t Delay)
+{
+  HAL_Delay(Delay);
 }
 
 /**
@@ -932,5 +941,3 @@ void OTM8009A_IO_Delay(uint32_t Delay)
 /**
   * @}
   */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

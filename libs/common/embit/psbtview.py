@@ -17,11 +17,13 @@ def read_write(sin, sout, l=None, chunk_size=32) -> int:
     res = 0
     barr = bytearray(chunk_size)
     while True:
-        if l and l < chunk_size:
+        if l == 0: # nothing else to read
+            return res
+        elif l and l < chunk_size: # read less than full chunk
             r = sin.read(l)
             sout.write(r)
             return res + len(r)
-        else:
+        else: # reading full chunk
             r = sin.readinto(barr)
             if r == 0:
                 return res
@@ -134,7 +136,7 @@ class PSBTView:
             num_inputs, num_outputs,
             offset, first_scope,
             version=None, tx_offset=None,
-            compress=False,
+            compress=CompressMode.KEEP_ALL,
         ):
         if version != 2 and tx_offset is None:
             raise PSBTError("Global tx is not found, but PSBT version is %d" % version)
@@ -162,7 +164,7 @@ class PSBTView:
         self._hash_script_pubkeys = None
 
     @classmethod
-    def view(cls, stream, offset=None, compress=False):
+    def view(cls, stream, offset=None, compress=CompressMode.KEEP_ALL):
         if offset is None and hasattr(stream, 'tell'):
             offset = stream.tell()
         offset = offset or 0
@@ -220,9 +222,10 @@ class PSBTView:
             # read key and update cursor
             keylen = skip_string(self.stream)
             off += keylen
-            # separator: zero-length key
+            # separator: zero-length key, has actual len of 1
             if keylen == 1:
                 break
+            # not separator - skip value as well
             off += skip_string(self.stream)
         return off
 
@@ -598,23 +601,36 @@ class PSBTView:
                     counter = 1
             # if we use HDKey
             else:
-                # TODO: add taproot derivation paths and scripts
+                bip32_derivations = []
+                for pub in inp.taproot_bip32_derivations:
+                    leaf_hashes, derivation = inp.taproot_bip32_derivations[pub]
+                    if derivation.fingerprint == fingerprint:
+                        bip32_derivations.append((pub, derivation))
+
+                # "Legacy" support for workaround when BIP-371 Taproot psbt fields aren't available
                 for pub in inp.bip32_derivations:
-                    # check if it is root key
-                    if inp.bip32_derivations[pub].fingerprint == fingerprint:
-                        hdkey = root.derive(inp.bip32_derivations[pub].derivation)
-                        mypub = hdkey.key.get_public_key()
-                        if mypub != pub:
-                            raise PSBTError("Derivation path doesn't look right")
-                        pk = hdkey.taproot_tweak(b"")
-                        if pk.xonly() in sc.data:
-                            sig = pk.schnorr_sign(h)
-                            # sig plus sighash flag
-                            wit = sig.serialize()
-                            if inp_sighash != SIGHASH.DEFAULT:
-                                wit += bytes([inp_sighash])
-                            inp.final_scriptwitness = Witness([wit])
-                            counter = 1
+                    derivation = inp.bip32_derivations[pub]
+                    if derivation.fingerprint == fingerprint:
+                        bip32_derivations.append((pub, derivation))
+
+                for pub, derivation in bip32_derivations:
+                    hdkey = root.derive(derivation.derivation)
+
+                    # Taproot BIP32 derivations use X-only pubkeys
+                    xonly_pub = hdkey.key.xonly()
+                    mypub = ec.PublicKey.from_xonly(xonly_pub)
+
+                    if mypub != pub:
+                        raise PSBTError("Derivation path doesn't look right")
+                    pk = hdkey.taproot_tweak(b"")
+                    if pk.xonly() in sc.data:
+                        sig = pk.schnorr_sign(h)
+                        # sig plus sighash flag
+                        wit = sig.serialize()
+                        if inp_sighash != SIGHASH.DEFAULT:
+                            wit += bytes([inp_sighash])
+                        inp.final_scriptwitness = Witness([wit])
+                        counter = 1
             if counter:
                 ser_string(sig_stream, b"\x08")
                 ser_string(sig_stream, inp.final_scriptwitness.serialize())
@@ -662,7 +678,7 @@ class PSBTView:
             sig_stream.write(b"\x00")
         return counter
 
-    def write_to(self, writable_stream, compress=CompressMode.CLEAR_ALL,
+    def write_to(self, writable_stream, compress=None,
             extra_input_streams=[],
             extra_output_streams=[],
     ):
@@ -676,6 +692,9 @@ class PSBTView:
         For psbtv0 it will have global tx and partial sigs for all inputs
         For psbtv2 it will have version, tx_version, locktime, per-vin data, per-vout data and partial sigs
         """
+        if compress is None:
+            compress = self.compress
+
         # first we write global scope
         self.stream.seek(self.offset)
         res = read_write(self.stream, writable_stream, self.first_scope-self.offset)

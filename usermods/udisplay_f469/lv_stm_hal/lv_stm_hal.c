@@ -15,7 +15,6 @@ static void gpu_mem_fill(lv_disp_drv_t * disp_drv, lv_color_t * dest_buf, lv_coo
 
 void tft_init(){
     BSP_LCD_Init();
-    BSP_LCD_InitEx(LCD_ORIENTATION_PORTRAIT);
     BSP_LCD_LayerDefaultInit(LTDC_ACTIVE_LAYER_BACKGROUND, LCD_FB_START_ADDRESS);
     BSP_LCD_SelectLayer(LTDC_ACTIVE_LAYER_BACKGROUND);
     BSP_LCD_Clear(0xFFFFFFFF);
