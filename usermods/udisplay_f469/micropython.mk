@@ -1,5 +1,8 @@
 DISPLAY_MOD_DIR := $(USERMOD_DIR)
 
+# custom font
+SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/custom_symbols_16.c
+
 # stm32f469
 ifeq ($(CMSIS_MCU),STM32F469xx)
 # The module itself

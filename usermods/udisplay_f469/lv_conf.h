@@ -308,7 +308,8 @@ typedef void * lv_indev_drv_user_data_t;            /*Type of user data in the i
 							   LV_FONT_DECLARE(square4) \
 							   LV_FONT_DECLARE(square3) \
 							   LV_FONT_DECLARE(square2) \
-							   LV_FONT_DECLARE(square1) \
+                        LV_FONT_DECLARE(square1) \
+                        LV_FONT_DECLARE(custom_symbols_16) \
 							   LV_FONT_DECLARE(font_roboto_mono_12) \
 							   LV_FONT_DECLARE(font_roboto_mono_16) \
 							   LV_FONT_DECLARE(font_roboto_mono_22) \

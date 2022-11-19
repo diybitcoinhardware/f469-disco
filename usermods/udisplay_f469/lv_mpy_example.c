@@ -30165,6 +30165,15 @@ STATIC const mp_lv_struct_t mp_lv_font_unscii_8 = {
     { &mp_lv_font_t_type },
     (lv_font_t*)&lv_font_unscii_8
 };
+
+/*
+ * lvgl custom_symbols_16 global definitions
+ */
+
+STATIC const mp_lv_struct_t mp_custom_symbols_16 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&custom_symbols_16
+};
     
 
 /*
@@ -31246,6 +31255,7 @@ STATIC const mp_rom_map_elem_t lvgl_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_font_roboto_22), MP_ROM_PTR(&mp_lv_font_roboto_22) },
     { MP_ROM_QSTR(MP_QSTR_font_roboto_28), MP_ROM_PTR(&mp_lv_font_roboto_28) },
     { MP_ROM_QSTR(MP_QSTR_font_unscii_8), MP_ROM_PTR(&mp_lv_font_unscii_8) },
+    { MP_ROM_QSTR(MP_QSTR_font_custom_symbols_16), MP_ROM_PTR(&mp_custom_symbols_16) },
     { MP_ROM_QSTR(MP_QSTR_square10), MP_ROM_PTR(&mp_square10) },
     { MP_ROM_QSTR(MP_QSTR_square9), MP_ROM_PTR(&mp_square9) },
     { MP_ROM_QSTR(MP_QSTR_square8), MP_ROM_PTR(&mp_square8) },
