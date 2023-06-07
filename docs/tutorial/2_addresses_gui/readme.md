@@ -1,6 +1,6 @@
 # Writing GUI with LittlevGL library
 
-[LittlevGL](https://littlevgl.com/) is a very powerful graphics library with a lot of widgets and very rich functionality. It is open-source with MIT license, supports antialiasing, customization and written in an object-oriented way even though it is in C. Recently they also made MicroPython bindings to the library so we can easily write our GUI in MicroPython (`lvgl` module).
+[LittlevGL](https://lvgl.io/) is a very powerful graphics library with a lot of widgets and very rich functionality. It is open-source with MIT license, supports antialiasing, customization and written in an object-oriented way even though it is in C. Recently they also made MicroPython bindings to the library so we can easily write our GUI in MicroPython (`lvgl` module).
 
 In the [previous part](../1_bitcoin) of the tutorial we were able to derive addresses from the recovery phrase, now it's time to write a small GUI that would display these addresses.
 
