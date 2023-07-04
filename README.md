@@ -2,7 +2,7 @@
 
 Focusing on F469-Discovery board from STMicroelectronics, planning to add other boards later as well.
 
-Build includes: [secp256k1](https://github.com/bitcoin-core/secp256k1) bindings, `embit` bitcoin python library, [LittlevGL](https://littlevgl.com/) GUI library
+Build includes: [secp256k1](https://github.com/bitcoin-core/secp256k1) bindings, `embit` bitcoin python library, [LittlevGL](https://lvgl.io/) GUI library
 
 ## Quick start
 

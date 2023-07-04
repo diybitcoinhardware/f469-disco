@@ -18,4 +18,4 @@ Then you should be able to work both with unixport version and with hardware dev
 - [bitcoin](./api/bitcoin) module written in pure Python with support of private/public keys, HD wallets, PSBT transactions, scripts, addresses etc.
 - [hashlib](./api/hashlib) module with binding to C for necessary hash functions
 - [secp256k1](./api/secp256k1) module with bindings to [secp256k1 library from Bitcoin Core](https://github.com/bitcoin-core/secp256k1)
-- [display](./api/display) module that helps you to work with the display and [LittlevGL](https://littlevgl.com/) library
+- [display](./api/display) module that helps you to work with the display and [LittlevGL](https://lvgl.io/) library
