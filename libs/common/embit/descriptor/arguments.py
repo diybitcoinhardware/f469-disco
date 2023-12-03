@@ -1,7 +1,9 @@
 from binascii import hexlify, unhexlify
-from .base import DescriptorBase, read_until
+from .base import DescriptorBase
 from .errors import ArgumentError
 from .. import bip32, ec, compact, hashes
+from ..bip32 import HARDENED_INDEX
+from ..misc import read_until
 
 
 class KeyOrigin:
@@ -24,13 +26,19 @@ class KeyOrigin:
 
 
 class AllowedDerivation(DescriptorBase):
-    # xpub/{0,1}/* - {0,1} is a set of allowed branches, wildcard * is stored as None
+    # xpub/<0;1>/* - <0;1> is a set of allowed branches, wildcard * is stored as None
     def __init__(self, indexes=[[0, 1], None]):
-        # check only one wildcard and only one set is in the derivation
-        if len([i for i in indexes if i is None]) > 1:
+        # check only one wildcard
+        if (
+            len(
+                [i for i in indexes if i is None or (isinstance(i, list) and None in i)]
+            )
+            > 1
+        ):
             raise ArgumentError("Only one wildcard is allowed")
+        # check only one set is in the derivation
         if len([i for i in indexes if isinstance(i, list)]) > 1:
-            raise ArgumentError("Only one wildcard is allowed")
+            raise ArgumentError("Only one set of branches is allowed")
         self.indexes = indexes
 
     @property
@@ -39,7 +47,7 @@ class AllowedDerivation(DescriptorBase):
 
     def fill(self, idx, branch_index=None):
         # None is ok
-        if idx is not None and (idx < 0 or idx >= 0x80000000):
+        if idx is not None and (idx < 0 or idx >= HARDENED_INDEX):
             raise ArgumentError("Hardened indexes are not allowed in wildcard")
         arr = [i for i in self.indexes]
         for i, el in enumerate(arr):
@@ -96,9 +104,12 @@ class AllowedDerivation(DescriptorBase):
     @property
     def has_hardend(self):
         for idx in self.indexes:
-            if isinstance(idx, int) and idx >= 0x80000000:
+            if isinstance(idx, int) and idx >= HARDENED_INDEX:
                 return True
-            if isinstance(idx, list) and len([i for i in idx if i >= 0x80000000]) > 0:
+            if (
+                isinstance(idx, list)
+                and len([i for i in idx if i >= HARDENED_INDEX]) > 0
+            ):
                 return True
         return False
 
@@ -116,7 +127,7 @@ class AllowedDerivation(DescriptorBase):
         # wildcard
         if d == "*":
             return None
-        # branch set
+        # branch set - legacy `{m,n}`
         if d[0] == "{" and d[-1] == "}":
             if not allow_set:
                 raise ArgumentError("Set is not allowed in derivation %s" % d)
@@ -124,15 +135,25 @@ class AllowedDerivation(DescriptorBase):
                 cls.parse_element(dd, allow_hardened, allow_set=False)
                 for dd in d[1:-1].split(",")
             ]
+        # branch set - multipart `<m;n>`
+        if d[0] == "<" and d[-1] == ">":
+            if not allow_set:
+                raise ArgumentError("Set is not allowed in derivation %s" % d)
+            return [
+                cls.parse_element(dd, allow_hardened, allow_set=False)
+                for dd in d[1:-1].split(";")
+            ]
         idx = 0
-        if d[-1] == "h":
+        if d[-1] in ["h", "H", "'"]:
             if not allow_hardened:
                 raise ArgumentError("Hardened derivation is not allowed in %s" % d)
-            idx = 0x80000000
+            idx = HARDENED_INDEX
             d = d[:-1]
         i = int(d)
-        if i < 0 or i >= 0x80000000:
-            raise ArgumentError("Derivation index can be in a range [0, 0x80000000)")
+        if i < 0 or i >= HARDENED_INDEX:
+            raise ArgumentError(
+                "Derivation index can be in a range [0, %d)" % HARDENED_INDEX
+            )
         return idx + i
 
     def __str__(self):
@@ -141,33 +162,41 @@ class AllowedDerivation(DescriptorBase):
             if idx is None:
                 r += "/*"
             if isinstance(idx, int):
-                if idx >= 0x80000000:
-                    r += "/%dh" % (idx - 0x80000000)
+                if idx >= HARDENED_INDEX:
+                    r += "/%dh" % (idx - HARDENED_INDEX)
                 else:
                     r += "/%d" % idx
             if isinstance(idx, list):
-                r += "/{"
-                r += ",".join(
+                r += "/<"
+                r += ";".join(
                     [
-                        str(i) if i < 0x80000000 else str(i - 0x80000000) + "h"
+                        str(i) if i < HARDENED_INDEX else str(i - HARDENED_INDEX) + "h"
                         for i in idx
                     ]
                 )
-                r += "}"
+                r += ">"
         return r
 
 
 class Key(DescriptorBase):
-    def __init__(self, key, origin=None, derivation=None, taproot=False):
+    def __init__(
+        self,
+        key,
+        origin=None,
+        derivation=None,
+        taproot=False,
+        xonly_repr=False,
+    ):
         self.origin = origin
         self.key = key
         self.taproot = taproot
+        self.xonly_repr = xonly_repr and taproot
         if not hasattr(key, "derive") and derivation:
             raise ArgumentError("Key %s doesn't support derivation" % key)
         self.allowed_derivation = derivation
 
     def __len__(self):
-        return 34 - int(self.taproot) # <33:sec> or <32:xonly>
+        return 34 - int(self.taproot)  # <33:sec> or <32:xonly>
 
     @property
     def my_fingerprint(self):
@@ -189,7 +218,7 @@ class Key(DescriptorBase):
         return [] if self.origin is None else self.origin.derivation
 
     @classmethod
-    def read_from(cls, s, taproot:bool = False):
+    def read_from(cls, s, taproot: bool = False):
         """
         Reads key argument from stream.
         If taproot is set to True - allows both x-only and sec pubkeys.
@@ -208,8 +237,8 @@ class Key(DescriptorBase):
         der = b""
         # there is a following derivation
         if char == b"/":
-            der, char = read_until(s, b"{,)")
-            # we get a set of possible branches: {a,b,c...}
+            der, char = read_until(s, b"<{,)")
+            # legacy branches: {a,b,c...}
             if char == b"{":
                 der += b"{"
                 branch, char = read_until(s, b"}")
@@ -218,32 +247,41 @@ class Key(DescriptorBase):
                 der += branch + b"}"
                 rest, char = read_until(s, b",)")
                 der += rest
+            # multipart descriptor: <a;b;c;...>
+            elif char == b"<":
+                der += b"<"
+                branch, char = read_until(s, b">")
+                if char is None:
+                    raise ArgumentError("Failed reading the key, missing >")
+                der += branch + b">"
+                rest, char = read_until(s, b",)")
+                der += rest
         if char is not None:
             s.seek(-1, 1)
         # parse key
-        k = cls.parse_key(k, taproot)
+        k, xonly_repr = cls.parse_key(k, taproot)
         # parse derivation
         allow_hardened = isinstance(k, bip32.HDKey) and isinstance(k.key, ec.PrivateKey)
         derivation = AllowedDerivation.from_string(
             der.decode(), allow_hardened=allow_hardened
         )
-        return cls(k, origin, derivation, taproot)
+        return cls(k, origin, derivation, taproot, xonly_repr)
 
     @classmethod
-    def parse_key(cls, k: bytes, taproot:bool = False):
+    def parse_key(cls, key: bytes, taproot: bool = False):
         # convert to string
-        k = k.decode()
+        k = key.decode()
         if len(k) in [66, 130] and k[:2] in ["02", "03", "04"]:
             # bare public key
-            return ec.PublicKey.parse(unhexlify(k))
+            return ec.PublicKey.parse(unhexlify(k)), False
         elif taproot and len(k) == 64:
             # x-only pubkey
-            return ec.PublicKey.parse(b"\x02"+unhexlify(k))
+            return ec.PublicKey.parse(b"\x02" + unhexlify(k)), True
         elif k[1:4] in ["pub", "prv"]:
             # bip32 key
-            return bip32.HDKey.from_base58(k)
+            return bip32.HDKey.from_base58(k), False
         else:
-            return ec.PrivateKey.from_wif(k)
+            return ec.PrivateKey.from_wif(k), False
 
     @property
     def is_extended(self):
@@ -264,7 +302,11 @@ class Key(DescriptorBase):
         return self.allowed_derivation.check_derivation(rest)
 
     def get_public_key(self):
-        return self.key.get_public_key() if (self.is_extended or self.is_private) else self.key
+        return (
+            self.key.get_public_key()
+            if (self.is_extended or self.is_private)
+            else self.key
+        )
 
     def sec(self):
         return self.key.sec()
@@ -308,7 +350,11 @@ class Key(DescriptorBase):
         return 1 if self.branches is None else len(self.branches)
 
     def branch(self, branch_index=None):
-        der = self.allowed_derivation.branch(branch_index)
+        der = (
+            self.allowed_derivation.branch(branch_index)
+            if self.allowed_derivation is not None
+            else None
+        )
         return type(self)(self.key, self.origin, der, self.taproot)
 
     @property
@@ -339,9 +385,16 @@ class Key(DescriptorBase):
         if not self.is_private:
             return self
         if isinstance(self.key, ec.PrivateKey):
-            return type(self)(self.key.get_public_key(), self.origin, self.allowed_derivation, self.taproot)
+            return type(self)(
+                self.key.get_public_key(),
+                self.origin,
+                self.allowed_derivation,
+                self.taproot,
+            )
         else:
-            return type(self)(self.key.to_public(), self.origin, self.allowed_derivation, self.taproot)
+            return type(self)(
+                self.key.to_public(), self.origin, self.allowed_derivation, self.taproot
+            )
 
     @property
     def private_key(self):
@@ -356,7 +409,8 @@ class Key(DescriptorBase):
 
     def to_string(self, version=None):
         if isinstance(self.key, ec.PublicKey):
-            return self.prefix + hexlify(self.key.sec()).decode()
+            k = self.key.sec() if not self.xonly_repr else self.key.xonly()
+            return self.prefix + hexlify(k).decode()
         if isinstance(self.key, bip32.HDKey):
             return self.prefix + self.key.to_base58(version) + self.suffix
         if isinstance(self.key, ec.PrivateKey):
@@ -375,7 +429,7 @@ class KeyHash(Key):
         kd = k.decode()
         # raw 20-byte hash
         if len(kd) == 40:
-            return kd
+            return kd, False
         return super().parse_key(k, *args, **kwargs)
 
     def serialize(self, *args, **kwargs):
@@ -387,7 +441,7 @@ class KeyHash(Key):
         return hashes.hash160(self.key.sec())
 
     def __len__(self):
-        return 21 # <20:pkh>
+        return 21  # <20:pkh>
 
     def compile(self):
         d = self.serialize()
@@ -399,7 +453,7 @@ class Number(DescriptorBase):
         self.num = num
 
     @classmethod
-    def read_from(cls, s):
+    def read_from(cls, s, taproot=False):
         num = 0
         char = s.read(1)
         while char in b"0123456789":
@@ -426,13 +480,15 @@ class Number(DescriptorBase):
 
 
 class Raw(DescriptorBase):
+    LEN = 32
+
     def __init__(self, raw):
         if len(raw) != self.LEN * 2:
             raise ArgumentError("Invalid raw element length: %d" % len(raw))
         self.raw = unhexlify(raw)
 
     @classmethod
-    def read_from(cls, s):
+    def read_from(cls, s, taproot=False):
         return cls(s.read(2 * cls.LEN).decode())
 
     def __str__(self):
@@ -444,12 +500,16 @@ class Raw(DescriptorBase):
     def __len__(self):
         return len(compact.to_bytes(self.LEN)) + self.LEN
 
+
 class Raw32(Raw):
     LEN = 32
+
     def __len__(self):
         return 33
 
+
 class Raw20(Raw):
     LEN = 20
+
     def __len__(self):
         return 21

@@ -1,15 +1,13 @@
-from binascii import hexlify, unhexlify
-from io import BytesIO
-from .. import hashes, compact, ec, bip32, script
-from ..networks import NETWORKS
+from ..misc import read_until
 from .errors import MiniscriptError
 from .base import DescriptorBase
-from .arguments import *
+from .arguments import Key, KeyHash, Number, Raw32, Raw20
 
 
 class Miniscript(DescriptorBase):
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         self.args = args
+        self.taproot = kwargs.get("taproot", False)
 
     def compile(self):
         return self.inner_compile()
@@ -31,21 +29,20 @@ class Miniscript(DescriptorBase):
             arg.derive(idx, branch_index) if hasattr(arg, "derive") else arg
             for arg in self.args
         ]
-        return type(self)(*args)
+        return type(self)(*args, taproot=self.taproot)
 
     def to_public(self):
         args = [
-            arg.to_public() if hasattr(arg, "to_public") else arg
-            for arg in self.args
+            arg.to_public() if hasattr(arg, "to_public") else arg for arg in self.args
         ]
-        return type(self)(*args)
+        return type(self)(*args, taproot=self.taproot)
 
     def branch(self, branch_index):
         args = [
             arg.branch(branch_index) if hasattr(arg, "branch") else arg
             for arg in self.args
         ]
-        return type(self)(*args)
+        return type(self)(*args, taproot=self.taproot)
 
     @property
     def properties(self):
@@ -56,7 +53,7 @@ class Miniscript(DescriptorBase):
         return self.TYPE
 
     @classmethod
-    def read_from(cls, s):
+    def read_from(cls, s, taproot=False):
         op, char = read_until(s, b"(")
         op = op.decode()
         wrappers = ""
@@ -66,30 +63,30 @@ class Miniscript(DescriptorBase):
             raise MiniscriptError("Missing operator")
         if op not in OPERATOR_NAMES:
             raise MiniscriptError("Unknown operator '%s'" % op)
-        # number of arguments, classes of arguments, compile function, type, validity checker
+        # number of arguments, classes of args, compile fn, type, validity checker
         MiniscriptCls = OPERATORS[OPERATOR_NAMES.index(op)]
-        args = MiniscriptCls.read_arguments(s)
-        miniscript = MiniscriptCls(*args)
+        args = MiniscriptCls.read_arguments(s, taproot=taproot)
+        miniscript = MiniscriptCls(*args, taproot=taproot)
         for w in reversed(wrappers):
             if w not in WRAPPER_NAMES:
                 raise MiniscriptError("Unknown wrapper")
             WrapperCls = WRAPPERS[WRAPPER_NAMES.index(w)]
-            miniscript = WrapperCls(miniscript)
+            miniscript = WrapperCls(miniscript, taproot=taproot)
         return miniscript
 
     @classmethod
-    def read_arguments(cls, s):
+    def read_arguments(cls, s, taproot=False):
         args = []
         if cls.NARGS is None:
             if type(cls.ARGCLS) == tuple:
                 firstcls, nextcls = cls.ARGCLS
             else:
                 firstcls, nextcls = cls.ARGCLS, cls.ARGCLS
-            args.append(firstcls.read_from(s))
+            args.append(firstcls.read_from(s, taproot=taproot))
             while True:
                 char = s.read(1)
                 if char == b",":
-                    args.append(nextcls.read_from(s))
+                    args.append(nextcls.read_from(s, taproot=taproot))
                 elif char == b")":
                     break
                 else:
@@ -98,7 +95,7 @@ class Miniscript(DescriptorBase):
                     )
         else:
             for i in range(cls.NARGS):
-                args.append(cls.ARGCLS.read_from(s))
+                args.append(cls.ARGCLS.read_from(s, taproot=taproot))
                 if i < cls.NARGS - 1:
                     char = s.read(1)
                     if char != b",":
@@ -118,11 +115,13 @@ class Miniscript(DescriptorBase):
     def len_args(self):
         return sum([len(arg) for arg in self.args])
 
+
 ########### Known fragments (miniscript operators) ##############
 
 
 class OneArg(Miniscript):
     NARGS = 1
+
     # small handy functions
     @property
     def arg(self):
@@ -160,6 +159,7 @@ class PkH(OneArg):
     def __len__(self):
         return self.len_args() + 3
 
+
 class Older(OneArg):
     # <n> CHECKSEQUENCEVERIFY
     NAME = "older"
@@ -179,6 +179,7 @@ class Older(OneArg):
 
     def __len__(self):
         return self.len_args() + 1
+
 
 class After(Older):
     # <n> CHECKLOCKTIMEVERIFY
@@ -200,6 +201,7 @@ class Sha256(OneArg):
 
     def __len__(self):
         return self.len_args() + 6
+
 
 class Hash256(Sha256):
     # SIZE <32> EQUALVERIFY HASH256 <h> EQUAL
@@ -234,7 +236,7 @@ class AndOr(Miniscript):
 
     @property
     def type(self):
-        # type: same as Y/Z
+        # same as Y/Z
         return self.args[1].type
 
     def verify(self):
@@ -279,6 +281,7 @@ class AndOr(Miniscript):
 
     def __len__(self):
         return self.len_args() + 3
+
 
 class AndV(Miniscript):
     # [X] [Y]
@@ -381,7 +384,7 @@ class AndN(Miniscript):
 
     @property
     def type(self):
-        # type: same as Y/Z
+        # same as Y/Z
         return self.args[1].type
 
     def verify(self):
@@ -582,7 +585,7 @@ class Thresh(Miniscript):
     def inner_compile(self):
         return (
             self.args[1].compile()
-            + b"".join([arg.compile()+b"\x93" for arg in self.args[2:]])
+            + b"".join([arg.compile() + b"\x93" for arg in self.args[2:]])
             + self.args[0].compile()
             + b"\x87"
         )
@@ -632,6 +635,14 @@ class Multi(Miniscript):
     ARGCLS = (Number, Key)
     TYPE = "B"
     PROPS = "ndu"
+    _expected_taproot = False
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.taproot is not self._expected_taproot:
+            raise MiniscriptError(
+                "%s can't be used if taproot is %s" % (self.NAME, self.taproot)
+            )
 
     def inner_compile(self):
         return (
@@ -661,6 +672,39 @@ class Sortedmulti(Multi):
             + b"".join(sorted([arg.compile() for arg in self.args[1:]]))
             + Number(len(self.args) - 1).compile()
             + b"\xae"
+        )
+
+
+class MultiA(Multi):
+    # <key1> CHECKSIG <key2> CHECKSIGADD ... <keyN> CHECKSIGNADD <k> NUMEQUAL
+    NAME = "multi_a"
+    _expected_taproot = True
+
+    def inner_compile(self):
+        return (
+            self.args[1].compile()
+            + b"\xac"
+            + b"".join([arg.compile() + b"\xba" for arg in self.args[2:]])
+            + self.args[0].compile()
+            + b"\x9c"
+        )
+
+    def __len__(self):
+        return self.len_args() + len(self.args)
+
+
+class SortedmultiA(MultiA):
+    # <key1> CHECKSIG <key2> CHECKSIGADD ... <keyN> CHECKSIGNADD <k> NUMEQUAL
+    NAME = "sortedmulti_a"
+
+    def inner_compile(self):
+        keys = list(sorted([k.compile() for k in self.args[1:]]))
+        return (
+            keys[0]
+            + b"\xac"
+            + b"".join([k + b"\xba" for k in keys[1:]])
+            + self.args[0].compile()
+            + b"\x9c"
         )
 
 
@@ -714,6 +758,8 @@ OPERATORS = [
     Thresh,
     Multi,
     Sortedmulti,
+    MultiA,
+    SortedmultiA,
     Pk,
     Pkh,
 ]
@@ -861,7 +907,11 @@ class D(Wrapper):
 
     @property
     def properties(self):
-        props = "ndu"
+        # https://github.com/bitcoin/bitcoin/pull/24906
+        if self.taproot:
+            props = "ndu"
+        else:
+            props = "nd"
         px = self.arg.properties
         if "z" in px:
             props += "o"

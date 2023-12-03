@@ -4,20 +4,23 @@ from . import compact
 from . import bip32
 from . import ec
 from . import hashes
-from .script import Script, Witness
 from . import script
+from .script import Script, Witness
 from .base import EmbitBase, EmbitError
 
 from binascii import b2a_base64, a2b_base64, hexlify, unhexlify
 from io import BytesIO
 
+
 class PSBTError(EmbitError):
     pass
+
 
 class CompressMode:
     KEEP_ALL = 0
     CLEAR_ALL = 1
     PARTIAL = 2
+
 
 def ser_string(stream, s: bytes) -> int:
     return stream.write(compact.to_bytes(len(s))) + stream.write(s)
@@ -138,6 +141,9 @@ class InputScope(PSBTScope):
         # tuples of ([leaf_hashes], DerivationPath)
         self.taproot_bip32_derivations = OrderedDict()
         self.taproot_internal_key = None
+        self.taproot_merkle_root = None
+        self.taproot_sigs = OrderedDict()
+        self.taproot_scripts = OrderedDict()
 
         self.final_scriptsig = None
         self.final_scriptwitness = None
@@ -160,6 +166,8 @@ class InputScope(PSBTScope):
         self.bip32_derivations = OrderedDict()
         self.taproot_bip32_derivations = OrderedDict()
         self.taproot_internal_key = None
+        self.taproot_merkle_root = None
+        self.taproot_scripts = OrderedDict()
 
     def update(self, other):
         self.txid = other.txid or self.txid
@@ -170,22 +178,35 @@ class InputScope(PSBTScope):
         self.witness_utxo = other.witness_utxo or self.witness_utxo
         self._utxo = other._utxo or self._utxo
         self.partial_sigs.update(other.partial_sigs)
-        self.sighash_type = other.sighash_type if other.sighash_type is not None else self.sighash_type
+        self.sighash_type = (
+            other.sighash_type if other.sighash_type is not None else self.sighash_type
+        )
         self.redeem_script = other.redeem_script or self.redeem_script
         self.witness_script = other.witness_script or self.witness_script
         self.bip32_derivations.update(other.bip32_derivations)
         self.taproot_bip32_derivations.update(other.taproot_bip32_derivations)
         self.taproot_internal_key = other.taproot_internal_key
+        self.taproot_merkle_root = other.taproot_merkle_root or self.taproot_merkle_root
+        self.taproot_sigs.update(other.taproot_sigs)
+        self.taproot_scripts.update(other.taproot_scripts)
         self.final_scriptsig = other.final_scriptsig or self.final_scriptsig
         self.final_scriptwitness = other.final_scriptwitness or self.final_scriptwitness
 
     @property
     def vin(self):
-        return TransactionInput(self.txid, self.vout, sequence=(self.sequence or 0xFFFFFFFF))
+        return TransactionInput(
+            self.txid, self.vout, sequence=(self.sequence or 0xFFFFFFFF)
+        )
 
     @property
     def utxo(self):
-        return self._utxo or self.witness_utxo or (self.non_witness_utxo.vout[self.vout] if self.non_witness_utxo else None)
+        return (
+            self._utxo
+            or self.witness_utxo
+            or (
+                self.non_witness_utxo.vout[self.vout] if self.non_witness_utxo else None
+            )
+        )
 
     @property
     def script_pubkey(self):
@@ -208,7 +229,11 @@ class InputScope(PSBTScope):
         For legacy txs we need to verify it to calculate fee.
         """
         if self.non_witness_utxo or self._txhash:
-            txid = bytes(reversed(self._txhash)) if self._txhash else self.non_witness_utxo.txid()
+            txid = (
+                bytes(reversed(self._txhash))
+                if self._txhash
+                else self.non_witness_utxo.txid()
+            )
             if self.txid == txid:
                 self._verified = True
                 return True
@@ -317,13 +342,31 @@ class InputScope(PSBTScope):
                 self.final_scriptwitness = Witness.parse(v)
             else:
                 raise PSBTError("Duplicated final scriptwitness")
-        
+
         elif k == b"\x0e":
             self.txid = bytes(reversed(v))
         elif k == b"\x0f":
-            self.vout = int.from_bytes(v, 'little')
+            self.vout = int.from_bytes(v, "little")
         elif k == b"\x10":
-            self.sequence = int.from_bytes(v, 'little')
+            self.sequence = int.from_bytes(v, "little")
+
+        # TODO: 0x13 - tap key signature
+        # PSBT_IN_TAP_SCRIPT_SIG
+        elif k[0] == 0x14:
+            if len(k) != 65:
+                raise PSBTError("Invalid key length")
+            pub = ec.PublicKey.from_xonly(k[1:33])
+            leaf = k[33:]
+            if (pub, leaf) in self.taproot_sigs:
+                raise PSBTError("Duplicated taproot sig")
+            self.taproot_sigs[(pub, leaf)] = v
+
+        # PSBT_IN_TAP_LEAF_SCRIPT
+        elif k[0] == 0x15:
+            control_block = k[1:]
+            if control_block in self.taproot_scripts:
+                raise PSBTError("Duplicated taproot script")
+            self.taproot_scripts[control_block] = v
 
         # PSBT_IN_TAP_BIP32_DERIVATION
         elif k[0] == 0x16:
@@ -332,14 +375,18 @@ class InputScope(PSBTScope):
                 b = BytesIO(v)
                 num_leaf_hashes = compact.read_from(b)
                 leaf_hashes = [b.read(32) for i in range(num_leaf_hashes)]
-                if not all([len(leaf)==32 for leaf in leaf_hashes]):
+                if not all([len(leaf) == 32 for leaf in leaf_hashes]):
                     raise PSBTError("Invalid length of taproot leaf hashes")
                 der = DerivationPath.read_from(b)
                 self.taproot_bip32_derivations[pub] = (leaf_hashes, der)
-        
+
         # PSBT_IN_TAP_INTERNAL_KEY
         elif k[0] == 0x17:
             self.taproot_internal_key = ec.PublicKey.from_xonly(v)
+
+        # PSBT_IN_TAP_MERKLE_ROOT
+        elif k[0] == 0x18:
+            self.taproot_merkle_root = v
 
         else:
             if k in self.unknown:
@@ -382,21 +429,41 @@ class InputScope(PSBTScope):
                 r += ser_string(stream, bytes(reversed(self.txid)))
             if self.vout is not None:
                 r += ser_string(stream, b"\x0f")
-                r += ser_string(stream, self.vout.to_bytes(4, 'little'))
+                r += ser_string(stream, self.vout.to_bytes(4, "little"))
             if self.sequence is not None:
                 r += ser_string(stream, b"\x10")
-                r += ser_string(stream, self.sequence.to_bytes(4, 'little'))
+                r += ser_string(stream, self.sequence.to_bytes(4, "little"))
+
+        # PSBT_IN_TAP_SCRIPT_SIG
+        for pub, leaf in self.taproot_sigs:
+            r += ser_string(stream, b"\x14" + pub.xonly() + leaf)
+            r += ser_string(stream, self.taproot_sigs[(pub, leaf)])
+
+        # PSBT_IN_TAP_LEAF_SCRIPT
+        for control_block in self.taproot_scripts:
+            r += ser_string(stream, b"\x15" + control_block)
+            r += ser_string(stream, self.taproot_scripts[control_block])
 
         # PSBT_IN_TAP_BIP32_DERIVATION
         for pub in self.taproot_bip32_derivations:
             r += ser_string(stream, b"\x16" + pub.xonly())
             leaf_hashes, derivation = self.taproot_bip32_derivations[pub]
-            r += ser_string(stream, compact.to_bytes(len(leaf_hashes)) + b"".join(leaf_hashes) + derivation.serialize())
+            r += ser_string(
+                stream,
+                compact.to_bytes(len(leaf_hashes))
+                + b"".join(leaf_hashes)
+                + derivation.serialize(),
+            )
 
         # PSBT_IN_TAP_INTERNAL_KEY
         if self.taproot_internal_key is not None:
             r += ser_string(stream, b"\x17")
             r += ser_string(stream, self.taproot_internal_key.xonly())
+
+        # PSBT_IN_TAP_MERKLE_ROOT
+        if self.taproot_merkle_root is not None:
+            r += ser_string(stream, b"\x18")
+            r += ser_string(stream, self.taproot_merkle_root)
 
         # unknown
         for key in self.unknown:
@@ -481,7 +548,7 @@ class OutputScope(PSBTScope):
                 self.bip32_derivations[pub] = DerivationPath.parse(v)
 
         elif k == b"\x03":
-            self.value = int.from_bytes(v, 'little')
+            self.value = int.from_bytes(v, "little")
         elif k == b"\x04":
             self.script_pubkey = Script(v)
 
@@ -496,7 +563,7 @@ class OutputScope(PSBTScope):
                 b = BytesIO(v)
                 num_leaf_hashes = compact.read_from(b)
                 leaf_hashes = [b.read(32) for i in range(num_leaf_hashes)]
-                if not all([len(leaf)==32 for leaf in leaf_hashes]):
+                if not all([len(leaf) == 32 for leaf in leaf_hashes]):
                     raise PSBTError("Invalid length of taproot leaf hashes")
                 der = DerivationPath.read_from(b)
                 self.taproot_bip32_derivations[pub] = (leaf_hashes, der)
@@ -505,7 +572,6 @@ class OutputScope(PSBTScope):
             if k in self.unknown:
                 raise PSBTError("Duplicated key")
             self.unknown[k] = v
-
 
     def write_to(self, stream, skip_separator=False, version=None, **kwargs) -> int:
         r = 0
@@ -522,7 +588,7 @@ class OutputScope(PSBTScope):
         if version == 2:
             if self.value is not None:
                 r += ser_string(stream, b"\x03")
-                r += ser_string(stream, self.value.to_bytes(8, 'little'))
+                r += ser_string(stream, self.value.to_bytes(8, "little"))
             if self.script_pubkey is not None:
                 r += ser_string(stream, b"\x04")
                 r += self.script_pubkey.write_to(stream)
@@ -536,7 +602,12 @@ class OutputScope(PSBTScope):
         for pub in self.taproot_bip32_derivations:
             r += ser_string(stream, b"\x07" + pub.xonly())
             leaf_hashes, derivation = self.taproot_bip32_derivations[pub]
-            r += ser_string(stream, compact.to_bytes(len(leaf_hashes)) + b"".join(leaf_hashes) + derivation.serialize())
+            r += ser_string(
+                stream,
+                compact.to_bytes(len(leaf_hashes))
+                + b"".join(leaf_hashes)
+                + derivation.serialize(),
+            )
 
         # unknown
         for key in self.unknown:
@@ -547,6 +618,7 @@ class OutputScope(PSBTScope):
             r += stream.write(b"\x00")
         return r
 
+
 class PSBT(EmbitBase):
     MAGIC = b"psbt\xff"
     # for subclasses
@@ -555,7 +627,7 @@ class PSBT(EmbitBase):
     TX_CLS = Transaction
 
     def __init__(self, tx=None, unknown={}, version=None):
-        self.version = version # None for v0
+        self.version = version  # None for v0
         self.inputs = []
         self.outputs = []
         self.tx_version = None
@@ -576,10 +648,12 @@ class PSBT(EmbitBase):
 
     @property
     def tx(self):
-        return self.TX_CLS(version=self.tx_version or 2,
-                           locktime=self.locktime or 0,
-                           vin=[inp.vin for inp in self.inputs],
-                           vout=[out.vout for out in self.outputs])
+        return self.TX_CLS(
+            version=self.tx_version or 2,
+            locktime=self.locktime or 0,
+            vin=[inp.vin for inp in self.inputs],
+            vout=[out.vout for out in self.outputs],
+        )
 
     def sighash_segwit(self, *args, **kwargs):
         return self.tx.sighash_segwit(*args, **kwargs)
@@ -604,7 +678,10 @@ class PSBT(EmbitBase):
             return self.inputs[i].utxo
         if not (self.inputs[i].witness_utxo or self.inputs[i].non_witness_utxo):
             raise PSBTError("Missing previous utxo on input %d" % i)
-        return self.inputs[i].witness_utxo or self.inputs[i].non_witness_utxo.vout[self.inputs[i].vout]
+        return (
+            self.inputs[i].witness_utxo
+            or self.inputs[i].non_witness_utxo.vout[self.inputs[i].vout]
+        )
 
     def fee(self):
         fee = sum([self.utxo(i).value for i in range(len(self.inputs))])
@@ -628,16 +705,16 @@ class PSBT(EmbitBase):
         if self.version == 2:
             if self.tx_version is not None:
                 r += ser_string(stream, b"\x02")
-                r += ser_string(stream, self.tx_version.to_bytes(4, 'little'))
+                r += ser_string(stream, self.tx_version.to_bytes(4, "little"))
             if self.locktime is not None:
                 r += ser_string(stream, b"\x03")
-                r += ser_string(stream, self.locktime.to_bytes(4, 'little'))
+                r += ser_string(stream, self.locktime.to_bytes(4, "little"))
             r += ser_string(stream, b"\x04")
             r += ser_string(stream, compact.to_bytes(len(self.inputs)))
             r += ser_string(stream, b"\x05")
             r += ser_string(stream, compact.to_bytes(len(self.outputs)))
             r += ser_string(stream, b"\xfb")
-            r += ser_string(stream, self.version.to_bytes(4, 'little'))
+            r += ser_string(stream, self.version.to_bytes(4, "little"))
         # unknown
         for key in self.unknown:
             r += ser_string(stream, key)
@@ -701,7 +778,7 @@ class PSBT(EmbitBase):
                         "Failed to parse PSBT - duplicated transaction field"
                     )
             elif key == b"\xfb":
-                version = int.from_bytes(value, 'little')
+                version = int.from_bytes(value, "little")
             else:
                 if key in unknown:
                     raise PSBTError("Duplicated key")
@@ -712,10 +789,14 @@ class PSBT(EmbitBase):
         psbt = cls(tx, unknown, version=version)
         # input scopes
         for i, vin in enumerate(psbt.tx.vin):
-            psbt.inputs[i] = cls.PSBTIN_CLS.read_from(stream, compress=compress, vin=vin)
+            psbt.inputs[i] = cls.PSBTIN_CLS.read_from(
+                stream, compress=compress, vin=vin
+            )
         # output scopes
         for i, vout in enumerate(psbt.tx.vout):
-            psbt.outputs[i] = cls.PSBTOUT_CLS.read_from(stream, compress=compress, vout=vout)
+            psbt.outputs[i] = cls.PSBTOUT_CLS.read_from(
+                stream, compress=compress, vout=vout
+            )
         return psbt
 
     def parse_unknowns(self):
@@ -725,37 +806,50 @@ class PSBT(EmbitBase):
                 xpub = bip32.HDKey.parse(k[1:])
                 self.xpubs[xpub] = DerivationPath.parse(self.unknown.pop(k))
             elif k == b"\x02":
-                self.tx_version = int.from_bytes(self.unknown.pop(k), 'little')
+                self.tx_version = int.from_bytes(self.unknown.pop(k), "little")
             elif k == b"\x03":
-                self.locktime = int.from_bytes(self.unknown.pop(k), 'little')
+                self.locktime = int.from_bytes(self.unknown.pop(k), "little")
             elif k == b"\x04":
                 if len(self.inputs) > 0:
                     raise PSBTError("Inputs already initialized")
-                self.inputs = [self.PSBTIN_CLS() for _ in range(compact.from_bytes(self.unknown.pop(k)))]
+                self.inputs = [
+                    self.PSBTIN_CLS()
+                    for _ in range(compact.from_bytes(self.unknown.pop(k)))
+                ]
             elif k == b"\x05":
                 if len(self.outputs) > 0:
                     raise PSBTError("Outputs already initialized")
-                self.outputs = [self.PSBTOUT_CLS() for _ in range(compact.from_bytes(self.unknown.pop(k)))]
+                self.outputs = [
+                    self.PSBTOUT_CLS()
+                    for _ in range(compact.from_bytes(self.unknown.pop(k)))
+                ]
 
-    def sighash(self, i, sighash=SIGHASH.ALL):
+    def sighash(self, i, sighash=SIGHASH.ALL, **kwargs):
         inp = self.inputs[i]
 
         if inp.is_taproot:
             values = [inp.utxo.value for inp in self.inputs]
             scripts = [inp.utxo.script_pubkey for inp in self.inputs]
-            return self.sighash_taproot(i, script_pubkeys=scripts, values=values, sighash=sighash)
+            return self.sighash_taproot(
+                i,
+                script_pubkeys=scripts,
+                values=values,
+                sighash=sighash,
+                **kwargs,
+            )
 
         value = inp.utxo.value
         sc = inp.witness_script or inp.redeem_script or inp.utxo.script_pubkey
 
         # detect if it is a segwit input
-        is_segwit = (inp.witness_script
-                    or inp.witness_utxo
-                    or inp.utxo.script_pubkey.script_type() in {"p2wpkh", "p2wsh"}
-                    or (
-                        inp.redeem_script
-                        and inp.redeem_script.script_type() in {"p2wpkh", "p2wsh"}
-                    )
+        is_segwit = (
+            inp.witness_script
+            or inp.witness_utxo
+            or inp.utxo.script_pubkey.script_type() in {"p2wpkh", "p2wsh"}
+            or (
+                inp.redeem_script
+                and inp.redeem_script.script_type() in {"p2wpkh", "p2wsh"}
+            )
         )
         # convert to p2pkh according to bip143
         if sc.script_type() == "p2wpkh":
@@ -767,17 +861,73 @@ class PSBT(EmbitBase):
             h = self.sighash_legacy(i, sc, sighash=sighash)
         return h
 
+    def sign_input_with_tapkey(
+        self,
+        key: ec.PrivateKey,
+        input_index: int,
+        inp=None,
+        sighash=SIGHASH.DEFAULT,
+    ) -> int:
+        """Sign taproot input with key. Signs with internal or leaf key."""
+        # get input ourselves if not provided
+        inp = inp or self.inputs[input_index]
+        if not inp.is_taproot:
+            return 0
+        # check if key is internal key
+        pk = key.taproot_tweak(inp.taproot_merkle_root or b"")
+        if pk.xonly() in inp.utxo.script_pubkey.data:
+            h = self.sighash(
+                input_index,
+                sighash=sighash,
+            )
+            sig = pk.schnorr_sign(h)
+            wit = sig.serialize()
+            if sighash != SIGHASH.DEFAULT:
+                wit += bytes([sighash])
+            # TODO: maybe better to put into internal key sig field
+            inp.final_scriptwitness = Witness([wit])
+            # no need to sign anything else
+            return 1
+        counter = 0
+        # negate if necessary
+        pub = ec.PublicKey.from_xonly(key.xonly())
+        # iterate over leafs and sign
+        for ctrl, sc in inp.taproot_scripts.items():
+            if pub.xonly() not in sc:
+                continue
+            leaf_version = sc[-1]
+            script = Script(sc[:-1])
+            h = self.sighash(
+                input_index,
+                sighash=sighash,
+                ext_flag=1,
+                script=script,
+                leaf_version=leaf_version,
+            )
+            sig = key.schnorr_sign(h)
+            leaf = hashes.tagged_hash(
+                "TapLeaf", bytes([leaf_version]) + script.serialize()
+            )
+            sigdata = sig.serialize()
+            # append sighash if necessary
+            if sighash != SIGHASH.DEFAULT:
+                sigdata += bytes([sighash])
+            inp.taproot_sigs[(pub, leaf)] = sigdata
+            counter += 1
+        return counter
+
     def sign_with(self, root, sighash=SIGHASH.DEFAULT) -> int:
         """
         Signs psbt with root key (HDKey or similar).
         Returns number of signatures added to PSBT.
-        Sighash kwarg is set to SIGHASH.DEFAULT, for segwit and legacy it's replaced to SIGHASH.ALL
+        Sighash kwarg is set to SIGHASH.DEFAULT,
+        for segwit and legacy it's replaced to SIGHASH.ALL
         so if PSBT is asking to sign with a different sighash this function won't sign.
         If you want to sign with sighashes provided in the PSBT - set sighash=None.
         """
-        # check if it's a descriptor
+        counter = 0  # sigs counter
+        # check if it's a descriptor, and sign with all private keys in this descriptor
         if hasattr(root, "keys"):
-            counter = 0
             for k in root.keys:
                 if hasattr(k, "is_private") and k.is_private:
                     counter += self.sign_with(k, sighash)
@@ -787,130 +937,113 @@ class PSBT(EmbitBase):
         fingerprint = None
         # if descriptor key
         if hasattr(root, "origin"):
-            if not root.is_private: # pubkey can't sign
+            if not root.is_private:  # pubkey can't sign
                 return 0
-            if root.is_extended: # use fingerprint only for HDKey
+            if root.is_extended:  # use fingerprint only for HDKey
                 fingerprint = root.fingerprint
             else:
-                root = root.key # WIF key
+                root = root.key  # WIF key
         # if HDKey
         if not fingerprint and hasattr(root, "my_fingerprint"):
             fingerprint = root.my_fingerprint
-        if not fingerprint:
-            pub = root.get_public_key()
-            sec = pub.sec()
-            pkh = hashes.hash160(sec)
+
+        rootpub = root.get_public_key()
+        sec = rootpub.sec()
+        pkh = hashes.hash160(sec)
 
         counter = 0
         for i, inp in enumerate(self.inputs):
-            # SIGHASH.DEFAULT is only for taproot, fallback to SIGHASH.ALL for other inputs
+            # SIGHASH.DEFAULT is only for taproot, fallback
+            # to SIGHASH.ALL for other inputs
             required_sighash = sighash
             if not inp.is_taproot and required_sighash == SIGHASH.DEFAULT:
                 required_sighash = SIGHASH.ALL
 
             # check which sighash to use
-            inp_sighash = inp.sighash_type or required_sighash or SIGHASH.DEFAULT
+            inp_sighash = inp.sighash_type
+            if inp_sighash is None:
+                inp_sighash = required_sighash or SIGHASH.DEFAULT
             if not inp.is_taproot and inp_sighash == SIGHASH.DEFAULT:
                 inp_sighash = SIGHASH.ALL
 
-            # if input sighash is set and is different from kwarg - don't sign this input
+            # if input sighash is set and is different from required sighash
+            # we don't sign this input
+            # except DEFAULT is functionally the same as ALL
             if required_sighash is not None and inp_sighash != required_sighash:
+                if inp_sighash not in {
+                    SIGHASH.DEFAULT,
+                    SIGHASH.ALL,
+                } or required_sighash not in {SIGHASH.DEFAULT, SIGHASH.ALL}:
+                    continue
+
+            # get all possible derivations with matching fingerprint
+            bip32_derivations = set()
+            if fingerprint:
+                # if taproot derivations are present add them
+                for pub in inp.taproot_bip32_derivations:
+                    (_leafs, derivation) = inp.taproot_bip32_derivations[pub]
+                    if derivation.fingerprint == fingerprint:
+                        bip32_derivations.add((pub, derivation))
+
+                # segwit and legacy derivations
+                for pub in inp.bip32_derivations:
+                    derivation = inp.bip32_derivations[pub]
+                    if derivation.fingerprint == fingerprint:
+                        bip32_derivations.add((pub, derivation))
+
+            # get derived keys for signing
+            derived_keypairs = set()  # (prv, pub)
+            for pub, derivation in bip32_derivations:
+                der = derivation.derivation
+                # descriptor key has origin derivation that we take into account
+                if hasattr(root, "origin"):
+                    if root.origin:
+                        if root.origin.derivation != der[: len(root.origin.derivation)]:
+                            # derivation doesn't match - go to next input
+                            continue
+                        der = der[len(root.origin.derivation) :]
+                    hdkey = root.key.derive(der)
+                else:
+                    hdkey = root.derive(der)
+
+                if hdkey.xonly() != pub.xonly():
+                    raise PSBTError("Derivation path doesn't look right")
+                derived_keypairs.add((hdkey.key, pub))
+
+            # sign with taproot key
+            if inp.is_taproot:
+                # try to sign with individual private key (WIF)
+                # or with root without derivations
+                counter += self.sign_input_with_tapkey(
+                    root,
+                    i,
+                    inp,
+                    sighash=inp_sighash,
+                )
+                # sign with all derived keys
+                for prv, pub in derived_keypairs:
+                    counter += self.sign_input_with_tapkey(
+                        prv,
+                        i,
+                        inp,
+                        sighash=inp_sighash,
+                    )
                 continue
 
+            # hash can be reused
             h = self.sighash(i, sighash=inp_sighash)
-
             sc = inp.witness_script or inp.redeem_script or inp.utxo.script_pubkey
 
-            # taproot is special
-            # currently works only for single key
-            if inp.is_taproot:
-                # individual private key
-                if not fingerprint:
-                    # TODO: tweak using taproot psbt fields
-                    pk = root.taproot_tweak(b"")
-                    if pk.xonly() in sc.data:
-                        sig = pk.schnorr_sign(h)
-                        wit = sig.serialize()
-                        if inp_sighash != SIGHASH.DEFAULT:
-                            wit += bytes([inp_sighash])
-                        inp.final_scriptwitness = Witness([wit])
-                        counter += 1
-                # if we use HDKey
-                else:
-                    bip32_derivations = []
-                    for pub in inp.taproot_bip32_derivations:
-                        leaf_hashes, derivation = inp.taproot_bip32_derivations[pub]
-                        # TODO: also sign with leaf_hashes
-                        if derivation.fingerprint == fingerprint and len(leaf_hashes) == 0:
-                            bip32_derivations.append((pub, derivation))
-                    
-                    # "Legacy" support for workaround when BIP-371 Taproot psbt fields aren't available.
-                    # TODO: Remove this (and refactor above) when workaround has been phased out.
-                    for pub in inp.bip32_derivations:
-                        derivation = inp.bip32_derivations[pub]
-                        if derivation.fingerprint == fingerprint:
-                            bip32_derivations.append((pub, derivation))
+            # check if root itself is included in the script
+            if sec in sc.data or pkh in sc.data:
+                sig = root.sign(h)
+                # sig plus sighash flag
+                inp.partial_sigs[rootpub] = sig.serialize() + bytes([inp_sighash])
+                counter += 1
 
-                    for pub, derivation in bip32_derivations:
-                        der = derivation.derivation
-                        if hasattr(root, "origin"):
-                            # for descriptor key remove origin part
-                            if root.origin:
-                                if root.origin.derivation != der[:len(root.origin.derivation)]:
-                                    continue
-                                der = der[len(root.origin.derivation):]
-                            hdkey = root.key.derive(der)
-                        else:
-                            hdkey = root.derive(der)
-                        
-                        # Taproot BIP32 derivations use X-only pubkeys
-                        xonly_pub = hdkey.key.xonly()
-                        mypub = ec.PublicKey.from_xonly(xonly_pub)
-
-                        if mypub != pub:
-                            raise PSBTError("Derivation path doesn't look right")
-                        
-                        # TODO: Support signing for keys within leaves
-                        pk = hdkey.taproot_tweak(b"")
-                        if pk.xonly() in sc.data:
-                            sig = pk.schnorr_sign(h)
-                            # sig plus sighash flag
-                            wit = sig.serialize()
-                            if inp_sighash != SIGHASH.DEFAULT:
-                                wit += bytes([inp_sighash])
-                            inp.final_scriptwitness = Witness([wit])
-                            counter += 1
-                continue
-
-            # if we have individual private key
-            if not fingerprint:
-                # check if we are included in the script
-                if sec in sc.data or pkh in sc.data:
-                    sig = root.sign(h)
-                    # sig plus sighash flag
-                    inp.partial_sigs[pub] = sig.serialize() + bytes([inp_sighash])
-                    counter += 1
-                continue
-
-            # if we use HDKey
-            for pub in inp.bip32_derivations:
-                # check if it is root key
-                if inp.bip32_derivations[pub].fingerprint == fingerprint:
-                    der = inp.bip32_derivations[pub].derivation
-                    if hasattr(root, "origin"):
-                        # for descriptor key remove origin part
-                        if root.origin:
-                            if root.origin.derivation != der[:len(root.origin.derivation)]:
-                                continue
-                            der = der[len(root.origin.derivation):]
-                        hdkey = root.key.derive(der)
-                    else:
-                        hdkey = root.derive(der)
-                    mypub = hdkey.key.get_public_key()
-                    if mypub != pub:
-                        raise PSBTError("Derivation path doesn't look right")
-                    sig = hdkey.key.sign(h)
-                    # sig plus sighash flag
-                    inp.partial_sigs[mypub] = sig.serialize() + bytes([inp_sighash])
-                    counter += 1
+            for prv, pub in derived_keypairs:
+                sig = prv.sign(h)
+                # sig plus sighash flag
+                inp.partial_sigs[pub] = sig.serialize() + bytes([inp_sighash])
+                counter += 1
         return counter

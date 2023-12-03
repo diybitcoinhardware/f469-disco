@@ -4,11 +4,6 @@ from . import bech32
 from . import hashes
 from . import compact
 from .base import EmbitBase, EmbitError
-import sys
-if sys.implementation.name == "micropython":
-    import secp256k1
-else:
-    from .util import secp256k1
 
 SIGHASH_ALL = 1
 
@@ -79,7 +74,7 @@ class Script(EmbitBase):
         return cls(data)
 
     @classmethod
-    def from_address(cls, addr:str):
+    def from_address(cls, addr: str):
         """
         Decodes a bitcoin address and returns corresponding scriptpubkey.
         """
@@ -151,8 +146,7 @@ def p2tr(pubkey, script_tree=None):
     if script_tree is None:
         h = b""
     else:
-        raise NotImplementedError("Taproot script trees are not supported yet")
-        _, h = taproot_tree_helper(script_tree)
+        h = script_tree.tweak()
     output_pubkey = pubkey.taproot_tweak(h)
     return Script(b"\x51\x20" + output_pubkey.xonly())
 
