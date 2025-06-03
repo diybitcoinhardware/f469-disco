@@ -7,4 +7,5 @@
 	url = ../../littlevgl/lvgl
 [submodule "usermods/secp256k1"]
 	path = usermods/secp256k1
-	url = ../../diybitcoinhardware/secp256k1-embedded
+	url = https://github.com/miketlk/secp256k1-embedded.git
+	branch = micropython-upgrade
