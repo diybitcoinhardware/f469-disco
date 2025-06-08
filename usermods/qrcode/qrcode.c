@@ -5,12 +5,14 @@
 #include "qrcodegen.h"
 #include "string.h"
 
+#if MODULE_QRCODE_ENABLED
+
 static bool _qrcode_encode(uint8_t * qrcode, mp_obj_t text_obj){
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(text_obj, &bufinfo, MP_BUFFER_READ);
 
     enum qrcodegen_Ecc errCorLvl = qrcodegen_Ecc_LOW;  // Error correction level
-    
+
     uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
     memcpy(tempBuffer, bufinfo.buf, bufinfo.len);
     bool ok = false;
@@ -34,7 +36,7 @@ STATIC mp_obj_t qrcode_encode(mp_obj_t text_obj){
     uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX];
     bool ok = _qrcode_encode(qrcode, text_obj);
     if(!ok){
-        mp_raise_ValueError("Failed to encode");
+        mp_raise_ValueError(MP_ERROR_TEXT("Failed to encode"));
     }
     int size = qrcodegen_getSize(qrcode);
     // align to 8 bits and add 2-block border
@@ -57,7 +59,7 @@ STATIC mp_obj_t qrcode_encode(mp_obj_t text_obj){
             cur++;
         }
     }
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
+    return mp_obj_new_bytes_from_vstr(&vstr);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(qrcode_encode_obj, qrcode_encode);
 
@@ -66,7 +68,7 @@ STATIC mp_obj_t qrcode_encode_to_string(mp_obj_t text_obj){
     uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX];
     bool ok = _qrcode_encode(qrcode, text_obj);
     if(!ok){
-        mp_raise_ValueError("Failed to encode");
+        mp_raise_ValueError(MP_ERROR_TEXT("Failed to encode"));
     }
     int size = qrcodegen_getSize(qrcode);
     size_t bufsize = (size+1)*size;
@@ -81,7 +83,7 @@ STATIC mp_obj_t qrcode_encode_to_string(mp_obj_t text_obj){
         }
         vstr.buf[y*(size+1)+size]='\n';
     }
-    return mp_obj_new_str_from_vstr(&mp_type_str, &vstr);
+    return mp_obj_new_str_from_vstr(&vstr);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(qrcode_encode_to_string_obj, qrcode_encode_to_string);
 /****************************** MODULE ******************************/
@@ -100,4 +102,6 @@ const mp_obj_module_t qrcode_user_cmodule = {
 };
 
 // Register the module to make it available in Python
-MP_REGISTER_MODULE(MP_QSTR_qrcode, qrcode_user_cmodule, MODULE_QRCODE_ENABLED);
+MP_REGISTER_MODULE(MP_QSTR_qrcode, qrcode_user_cmodule);
+
+#endif // MODULE_QRCODE_ENABLED
