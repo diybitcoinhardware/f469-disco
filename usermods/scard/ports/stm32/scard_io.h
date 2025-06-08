@@ -23,7 +23,7 @@ typedef struct scard_inst_ {
   SMARTCARD_HandleTypeDef sc_handle;     ///< HAL Smartcard handle structure
   const scard_usart_dsc_t* p_usart_dsc;  ///< Pointer to USART descriptor
   mp_obj_t machine_uart_obj;             ///< machine.UART object used for IO
-  pyb_uart_obj_t* uart_obj;              ///< Underlying UART object
+  machine_uart_obj_t* uart_obj;          ///< Underlying UART object
   scard_cb_data_rx_t cb_data_rx;         ///< Callback for received data
   mp_obj_t cb_self;                      ///< Self parameter for callback(s)
   bool suppress_loopback;                ///< If true suppresses loopback echo

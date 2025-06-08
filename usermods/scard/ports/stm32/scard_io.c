@@ -321,7 +321,7 @@ scard_handle_t scard_interface_init(mp_const_obj_t iface_id, mp_obj_t io_pin,
         printf("\r\nSTM32 SC interface created");
       }
     } else {
-      mp_raise_ValueError("USART does not exists");
+      mp_raise_ValueError(MP_ERROR_TEXT("USART does not exists"));
     }
   } else {
     mp_raise_TypeError("usart_id is not an integer");

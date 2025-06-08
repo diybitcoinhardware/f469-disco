@@ -763,7 +763,7 @@ STATIC mp_obj_t connection_setBlocking(mp_obj_t self_in, mp_obj_t blocking_in) {
   bool blocking  = mp_obj_is_true(blocking_in);
 
   if(!blocking && MP_OBJ_NULL == self->timer) {
-    mp_raise_ValueError("no timer for non-blocking operation");
+    mp_raise_ValueError(MP_ERROR_TEXT("no timer for non-blocking operation"));
   }
   self->blocking = blocking;
   return mp_const_none;
@@ -810,9 +810,9 @@ STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
   // Parse and check arguments
   enum { ARG_atrTimeout = 0, ARG_responseTimeout, ARG_maxTimeout };
   static const mp_arg_t allowed_args[] = {
-    { MP_QSTR_atrTimeout,      MP_ARG_OBJ, {.u_obj = mp_const_none} },
-    { MP_QSTR_responseTimeout, MP_ARG_OBJ, {.u_obj = mp_const_none} },
-    { MP_QSTR_maxTimeout,      MP_ARG_OBJ, {.u_obj = mp_const_none} }
+    { MP_QSTR_atrTimeout,      MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
+    { MP_QSTR_responseTimeout, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
+    { MP_QSTR_maxTimeout,      MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} }
   };
   mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
   mp_arg_parse_all(n_args - 1U, pos_args + 1U, kw_args,
@@ -825,15 +825,15 @@ STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
 
   // Save parameters
   self->atr_timeout_ms =
-    mp_obj_is_type(args[ARG_atrTimeout].u_obj, &mp_type_NoneType) ?
+    args[ARG_atrTimeout].u_obj == mp_const_none ?
       proto_prm_unchanged : mp_obj_get_int(args[ARG_atrTimeout].u_obj);
 
   self->rsp_timeout_ms =
-    mp_obj_is_type(args[ARG_responseTimeout].u_obj, &mp_type_NoneType) ?
+    args[ARG_responseTimeout].u_obj == mp_const_none ?
       proto_prm_unchanged : mp_obj_get_int(args[ARG_responseTimeout].u_obj);
 
   self->max_timeout_ms =
-    mp_obj_is_type(args[ARG_maxTimeout].u_obj, &mp_type_NoneType) ?
+    args[ARG_maxTimeout].u_obj == mp_const_none ?
       proto_prm_unchanged : mp_obj_get_int(args[ARG_maxTimeout].u_obj);
 
   // Configure protocol if it is initialized
@@ -914,8 +914,8 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
   // Parse and check arguments
   enum { ARG_bytes = 0, ARG_protocol };
   static const mp_arg_t allowed_args[] = {
-    { MP_QSTR_bytes,    MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = mp_const_none}},
-    { MP_QSTR_protocol, MP_ARG_OBJ,                   {.u_obj = mp_const_none}}
+    { MP_QSTR_bytes,    MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE}},
+    { MP_QSTR_protocol, MP_ARG_OBJ,                   {.u_rom_obj = MP_ROM_NONE}}
   };
   mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
   mp_arg_parse_all(n_args - 1U, pos_args + 1U, kw_args,
@@ -929,7 +929,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
   // Change smart card protocol if requested
   mp_int_t new_protocol = self->next_protocol;
   self->next_protocol = protocol_na;
-  if(!mp_obj_is_type(args[ARG_protocol].u_obj, &mp_type_NoneType)) {
+  if(args[ARG_protocol].u_obj != mp_const_none) {
     new_protocol = mp_obj_get_int(args[ARG_protocol].u_obj);
   }
   if(new_protocol != protocol_na) {
@@ -960,7 +960,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
     }
     // Convert list to a buffer of bytes
     if(!objects_to_buf(bufinfo.buf, items, bufinfo.len)) {
-      mp_raise_ValueError("incorrect data format");
+      mp_raise_ValueError(MP_ERROR_TEXT("incorrect data format"));
     }
   } else { // 'bytes' is bytes array or anything supporting buffer protocol
     mp_get_buffer_raise(args[ARG_bytes].u_obj, &bufinfo, MP_BUFFER_READ);
