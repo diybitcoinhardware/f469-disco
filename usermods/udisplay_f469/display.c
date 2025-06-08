@@ -6,6 +6,8 @@
 #include "lv_stm_hal.h"
 #include "stm32469i_discovery_lcd.h"
 
+#if MODULE_DISPLAY_ENABLED
+
 STATIC mp_obj_t display_init(){
     lv_init();
     tft_init();
@@ -38,7 +40,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_0(display_off_obj, display_off);
 STATIC mp_obj_t display_set_rotation(mp_obj_t rot_obj){
     int rot_int = mp_obj_get_int(rot_obj);
     if(rot_int < 0 || rot_int > 1){
-        mp_raise_ValueError("Rotation can be 0 or 1");
+        mp_raise_ValueError(MP_ERROR_TEXT("Rotation can be 0 or 1"));
         return mp_const_none;
     }
     LCD_OrientationTypeDef rot = LCD_ORIENTATION_PORTRAIT;
@@ -77,5 +79,7 @@ const mp_obj_module_t display_user_cmodule = {
 #include "lv_mpy_example.c"
 
 // Register the module to make it available in Python
-MP_REGISTER_MODULE(MP_QSTR_udisplay, display_user_cmodule, MODULE_DISPLAY_ENABLED);
-MP_REGISTER_MODULE(MP_QSTR_lvgl, mp_module_lvgl, MODULE_DISPLAY_ENABLED);
+MP_REGISTER_MODULE(MP_QSTR_udisplay, display_user_cmodule);
+MP_REGISTER_MODULE(MP_QSTR_lvgl, mp_module_lvgl);
+
+#endif // MODULE_DISPLAY_ENABLED
