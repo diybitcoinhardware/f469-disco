@@ -5,19 +5,21 @@
 #include "wordlist_bip39.h"
 #include "wordlist_slip39.h"
 
+#if MODULE_UEMBIT_ENABLED
+
 /****************************** MODULE uembit.wordlists.bip39 ******************************/
 
 STATIC mp_obj_t bip39_wordlist_get(mp_obj_t index_obj){
     mp_int_t idx = mp_obj_get_int(index_obj);
     if(idx < 0 || idx >= WORDLIST_BIP39_LENGTH){
-        mp_raise_ValueError("Invalid index");
+        mp_raise_ValueError(MP_ERROR_TEXT("Invalid index"));
         return mp_const_none;
     }
     const char * word = wordlist_bip39_english[idx];
     vstr_t w;
     vstr_init_len(&w, strlen(word));
     memcpy((byte*)w.buf, word, strlen(word));
-    return mp_obj_new_str_from_vstr(&mp_type_str, &w);
+    return mp_obj_new_str_from_vstr(&w);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(bip39_wordlist_get_obj, bip39_wordlist_get);
 
@@ -55,14 +57,14 @@ const mp_obj_module_t uembit_bip39_wordlist_module = {
 STATIC mp_obj_t slip39_wordlist_get(mp_obj_t index_obj){
     mp_int_t idx = mp_obj_get_int(index_obj);
     if(idx < 0 || idx >= WORDLIST_SLIP39_LENGTH){
-        mp_raise_ValueError("Invalid index");
+        mp_raise_ValueError(MP_ERROR_TEXT("Invalid index"));
         return mp_const_none;
     }
     const char * word = wordlist_slip39_english[idx];
     vstr_t w;
     vstr_init_len(&w, strlen(word));
     memcpy((byte*)w.buf, word, strlen(word));
-    return mp_obj_new_str_from_vstr(&mp_type_str, &w);
+    return mp_obj_new_str_from_vstr(&w);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(slip39_wordlist_get_obj, slip39_wordlist_get);
 
@@ -124,5 +126,6 @@ const mp_obj_module_t uembit_user_cmodule = {
 };
 
 // Register the module to make it available in Python
-MP_REGISTER_MODULE(MP_QSTR_uembit, uembit_user_cmodule, MODULE_UEMBIT_ENABLED);
+MP_REGISTER_MODULE(MP_QSTR_uembit, uembit_user_cmodule);
 
+#endif // MODULE_UEMBIT_ENABLED
