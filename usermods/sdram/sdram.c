@@ -7,6 +7,8 @@
 // works only together with udisplay module, for now...
 #include "stm32469i_discovery_sdram.h"
 
+#if MODULE_SDRAM_ENABLED
+
 #define PREALLOCATED_SDRAM_PTR 0xC02EE000 // 0xC0000000+480*800*4*2
 #define PREALLOCATED_SDRAM_SIZE 0x100000  // ~1 MB
 
@@ -22,8 +24,8 @@ typedef struct _mp_obj_sdram_ramdevice_t {
 
 /****************************** RAMDevice class ******************************/
 
-STATIC mp_obj_t sdram_ramdevice_make_new(const mp_obj_type_t *type, 
-                                        size_t n_args, size_t n_kw, 
+STATIC mp_obj_t sdram_ramdevice_make_new(const mp_obj_type_t *type,
+                                        size_t n_args, size_t n_kw,
                                         const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 0, 3, false);
     mp_obj_sdram_ramdevice_t *o = m_new_obj(mp_obj_sdram_ramdevice_t);
@@ -46,38 +48,38 @@ STATIC mp_obj_t sdram_ramdevice_copy(mp_obj_t self_in) {
     return MP_OBJ_FROM_PTR(o);
 }
 
-STATIC mp_obj_t sdram_ramdevice_readblocks(mp_obj_t self_in, 
-                                           mp_obj_t block_num, 
+STATIC mp_obj_t sdram_ramdevice_readblocks(mp_obj_t self_in,
+                                           mp_obj_t block_num,
                                            mp_obj_t buf) {
     mp_obj_sdram_ramdevice_t *self = MP_OBJ_TO_PTR(self_in);
     mp_buffer_info_t buffer;
     mp_get_buffer_raise(buf, &buffer, MP_BUFFER_WRITE);
     size_t start = self->start + mp_obj_get_int(block_num)*self->block_size;
     if(start+buffer.len >= SDRAM_END_ADDRESS){
-        mp_raise_ValueError("Outer space...");
+        mp_raise_ValueError(MP_ERROR_TEXT("Outer space..."));
         return mp_const_none;
     }
     memcpy(buffer.buf, (uint8_t *)start, buffer.len);
     return mp_const_none;
 }
 
-STATIC mp_obj_t sdram_ramdevice_writeblocks(mp_obj_t self_in, 
-                                           mp_obj_t block_num, 
+STATIC mp_obj_t sdram_ramdevice_writeblocks(mp_obj_t self_in,
+                                           mp_obj_t block_num,
                                            mp_obj_t buf) {
     mp_obj_sdram_ramdevice_t *self = MP_OBJ_TO_PTR(self_in);
     mp_buffer_info_t buffer;
     mp_get_buffer_raise(buf, &buffer, MP_BUFFER_READ);
     size_t start = (self->start + mp_obj_get_int(block_num)*self->block_size);
     if(start+buffer.len >= SDRAM_END_ADDRESS){
-        mp_raise_ValueError("Outer space...");
+        mp_raise_ValueError(MP_ERROR_TEXT("Outer space..."));
         return mp_const_none;
     }
     memcpy((uint8_t *)start, buffer.buf, buffer.len);
     return mp_const_none;
 }
 
-STATIC mp_obj_t sdram_ramdevice_ioctl(mp_obj_t self_in, 
-                                           mp_obj_t op, 
+STATIC mp_obj_t sdram_ramdevice_ioctl(mp_obj_t self_in,
+                                           mp_obj_t op,
                                            mp_obj_t arg) {
     mp_obj_sdram_ramdevice_t *self = MP_OBJ_TO_PTR(self_in);
     mp_int_t op_int = mp_obj_get_int(op);
@@ -145,4 +147,6 @@ const mp_obj_module_t sdram_user_cmodule = {
     .globals = (mp_obj_dict_t*)&sdram_module_globals,
 };
 
-MP_REGISTER_MODULE(MP_QSTR_sdram, sdram_user_cmodule, MODULE_SDRAM_ENABLED);
+MP_REGISTER_MODULE(MP_QSTR_sdram, sdram_user_cmodule);
+
+#endif // MODULE_SDRAM_ENABLED
