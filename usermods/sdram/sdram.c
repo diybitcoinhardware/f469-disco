@@ -105,12 +105,13 @@ STATIC const mp_rom_map_elem_t sdram_ramdevice_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(sdram_ramdevice_dict, sdram_ramdevice_dict_table);
 
-STATIC const mp_obj_type_t sdram_ramdevice_type = {
-    { &mp_type_type },
-    .name = MP_QSTR_ramdevice,
-    .make_new = sdram_ramdevice_make_new,
-    .locals_dict = (void*)&sdram_ramdevice_dict,
-};
+STATIC const MP_DEFINE_CONST_OBJ_TYPE(
+    sdram_ramdevice_type,
+    MP_QSTR_ramdevice,
+    MP_TYPE_FLAG_NONE,
+    make_new, sdram_ramdevice_make_new,
+    locals_dict, &sdram_ramdevice_dict
+);
 
 STATIC mp_obj_t sdram_init() {
     BSP_SDRAM_Init();
