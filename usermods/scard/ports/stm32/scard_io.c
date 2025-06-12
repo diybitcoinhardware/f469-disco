@@ -12,7 +12,7 @@
 #include "py/mperrno.h"
 #include "py/mphal.h"
 #include "py/smallint.h"
-#include "modmachine.h"
+#include "extmod/modmachine.h"
 #include "uart.h"
 #include "t1_protocol.h"
 #include "scard.h"
@@ -228,7 +228,7 @@ static bool init_pins(mp_obj_t io_pin, mp_obj_t clk_pin, uint8_t usart_id) {
  * @param handle     smart card interface handle
  * @param uart_id    identifier of UART
  * @param callback   callable object scheduled on receive event
- * @return           machine.UART object
+ * @return           machine.UART object or MP_OBJ_NULL on failure
  */
 static mp_obj_t create_machine_uart(mp_int_t usart_id, mp_obj_t callback) {
   // Call constructor of machine.UART class
@@ -242,15 +242,19 @@ static mp_obj_t create_machine_uart(mp_int_t usart_id, mp_obj_t callback) {
     MP_OBJ_NEW_QSTR(MP_QSTR_timeout_char), MP_OBJ_NEW_SMALL_INT(0),
     MP_OBJ_NEW_QSTR(MP_QSTR_rxbuf), MP_OBJ_NEW_SMALL_INT(RX_BUF_LEN)
   };
-  mp_obj_t uart = pyb_uart_type.make_new(&pyb_uart_type, 3, 3, args_new);
+  mp_obj_t uart = MP_OBJ_TYPE_GET_SLOT(&machine_uart_type, make_new)(
+    &machine_uart_type, 3, 3, args_new);
 
-  // Call machine.UART.irq()
-  mp_obj_t args_irq[] = {
-      callback,                             // handler
-      MP_OBJ_NEW_SMALL_INT(UART_FLAG_IDLE), // trigger
-      mp_const_false,                       // hard
-  };
-  (void)mp_call_function_n_kw(mp_load_attr(uart, MP_QSTR_irq), 3, 0, args_irq);
+  if(uart != MP_OBJ_NULL) {
+    // Call machine.UART.irq()
+    mp_obj_t args_irq[] = {
+        callback,                             // handler
+        MP_OBJ_NEW_SMALL_INT(UART_FLAG_IDLE), // trigger
+        mp_const_false,                       // hard
+    };
+    (void)mp_call_function_n_kw(
+      mp_load_attr(uart, MP_QSTR_irq), 3, 0, args_irq);
+  }
 
   return uart;
 }
@@ -295,13 +299,15 @@ scard_handle_t scard_interface_init(mp_const_obj_t iface_id, mp_obj_t io_pin,
       // Create machine.UART and set callback
       mp_obj_t uart_cb = mp_load_attr(self, MP_QSTR_uart_callback);
       self->machine_uart_obj = create_machine_uart(usart_id, uart_cb);
+      if( self->machine_uart_obj == MP_OBJ_NULL ||
+          !mp_obj_is_type(self->machine_uart_obj, &machine_uart_type) ) {
+        raise_CardConnectionException("failed to obtain system UART object");
+      }
       // Get pointer to underlying system object to use C API instead of Python.
       // Yes, this is an abstraction leak, made intentionally for the sake of
       // performance.
-      self->uart_obj = MP_STATE_PORT(pyb_uart_obj_all)[usart_id - 1];
-      if(self->uart_obj == NULL) {
-        raise_CardConnectionException("failed to obtain system UART object");
-      }
+      self->uart_obj =
+        (machine_uart_obj_t*)MP_OBJ_TO_PTR(self->machine_uart_obj);
 
       // Overwrite USART registers with settings for smart card
       if(!init_smartcard(&self->sc_handle, p_usart_dsc->handle, usart_id)) {
@@ -318,13 +324,13 @@ scard_handle_t scard_interface_init(mp_const_obj_t iface_id, mp_obj_t io_pin,
       self->cb_self = cb_self;
 
       if(scard_module_debug) {
-        printf("\r\nSTM32 SC interface created");
+        mp_printf(MICROPY_DEBUG_PRINTER, "\r\nSTM32 SC interface created");
       }
     } else {
       mp_raise_ValueError(MP_ERROR_TEXT("USART does not exists"));
     }
   } else {
-    mp_raise_TypeError("usart_id is not an integer");
+    mp_raise_TypeError(MP_ERROR_TEXT("usart_id is not an integer"));
   }
 
   return self;
@@ -380,7 +386,7 @@ void scard_interface_deinit(scard_handle_t handle) {
   m_del(scard_inst_t, self, 1);
 
   if(scard_module_debug) {
-    printf("\r\nSTM32 SC interface deleted");
+    mp_printf(MICROPY_DEBUG_PRINTER, "\r\nSTM32 SC interface deleted");
   }
 }
 
@@ -473,7 +479,9 @@ STATIC const mp_rom_map_elem_t scard_inst_locals_dict_table[] = {
 };
 STATIC MP_DEFINE_CONST_DICT(scard_inst_locals_dict, scard_inst_locals_dict_table);
 
-const mp_obj_type_t scard_inst_type = {
-  { &mp_type_type },
-  .locals_dict = (void*)&scard_inst_locals_dict,
-};
+const MP_DEFINE_CONST_OBJ_TYPE(
+  scard_inst_type,
+  MP_QSTR_scard_inst,
+  MP_TYPE_FLAG_NONE,
+  locals_dict, &scard_inst_locals_dict
+);

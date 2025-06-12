@@ -58,7 +58,7 @@ typedef union proto_ev_prm_ {
   const proto_atr_t* atr_received;   ///< Parameter of proto_ev_atr_received
   void* connect;                     ///< Parameter of proto_ev_connect (n/a)
   const proto_apdu_t* apdu_received; ///< Parameter of proto_ev_apdu_received
-  mp_rom_error_text_t error;         ///< Parameter of proto_ev_error
+  const char* error;                 ///< Parameter of proto_ev_error
 } proto_ev_prm_t;
 
 /**

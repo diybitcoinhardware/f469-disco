@@ -114,7 +114,7 @@ STATIC mp_obj_t reader_make_new(const mp_obj_type_t* type, size_t n_args,
   self->conn_params.timer_id = args[ARG_timerId].u_obj;
 
   if(scard_module_debug) {
-    printf("\r\nNew smart card reader created");
+    mp_printf(MICROPY_DEBUG_PRINTER, "\r\nNew smart card reader created" );
   }
 
   return MP_OBJ_FROM_PTR(self);
@@ -144,8 +144,8 @@ STATIC mp_obj_t reader_createConnection(mp_obj_t self_in) {
     MP_OBJ_FROM_PTR(self),               // reader
     MP_OBJ_FROM_PTR(&self->conn_params), // conn_params
   };
-  self->connection = scard_CardConnection_type.make_new(
-    &scard_CardConnection_type, 2U, 0U, args);
+  self->connection = MP_OBJ_TYPE_GET_SLOT(&scard_CardConnection_type, make_new)(
+      &scard_CardConnection_type, 2U, 0U, args);
 
   return MP_OBJ_FROM_PTR(self->connection);
 }
@@ -187,7 +187,7 @@ STATIC void reader_print(const mp_print_t *print, mp_obj_t self_in,
                          mp_print_kind_t kind) {
   reader_obj_t* self = (reader_obj_t*)self_in;
 
-  if(!mp_obj_is_type(self->name, &mp_type_NoneType)) {
+  if(self->name != mp_const_none) {
     mp_printf(print, "<Reader '%s' at '", mp_obj_str_get_str(self->name));
   } else {
     mp_printf(print, "<Reader at '");
@@ -206,10 +206,11 @@ STATIC const mp_rom_map_elem_t reader_locals_dict_table[] = {
 };
 STATIC MP_DEFINE_CONST_DICT(reader_locals_dict, reader_locals_dict_table);
 
-const mp_obj_type_t scard_Reader_type = {
-  { &mp_type_type },
-  .name = MP_QSTR_Reader,
-  .print = reader_print,
-  .make_new = reader_make_new,
-  .locals_dict = (void*)&reader_locals_dict,
-};
+const MP_DEFINE_CONST_OBJ_TYPE(
+  scard_Reader_type,
+  MP_QSTR_Reader,
+  MP_TYPE_FLAG_NONE,
+  make_new, reader_make_new,
+  print, reader_print,
+  locals_dict, &reader_locals_dict
+);
