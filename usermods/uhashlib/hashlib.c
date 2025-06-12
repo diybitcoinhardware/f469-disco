@@ -68,12 +68,13 @@ STATIC const mp_rom_map_elem_t hashlib_sha1_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hashlib_sha1_locals_dict, hashlib_sha1_locals_dict_table);
 
-STATIC const mp_obj_type_t hashlib_sha1_type = {
-    { &mp_type_type },
-    .name = MP_QSTR_sha1,
-    .make_new = hashlib_sha1_make_new,
-    .locals_dict = (void*)&hashlib_sha1_locals_dict,
-};
+STATIC const MP_DEFINE_CONST_OBJ_TYPE(
+    hashlib_sha1_type,
+    MP_QSTR_sha1,
+    MP_TYPE_FLAG_NONE,
+    make_new, hashlib_sha1_make_new,
+    locals_dict, &hashlib_sha1_locals_dict
+);
 
 /****************************** SHA256 ******************************/
 
@@ -128,12 +129,13 @@ STATIC const mp_rom_map_elem_t hashlib_sha256_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hashlib_sha256_locals_dict, hashlib_sha256_locals_dict_table);
 
-STATIC const mp_obj_type_t hashlib_sha256_type = {
-    { &mp_type_type },
-    .name = MP_QSTR_sha256,
-    .make_new = hashlib_sha256_make_new,
-    .locals_dict = (void*)&hashlib_sha256_locals_dict,
-};
+STATIC const MP_DEFINE_CONST_OBJ_TYPE(
+    hashlib_sha256_type,
+    MP_QSTR_sha256,
+    MP_TYPE_FLAG_NONE,
+    make_new, hashlib_sha256_make_new,
+    locals_dict, &hashlib_sha256_locals_dict
+);
 
 /****************************** SHA512 ******************************/
 
@@ -188,12 +190,13 @@ STATIC const mp_rom_map_elem_t hashlib_sha512_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hashlib_sha512_locals_dict, hashlib_sha512_locals_dict_table);
 
-STATIC const mp_obj_type_t hashlib_sha512_type = {
-    { &mp_type_type },
-    .name = MP_QSTR_sha512,
-    .make_new = hashlib_sha512_make_new,
-    .locals_dict = (void*)&hashlib_sha512_locals_dict,
-};
+STATIC const MP_DEFINE_CONST_OBJ_TYPE(
+    hashlib_sha512_type,
+    MP_QSTR_sha512,
+    MP_TYPE_FLAG_NONE,
+    make_new, hashlib_sha512_make_new,
+    locals_dict, &hashlib_sha512_locals_dict
+);
 
 /****************************** RIPEMD160 ******************************/
 
@@ -248,12 +251,13 @@ STATIC const mp_rom_map_elem_t hashlib_ripemd160_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hashlib_ripemd160_locals_dict, hashlib_ripemd160_locals_dict_table);
 
-STATIC const mp_obj_type_t hashlib_ripemd160_type = {
-    { &mp_type_type },
-    .name = MP_QSTR_ripemd160,
-    .make_new = hashlib_ripemd160_make_new,
-    .locals_dict = (void*)&hashlib_ripemd160_locals_dict,
-};
+STATIC const MP_DEFINE_CONST_OBJ_TYPE(
+    hashlib_ripemd160_type,
+    MP_QSTR_ripemd160,
+    MP_TYPE_FLAG_NONE,
+    make_new, hashlib_ripemd160_make_new,
+    locals_dict, &hashlib_ripemd160_locals_dict
+);
 
 /************************** pbkdf2_hmac **************************/
 

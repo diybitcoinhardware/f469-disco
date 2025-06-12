@@ -118,12 +118,13 @@ STATIC const mp_rom_map_elem_t hmac_HMAC_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hmac_HMAC_locals_dict, hmac_HMAC_locals_dict_table);
 
-STATIC const mp_obj_type_t hmac_HMAC_type = {
-    { &mp_type_type },
-    .name = MP_QSTR_HMAC,
-    .make_new = hmac_HMAC_make_new,
-    .locals_dict = (void*)&hmac_HMAC_locals_dict,
-};
+STATIC const MP_DEFINE_CONST_OBJ_TYPE(
+    hmac_HMAC_type,
+    MP_QSTR_HMAC,
+    MP_TYPE_FLAG_NONE,
+    make_new, hmac_HMAC_make_new,
+    locals_dict, &hmac_HMAC_locals_dict
+);
 
 // key, msg=None, digestmod
 STATIC mp_obj_t hmac_new(size_t n_args, const mp_obj_t *args, mp_map_t *kwargs) {
