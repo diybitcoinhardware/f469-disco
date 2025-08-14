@@ -21,7 +21,7 @@ SRC_USERMOD += $(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/Components/nt3551
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/STM32469I-Discovery/stm32469i_discovery_ts.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/Components/ft6x06/ft6x06.c
 
-# FIXME: this should be included automatically 
+# FIXME: this should be included automatically
 # as these files are in micropython repo as well
 # Probably changes in mpboardconfigport.mk or some #defines can help
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/STM32F4xx_HAL_Driver/stm32f4xx_hal_dsi.c
@@ -31,6 +31,7 @@ SRC_USERMOD += $(DISPLAY_MOD_DIR)/STM32F4xx_HAL_Driver/stm32f4xx_hal_dma2d.c
 
 # lvgl support
 LVGL_DIR := $(DISPLAY_MOD_DIR)
+LVGL_PATH := $(LVGL_DIR)/lvgl
 include $(LVGL_DIR)/lvgl/lvgl.mk
 SRC_USERMOD += $(CSRCS)
 CFLAGS_USERMOD += $(CFLAGS)
@@ -44,14 +45,11 @@ SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/font_roboto_mono_28.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/font_roboto_mono_22.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/font_roboto_mono_16.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/font_roboto_mono_12.c
-# px_img class
-SRC_USERMOD += $(DISPLAY_MOD_DIR)/pixelart/px_img.c
 
 # Dirs with header files
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lvgl
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lv_stm_hal
-CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/pixelart
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/BSP_DISCO_F469NI/Drivers/BSP/STM32469I-Discovery
 
@@ -68,6 +66,7 @@ SRC_USERMOD += $(DISPLAY_MOD_DIR)/lv_sdl_hal/SDL/SDL_mouse.c
 
 # lvgl support
 LVGL_DIR := $(DISPLAY_MOD_DIR)
+LVGL_PATH := $(LVGL_DIR)/lvgl
 include $(LVGL_DIR)/lvgl/lvgl.mk
 SRC_USERMOD += $(CSRCS)
 CFLAGS_USERMOD += $(CFLAGS)
@@ -79,15 +78,14 @@ SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/font_roboto_mono_28.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/font_roboto_mono_22.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/font_roboto_mono_16.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/font_roboto_mono_12.c
-# px_img class
-SRC_USERMOD += $(DISPLAY_MOD_DIR)/pixelart/px_img.c
 
 # Dirs with header files
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lvgl
-CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/pixelart
 CFLAGS_USERMOD += -I$(DISPLAY_MOD_DIR)/lv_sdl_hal/SDL
 
 LDFLAGS_MOD += -lSDL2
 
 endif
+
+QSTR_DEFS += $(DISPLAY_MOD_DIR)/udisplay.qstr

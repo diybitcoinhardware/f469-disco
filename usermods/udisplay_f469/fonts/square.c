@@ -3,7 +3,7 @@
 /*******************************************************************************
  * Size: 20 px
  * Bpp: 1
- * Opts: 
+ * Opts:
  ******************************************************************************/
 
 #ifndef SQUARE
@@ -267,70 +267,70 @@ static lv_font_fmt_txt_dsc_t font_dsc1 = {
  *----------------*/
 
 /*Initialize a public general font descriptor*/
-lv_font_t square10 = {
+const lv_font_t square10 = {
     .dsc = &font_dsc10,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 10,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square9 = {
+const lv_font_t square9 = {
     .dsc = &font_dsc9,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 9,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square8 = {
+const lv_font_t square8 = {
     .dsc = &font_dsc8,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 8,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square7 = {
+const lv_font_t square7 = {
     .dsc = &font_dsc7,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 7,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square6 = {
+const lv_font_t square6 = {
     .dsc = &font_dsc6,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 6,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square5 = {
+const lv_font_t square5 = {
     .dsc = &font_dsc5,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 5,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square4 = {
+const lv_font_t square4 = {
     .dsc = &font_dsc4,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 4,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square3 = {
+const lv_font_t square3 = {
     .dsc = &font_dsc3,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 3,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square2 = {
+const lv_font_t square2 = {
     .dsc = &font_dsc2,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .line_height = 2,          /*The maximum line height required by the font*/
     .base_line = 0,             /*Baseline measured from the bottom of the line*/
 };
-lv_font_t square1 = {
+const lv_font_t square1 = {
     .dsc = &font_dsc1,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
