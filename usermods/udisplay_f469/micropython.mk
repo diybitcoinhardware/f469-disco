@@ -61,15 +61,13 @@ ifneq ($(UNAME_S),)
 # The module itself
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/display_unix.c
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/display_unix_sdl.c
-SRC_USERMOD += $(DISPLAY_MOD_DIR)/lv_sdl_hal/SDL/SDL_monitor.c
-SRC_USERMOD += $(DISPLAY_MOD_DIR)/lv_sdl_hal/SDL/SDL_mouse.c
 
 # lvgl support
 LVGL_DIR := $(DISPLAY_MOD_DIR)
 LVGL_PATH := $(LVGL_DIR)/lvgl
 include $(LVGL_DIR)/lvgl/lvgl.mk
 SRC_USERMOD += $(CSRCS)
-CFLAGS_USERMOD += $(CFLAGS)
+CFLAGS_USERMOD += $(CFLAGS) -DMICROPY_SDL=1
 
 # square font
 SRC_USERMOD += $(DISPLAY_MOD_DIR)/fonts/square.c
