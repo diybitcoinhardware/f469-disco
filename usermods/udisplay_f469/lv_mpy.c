@@ -25381,12 +25381,42 @@ static const mp_lv_struct_t mp_lv_cache_class_lru_ll_size = {
     
 
 /*
+ * lvgl lv_font_montserrat_12 global definitions
+ */
+
+static const mp_lv_struct_t mp_lv_font_montserrat_12 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&lv_font_montserrat_12
+};
+    
+
+/*
  * lvgl lv_font_montserrat_16 global definitions
  */
 
 static const mp_lv_struct_t mp_lv_font_montserrat_16 = {
     { &mp_lv_font_t_type },
     (lv_font_t*)&lv_font_montserrat_16
+};
+    
+
+/*
+ * lvgl lv_font_montserrat_22 global definitions
+ */
+
+static const mp_lv_struct_t mp_lv_font_montserrat_22 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&lv_font_montserrat_22
+};
+    
+
+/*
+ * lvgl lv_font_montserrat_28 global definitions
+ */
+
+static const mp_lv_struct_t mp_lv_font_montserrat_28 = {
+    { &mp_lv_font_t_type },
+    (lv_font_t*)&lv_font_montserrat_28
 };
     
 
@@ -46654,7 +46684,10 @@ static const mp_rom_map_elem_t lvgl_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_cache_class_lru_rb_size), MP_ROM_PTR(&mp_lv_cache_class_lru_rb_size) },
     { MP_ROM_QSTR(MP_QSTR_cache_class_lru_ll_count), MP_ROM_PTR(&mp_lv_cache_class_lru_ll_count) },
     { MP_ROM_QSTR(MP_QSTR_cache_class_lru_ll_size), MP_ROM_PTR(&mp_lv_cache_class_lru_ll_size) },
+    { MP_ROM_QSTR(MP_QSTR_font_montserrat_12), MP_ROM_PTR(&mp_lv_font_montserrat_12) },
     { MP_ROM_QSTR(MP_QSTR_font_montserrat_16), MP_ROM_PTR(&mp_lv_font_montserrat_16) },
+    { MP_ROM_QSTR(MP_QSTR_font_montserrat_22), MP_ROM_PTR(&mp_lv_font_montserrat_22) },
+    { MP_ROM_QSTR(MP_QSTR_font_montserrat_28), MP_ROM_PTR(&mp_lv_font_montserrat_28) },
     { MP_ROM_QSTR(MP_QSTR_font_unscii_8), MP_ROM_PTR(&mp_lv_font_unscii_8) },
     { MP_ROM_QSTR(MP_QSTR_square10), MP_ROM_PTR(&mp_square10) },
     { MP_ROM_QSTR(MP_QSTR_square9), MP_ROM_PTR(&mp_square9) },
