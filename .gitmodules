@@ -4,7 +4,7 @@
 	branch = merge-with-upstream
 [submodule "usermods/udisplay_f469/lvgl"]
 	path = usermods/udisplay_f469/lvgl
-	url = ../../littlevgl/lvgl
+	url = https://github.com/miketlk/lvgl.git
 [submodule "usermods/secp256k1"]
 	path = usermods/secp256k1
 	url = https://github.com/miketlk/secp256k1-embedded.git
