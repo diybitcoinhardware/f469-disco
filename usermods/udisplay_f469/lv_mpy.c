@@ -5483,6 +5483,141 @@ GENMPY_UNUSED static const mp_lv_obj_type_t mp_lv_LV_SUBJECT_TYPE_type = {
     
 
 /*
+ * lvgl LV_QRCODE_MODE object definitions
+ */
+    
+
+static const mp_rom_map_elem_t LV_QRCODE_MODE_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_BINARY), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MODE_BINARY)) },
+    { MP_ROM_QSTR(MP_QSTR_TEXT), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MODE_TEXT)) }
+};
+
+static MP_DEFINE_CONST_DICT(LV_QRCODE_MODE_locals_dict, LV_QRCODE_MODE_locals_dict_table);
+
+static void LV_QRCODE_MODE_print(const mp_print_t *print,
+    mp_obj_t self_in,
+    mp_print_kind_t kind)
+{
+    mp_printf(print, "lvgl LV_QRCODE_MODE");
+}
+
+
+
+static MP_DEFINE_CONST_OBJ_TYPE(
+    mp_lv_LV_QRCODE_MODE_type_base,
+    MP_QSTR_LV_QRCODE_MODE,
+    MP_TYPE_FLAG_NONE,
+    print, LV_QRCODE_MODE_print,
+    
+    
+    attr, call_parent_methods,
+    
+    
+    locals_dict, &LV_QRCODE_MODE_locals_dict
+);
+
+GENMPY_UNUSED static const mp_lv_obj_type_t mp_lv_LV_QRCODE_MODE_type = {
+#ifdef LV_OBJ_T
+    .lv_obj_class = NULL,
+#endif
+    .mp_obj_type = &mp_lv_LV_QRCODE_MODE_type_base,
+};
+    
+
+/*
+ * lvgl LV_QRCODE_ECC object definitions
+ */
+    
+
+static const mp_rom_map_elem_t LV_QRCODE_ECC_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_L), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_ECC_L)) },
+    { MP_ROM_QSTR(MP_QSTR_M), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_ECC_M)) },
+    { MP_ROM_QSTR(MP_QSTR_Q), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_ECC_Q)) },
+    { MP_ROM_QSTR(MP_QSTR_H), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_ECC_H)) }
+};
+
+static MP_DEFINE_CONST_DICT(LV_QRCODE_ECC_locals_dict, LV_QRCODE_ECC_locals_dict_table);
+
+static void LV_QRCODE_ECC_print(const mp_print_t *print,
+    mp_obj_t self_in,
+    mp_print_kind_t kind)
+{
+    mp_printf(print, "lvgl LV_QRCODE_ECC");
+}
+
+
+
+static MP_DEFINE_CONST_OBJ_TYPE(
+    mp_lv_LV_QRCODE_ECC_type_base,
+    MP_QSTR_LV_QRCODE_ECC,
+    MP_TYPE_FLAG_NONE,
+    print, LV_QRCODE_ECC_print,
+    
+    
+    attr, call_parent_methods,
+    
+    
+    locals_dict, &LV_QRCODE_ECC_locals_dict
+);
+
+GENMPY_UNUSED static const mp_lv_obj_type_t mp_lv_LV_QRCODE_ECC_type = {
+#ifdef LV_OBJ_T
+    .lv_obj_class = NULL,
+#endif
+    .mp_obj_type = &mp_lv_LV_QRCODE_ECC_type_base,
+};
+    
+
+/*
+ * lvgl LV_QRCODE_MASK object definitions
+ */
+    
+
+static const mp_rom_map_elem_t LV_QRCODE_MASK_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_AUTO), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_AUTO)) },
+    { MP_ROM_QSTR(MP_QSTR__0), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_0)) },
+    { MP_ROM_QSTR(MP_QSTR__1), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_1)) },
+    { MP_ROM_QSTR(MP_QSTR__2), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_2)) },
+    { MP_ROM_QSTR(MP_QSTR__3), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_3)) },
+    { MP_ROM_QSTR(MP_QSTR__4), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_4)) },
+    { MP_ROM_QSTR(MP_QSTR__5), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_5)) },
+    { MP_ROM_QSTR(MP_QSTR__6), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_6)) },
+    { MP_ROM_QSTR(MP_QSTR__7), MP_ROM_PTR(MP_ROM_INT(LV_QRCODE_MASK_7)) }
+};
+
+static MP_DEFINE_CONST_DICT(LV_QRCODE_MASK_locals_dict, LV_QRCODE_MASK_locals_dict_table);
+
+static void LV_QRCODE_MASK_print(const mp_print_t *print,
+    mp_obj_t self_in,
+    mp_print_kind_t kind)
+{
+    mp_printf(print, "lvgl LV_QRCODE_MASK");
+}
+
+
+
+static MP_DEFINE_CONST_OBJ_TYPE(
+    mp_lv_LV_QRCODE_MASK_type_base,
+    MP_QSTR_LV_QRCODE_MASK,
+    MP_TYPE_FLAG_NONE,
+    print, LV_QRCODE_MASK_print,
+    
+    
+    attr, call_parent_methods,
+    
+    
+    locals_dict, &LV_QRCODE_MASK_locals_dict
+);
+
+GENMPY_UNUSED static const mp_lv_obj_type_t mp_lv_LV_QRCODE_MASK_type = {
+#ifdef LV_OBJ_T
+    .lv_obj_class = NULL,
+#endif
+    .mp_obj_type = &mp_lv_LV_QRCODE_MASK_type_base,
+};
+    
+
+/*
  * lvgl LV_DRAW_SW_MASK_RES object definitions
  */
     
@@ -25037,6 +25172,68 @@ static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_dark_color_mpobj, 2, mp_l
 
 static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_light_color_mpobj, 2, mp_lv_led_set_color, lv_qrcode_set_light_color);
     
+/* Reusing lv_obj_set_pos for lv_qrcode_set_version_range */
+
+static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_version_range_mpobj, 3, mp_lv_obj_set_pos, lv_qrcode_set_version_range);
+    
+
+/*
+ * lvgl extension definition for:
+ * void lv_qrcode_set_mode(lv_obj_t *obj, lv_qrcode_mode_t mode)
+ */
+
+static mp_obj_t mp_lv_qrcode_set_mode(size_t mp_n_args, const mp_obj_t *mp_args, void *lv_func_ptr)
+{
+    lv_obj_t *obj = mp_to_lv(mp_args[0]);
+    lv_qrcode_mode_t mode = (int)mp_obj_get_int(mp_args[1]);
+    ((void (*)(lv_obj_t *, lv_qrcode_mode_t))lv_func_ptr)(obj, mode);
+    return mp_const_none;
+}
+
+ 
+
+static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_mode_mpobj, 2, mp_lv_qrcode_set_mode, lv_qrcode_set_mode);
+    
+
+/*
+ * lvgl extension definition for:
+ * void lv_qrcode_set_mask(lv_obj_t *obj, lv_qrcode_mask_t mask)
+ */
+
+static mp_obj_t mp_lv_qrcode_set_mask(size_t mp_n_args, const mp_obj_t *mp_args, void *lv_func_ptr)
+{
+    lv_obj_t *obj = mp_to_lv(mp_args[0]);
+    lv_qrcode_mask_t mask = (int)mp_obj_get_int(mp_args[1]);
+    ((void (*)(lv_obj_t *, lv_qrcode_mask_t))lv_func_ptr)(obj, mask);
+    return mp_const_none;
+}
+
+ 
+
+static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_mask_mpobj, 2, mp_lv_qrcode_set_mask, lv_qrcode_set_mask);
+    
+
+/*
+ * lvgl extension definition for:
+ * void lv_qrcode_set_ecc(lv_obj_t *obj, lv_qrcode_ecc_t ecc)
+ */
+
+static mp_obj_t mp_lv_qrcode_set_ecc(size_t mp_n_args, const mp_obj_t *mp_args, void *lv_func_ptr)
+{
+    lv_obj_t *obj = mp_to_lv(mp_args[0]);
+    lv_qrcode_ecc_t ecc = (int)mp_obj_get_int(mp_args[1]);
+    ((void (*)(lv_obj_t *, lv_qrcode_ecc_t))lv_func_ptr)(obj, ecc);
+    return mp_const_none;
+}
+
+ 
+
+static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_ecc_mpobj, 2, mp_lv_qrcode_set_ecc, lv_qrcode_set_ecc);
+    
+/* Reusing lv_image_set_antialias for lv_qrcode_set_boost_ecl */
+
+static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_boost_ecl_mpobj, 2, mp_lv_image_set_antialias, lv_qrcode_set_boost_ecl);
+    
 
 /*
  * lvgl extension definition for:
@@ -25070,7 +25267,15 @@ static const mp_rom_map_elem_t qrcode_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_set_size), MP_ROM_PTR(&mp_lv_qrcode_set_size_mpobj) },
     { MP_ROM_QSTR(MP_QSTR_set_dark_color), MP_ROM_PTR(&mp_lv_qrcode_set_dark_color_mpobj) },
     { MP_ROM_QSTR(MP_QSTR_set_light_color), MP_ROM_PTR(&mp_lv_qrcode_set_light_color_mpobj) },
-    { MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mp_lv_qrcode_update_mpobj) }
+    { MP_ROM_QSTR(MP_QSTR_set_version_range), MP_ROM_PTR(&mp_lv_qrcode_set_version_range_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_set_mode), MP_ROM_PTR(&mp_lv_qrcode_set_mode_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_set_mask), MP_ROM_PTR(&mp_lv_qrcode_set_mask_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_set_ecc), MP_ROM_PTR(&mp_lv_qrcode_set_ecc_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_set_boost_ecl), MP_ROM_PTR(&mp_lv_qrcode_set_boost_ecl_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mp_lv_qrcode_update_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_MODE), MP_ROM_PTR(&mp_lv_LV_QRCODE_MODE_type_base) },
+    { MP_ROM_QSTR(MP_QSTR_ECC), MP_ROM_PTR(&mp_lv_LV_QRCODE_ECC_type_base) },
+    { MP_ROM_QSTR(MP_QSTR_MASK), MP_ROM_PTR(&mp_lv_LV_QRCODE_MASK_type_base) }
 };
 
 static MP_DEFINE_CONST_DICT(qrcode_locals_dict, qrcode_locals_dict_table);

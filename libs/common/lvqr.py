@@ -1,27 +1,18 @@
 import lvgl as lv
-import qrcode
-import math
-import gc
 
-class QRCode(lv.pximg):
+class QRCode(lv.qrcode):
     def set_text(self, text="Text"):
         self._text = text
-        raw = qrcode.encode(text)
-        size = int(math.sqrt(len(raw)*8))
-        buf = bytearray(raw)
-        img = lv.img_dsc_t()
-        img.data = buf
-        img.header.cf = lv.img.CF.ALPHA_1BIT
-        img.header.w = size
-        img.header.h = size
-        self.set_src(img)
-        # del raw
-        gc.collect()
+        self.set_dark_color(lv.color_black())
+        self.set_light_color(lv.color_white())
+        self.set_mode(lv.qrcode.MODE.TEXT)
+        self.set_ecc(lv.qrcode.ECC.L)
+        super().update(self._text, len(self._text))
+
 
     def get_text(self):
         return self._text
 
-    def set_size(self, size):
-        self.set_width(size)
-        self.set_height(size)
 
+    def set_size(self, size):
+        super().set_size(size)
