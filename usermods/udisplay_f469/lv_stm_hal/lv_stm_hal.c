@@ -44,7 +44,7 @@ static void tft_flush(lv_display_t * disp, const lv_area_t * area, uint8_t * px_
 
 /**************** touchpad ****************/
 
-static bool touchpad_read(lv_indev_t *indev, lv_indev_data_t *data);
+static void touchpad_read(lv_indev_t *indev, lv_indev_data_t *data);
 static TS_StateTypeDef  TS_State;
 
 void touchpad_init(void) {
@@ -55,7 +55,7 @@ void touchpad_init(void) {
     lv_indev_set_read_cb(indev, touchpad_read);
 }
 
-static bool touchpad_read(lv_indev_t *indev, lv_indev_data_t *data) {
+static void touchpad_read(lv_indev_t *indev, lv_indev_data_t *data) {
 	static int16_t last_x = 0;
 	static int16_t last_y = 0;
 
@@ -71,6 +71,4 @@ static bool touchpad_read(lv_indev_t *indev, lv_indev_data_t *data) {
 		data->point.y = last_y;
 		data->state = LV_INDEV_STATE_RELEASED;
 	}
-
-	return false;
 }
