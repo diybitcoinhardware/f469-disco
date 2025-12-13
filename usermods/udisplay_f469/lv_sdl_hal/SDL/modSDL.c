@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 
 #include <SDL2/SDL.h>
 
@@ -469,6 +470,96 @@ STATIC mp_obj_t mp_sdl_set_resizable(mp_obj_t val_in) {
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mp_sdl_set_resizable_obj, mp_sdl_set_resizable);
 /* clang-format on */
 
+/**
+ * @brief Take a screenshot and write directly to file (bypasses Python heap).
+ *
+ * Uses SDL_RenderReadPixels to capture, writes RGB565 data to file.
+ * This avoids MicroPython heap allocation for large buffers.
+ *
+ * @param filename Path to write the raw RGB565 data
+ * @return tuple(width, height, filename) or raises RuntimeError on failure.
+ */
+STATIC mp_obj_t mp_sdl_screenshot(mp_obj_t filename_obj) {
+  if (!s_disp) {
+    mp_raise_ValueError(MP_ERROR_TEXT("init() first"));
+  }
+
+  const char *filename = mp_obj_str_get_str(filename_obj);
+
+  SDL_Renderer *renderer = (SDL_Renderer *)lv_sdl_window_get_renderer(s_disp);
+  if (!renderer) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("no renderer"));
+  }
+
+  int32_t w = lv_display_get_horizontal_resolution(s_disp);
+  int32_t h = lv_display_get_vertical_resolution(s_disp);
+
+  if (w <= 0 || h <= 0 || w > 8192 || h > 8192) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("bad dimensions"));
+  }
+
+  /* Open output file */
+  FILE *f = fopen(filename, "wb");
+  if (!f) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("cannot open file"));
+  }
+
+  /* Process in row chunks to minimize memory usage */
+  int32_t chunk_rows = 32;  /* Process 32 rows at a time */
+  size_t rgba_chunk_size = (size_t)w * chunk_rows * 4;
+  size_t rgb565_chunk_size = (size_t)w * chunk_rows * 2;
+
+  uint8_t *rgba_buf = (uint8_t *)malloc(rgba_chunk_size);
+  uint8_t *rgb565_buf = (uint8_t *)malloc(rgb565_chunk_size);
+
+  if (!rgba_buf || !rgb565_buf) {
+    if (rgba_buf) free(rgba_buf);
+    if (rgb565_buf) free(rgb565_buf);
+    fclose(f);
+    mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("malloc chunk failed"));
+  }
+
+  /* Process screen in chunks */
+  for (int32_t y = 0; y < h; y += chunk_rows) {
+    int32_t rows = (y + chunk_rows > h) ? (h - y) : chunk_rows;
+    SDL_Rect rect = {0, y, w, rows};
+
+    if (SDL_RenderReadPixels(renderer, &rect, SDL_PIXELFORMAT_RGBA8888,
+                             rgba_buf, w * 4) != 0) {
+      free(rgba_buf);
+      free(rgb565_buf);
+      fclose(f);
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("SDL_RenderReadPixels failed"));
+    }
+
+    /* Convert RGBA8888 to RGB565 */
+    for (int32_t i = 0; i < w * rows; i++) {
+      uint8_t r = rgba_buf[i * 4 + 0];
+      uint8_t g = rgba_buf[i * 4 + 1];
+      uint8_t b = rgba_buf[i * 4 + 2];
+      uint16_t rgb565 = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+      rgb565_buf[i * 2 + 0] = rgb565 & 0xFF;
+      rgb565_buf[i * 2 + 1] = (rgb565 >> 8) & 0xFF;
+    }
+
+    /* Write chunk to file */
+    fwrite(rgb565_buf, 1, w * rows * 2, f);
+  }
+
+  free(rgba_buf);
+  free(rgb565_buf);
+  fclose(f);
+
+  /* Return tuple (width, height, filename) */
+  mp_obj_t tuple[3] = {
+    mp_obj_new_int(w),
+    mp_obj_new_int(h),
+    filename_obj
+  };
+  return mp_obj_new_tuple(3, tuple);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mp_sdl_screenshot_obj, mp_sdl_screenshot);
+
 /* -------------------------------------------------------------------------- */
 /*                               Module table */
 /* -------------------------------------------------------------------------- */
@@ -483,6 +574,7 @@ STATIC const mp_rom_map_elem_t sdl_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_set_zoom),            MP_ROM_PTR(&mp_sdl_set_zoom_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_title),           MP_ROM_PTR(&mp_sdl_set_title_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_resizable),       MP_ROM_PTR(&mp_sdl_set_resizable_obj) },
+    { MP_ROM_QSTR(MP_QSTR_screenshot),          MP_ROM_PTR(&mp_sdl_screenshot_obj) },
 };
 /* clang-format on */
 
