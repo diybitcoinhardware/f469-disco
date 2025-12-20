@@ -13,21 +13,20 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install ARM toolchain
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
-
-      - name: Install SDL2
-        run: sudo apt-get install -y libsdl2-dev
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Build firmware
         run: |
-          make mpy-cross
-          make disco
-          make empty
-          make unix
+          nix develop -c make mpy-cross
+          nix develop -c make disco
+          nix develop -c make empty
+          nix develop -c make unix
 
       - name: Run tests
-        run: make test
+        run: nix develop -c make test
 
       - name: Create release
         uses: softprops/action-gh-release@v2
