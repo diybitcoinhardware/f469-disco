@@ -51,6 +51,7 @@ INVALID_CHECKSUM = [
 ]
 
 VALID_ADDRESS = [
+    # v0 addresses (bech32) - BIP-173
     [
         "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
         "0014751e76e8199196d454941c45d1b3a323f1433bd6",
@@ -60,14 +61,13 @@ VALID_ADDRESS = [
         "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262",
     ],
     [
-        "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx",
-        "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6",
-    ],
-    ["BC1SW50QA3JX3S", "6002751e"],
-    ["bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj", "5210751e76e8199196d454941c45d1b3a323"],
-    [
         "tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy",
         "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433",
+    ],
+    # v1 taproot address (bech32m) - BIP-350
+    [
+        "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
+        "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
     ],
 ]
 
@@ -99,17 +99,17 @@ class TestSegwitAddress(TestCase):
     def test_valid_checksum(self):
         """Test checksum creation and validation."""
         for test in VALID_CHECKSUM:
-            hrp, _ = segwit_addr.bech32_decode(test)
+            hrp, *_ = segwit_addr.bech32_decode(test)
             self.assertIsNotNone(hrp)
             pos = test.rfind("1")
             test = test[: pos + 1] + chr(ord(test[pos + 1]) ^ 1) + test[pos + 2 :]
-            hrp, _ = segwit_addr.bech32_decode(test)
+            hrp, *_ = segwit_addr.bech32_decode(test)
             self.assertIsNone(hrp)
 
     def test_invalid_checksum(self):
         """Test validation of invalid checksums."""
         for test in INVALID_CHECKSUM:
-            hrp, _ = segwit_addr.bech32_decode(test)
+            hrp, *_ = segwit_addr.bech32_decode(test)
             self.assertIsNone(hrp)
 
     def test_valid_address(self):
