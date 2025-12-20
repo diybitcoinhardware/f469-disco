@@ -1,6 +1,6 @@
 [submodule "micropython"]
 	path = micropython
-	url = https://github.com/miketlk/micropython-specter-diy.git
+	url = https://github.com/diybitcoinhardware/micropython.git
 	branch = merge-with-upstream
 [submodule "usermods/udisplay_f469/lvgl"]
 	path = usermods/udisplay_f469/lvgl
