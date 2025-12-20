@@ -1,5 +1,5 @@
 {
-  description = "Specter DIY development environment";
+  description = "f469-disco development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
