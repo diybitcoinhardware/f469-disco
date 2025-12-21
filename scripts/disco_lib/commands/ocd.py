@@ -36,14 +36,14 @@ def ocd():
     pass
 
 
-@ocd.command("connect")
-def ocd_connect():
+@ocd.command("start")
+def ocd_start():
     """Start OpenOCD server (background)."""
     get_ocd().start()
 
 
-@ocd.command("disconnect")
-def ocd_disconnect():
+@ocd.command("stop")
+def ocd_stop():
     """Stop OpenOCD server."""
     get_ocd().stop()
 
