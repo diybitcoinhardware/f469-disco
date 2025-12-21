@@ -121,20 +121,39 @@ def check_openocd(ocd: OpenOCD, report: DiagnosticReport) -> bool:
 
 
 def check_target(ocd: OpenOCD, report: DiagnosticReport) -> bool:
-    """Check if target is responding."""
+    """Check if target is responding. Preserves CPU run state."""
+    we_halted = False
     try:
+        # Try reading PC directly first
         result = ocd.send("reg pc")
         report.pc = _parse_reg(result)
+
+        # If failed, halt and retry (running STM32 may not respond)
+        if report.pc is None:
+            ocd.send("halt")
+            time.sleep(0.05)
+            we_halted = True
+            result = ocd.send("reg pc")
+            report.pc = _parse_reg(result)
+
         if report.pc is None:
             report.add("TARGET_NOT_RESPONDING", Level.ERROR,
                        "JTAG connected but MCU not responding")
             return False
+
         report.target_responding = True
         return True
     except Exception:
         report.add("TARGET_NOT_RESPONDING", Level.ERROR,
                    "JTAG connected but MCU not responding")
         return False
+    finally:
+        # Resume if we halted it
+        if we_halted:
+            try:
+                ocd.send("resume")
+            except Exception:
+                pass  # Best effort
 
 
 def capture_cpu_state(ocd: OpenOCD, report: DiagnosticReport) -> bool:
@@ -255,8 +274,9 @@ def check_usb(ser: SerialDevice, report: DiagnosticReport):
     for path, blacklisted in devices:
         if blacklisted:
             continue
+        # Match usbmodem devices - STM32 CDC typically has 5+ char suffix
         match = re.search(r'usbmodem(\w+)', path)
-        if match and len(match.group(1)) > 6:
+        if match and len(match.group(1)) >= 5:
             report.usb_cdc_present = True
             break
 

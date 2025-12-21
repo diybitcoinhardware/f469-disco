@@ -1,0 +1,21 @@
+# Firmware fingerprint - auto-generated
+name: upgrade
+filename: specter_upgrade_v1.9.0.bin
+static:
+  size_bytes: 1360312
+  sha256: bb94699a9c53748763b66d7a3c26b41654ce81510886d0257e4296f1e2c529c6
+  regions:
+  - start: '0x00000000'
+    end: '0x0014c1b8'
+    size: 1360312
+    type: code
+    label: bootloader
+  version_tag: 0100900099
+  build_type: production
+  filesystem_preservation: false
+runtime:
+  jtag_works: null
+  cpu_runs: null
+  usb_cdc: null
+  repl_responsive: null
+notes: ''

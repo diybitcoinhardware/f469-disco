@@ -1,0 +1,31 @@
+# Firmware fingerprint - auto-generated
+name: v1.0.0
+filename: specter-diy.bin
+static:
+  size_bytes: 1050120
+  sha256: 7b27e0a0a6703b37cce7bdf3d39aa33adfa04247f27ec24a18b06273c41efb4f
+  regions:
+  - start: '0x00000000'
+    end: '0x00004000'
+    size: 16384
+    type: code
+    label: bootloader
+  - start: '0x00004000'
+    end: '0x00008000'
+    size: 16384
+    type: zeros
+    label: preserved
+  - start: '0x00008000'
+    end: '0x00100608'
+    size: 1017352
+    type: code
+    label: main
+  version_tag: null
+  build_type: unknown
+  filesystem_preservation: true
+runtime:
+  jtag_works: null
+  cpu_runs: null
+  usb_cdc: null
+  repl_responsive: null
+notes: ''

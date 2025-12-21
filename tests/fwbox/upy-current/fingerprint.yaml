@@ -1,0 +1,31 @@
+# Firmware fingerprint - auto-generated
+name: upy-current
+filename: firmware.bin
+static:
+  size_bytes: 1303816
+  sha256: ce5c3ae949c15daff9c5f259253fc35c6ac112d0255a00448d549492e1b7b02a
+  regions:
+  - start: '0x00000000'
+    end: '0x00004000'
+    size: 16384
+    type: code
+    label: bootloader
+  - start: '0x00004000'
+    end: '0x00020000'
+    size: 114688
+    type: zeros
+    label: preserved
+  - start: '0x00020000'
+    end: '0x0013e508'
+    size: 1172744
+    type: code
+    label: main
+  version_tag: null
+  build_type: unknown
+  filesystem_preservation: true
+runtime:
+  jtag_works: true
+  cpu_runs: true
+  usb_cdc: true
+  repl_responsive: false
+notes: ''

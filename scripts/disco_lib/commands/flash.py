@@ -443,3 +443,174 @@ def flash_program(file: str, addr: str, verify: bool, reset: bool, timeout: int)
         click.echo("Run 'disco flash verify --smart' to confirm code regions.")
     else:
         click.secho("Programming status unclear - check output above", fg="yellow")
+
+
+@flash.group("fingerprint")
+def fingerprint():
+    """Firmware fingerprint commands."""
+    pass
+
+
+def _write_fingerprint(fingerprint: dict, output: str):
+    """Write fingerprint to YAML file."""
+    import yaml
+    yaml_str = yaml.dump(fingerprint, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    with open(output, "w") as f:
+        f.write("# Firmware fingerprint - auto-generated\n")
+        f.write(yaml_str)
+
+
+def _print_fingerprint_summary(fingerprint: dict, runtime_results: dict = None):
+    """Print fingerprint summary."""
+    click.echo(f"Name: {fingerprint['name']}")
+    click.echo(f"Size: {fingerprint['static']['size_bytes']:,} bytes")
+    click.echo(f"SHA256: {fingerprint['static']['sha256'][:16]}...")
+    click.echo(f"Build: {fingerprint['static']['build_type']}")
+    click.echo(f"Regions: {len(fingerprint['static']['regions'])}")
+    if runtime_results:
+        click.echo()
+        click.echo("Runtime:")
+        for key, val in runtime_results.items():
+            icon = click.style("✓", fg="green") if val else click.style("✗", fg="red")
+            click.echo(f"  {icon} {key}: {val}")
+
+
+@fingerprint.command("create")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path(), help="Output YAML file (default: fingerprint.yaml in same dir)")
+def fingerprint_create(file: str, output: str):
+    """Create new fingerprint for firmware file.
+
+    Runs static analysis and runtime hardware tests.
+    Fails if fingerprint.yaml already exists.
+
+    \b
+    Examples:
+      disco flash fingerprint create firmware.bin
+    """
+    from ..openocd import OpenOCD
+    from ..serial import SerialDevice
+
+    if output is None:
+        output = os.path.join(os.path.dirname(os.path.abspath(file)), "fingerprint.yaml")
+
+    if os.path.exists(output):
+        click.secho(f"Error: {output} already exists. Use 'update' instead.", fg="red")
+        raise SystemExit(1)
+
+    click.echo("Analyzing firmware...")
+    fp = flash_backend.generate_fingerprint(file)
+
+    click.echo("Running runtime tests...")
+    ocd = OpenOCD()
+    ser = SerialDevice()
+    runtime = flash_backend.test_runtime(ocd, ser)
+    fp["runtime"] = runtime
+
+    _write_fingerprint(fp, output)
+    click.secho(f"\nFingerprint created: {output}", fg="green")
+    click.echo()
+    _print_fingerprint_summary(fp, runtime)
+
+
+@fingerprint.command("update")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path(), help="Output YAML file (default: fingerprint.yaml in same dir)")
+def fingerprint_update(file: str, output: str):
+    """Update fingerprint for firmware file.
+
+    Runs static analysis and runtime hardware tests.
+    Creates new file if doesn't exist.
+
+    \b
+    Examples:
+      disco flash fingerprint update firmware.bin
+    """
+    from ..openocd import OpenOCD
+    from ..serial import SerialDevice
+
+    if output is None:
+        output = os.path.join(os.path.dirname(os.path.abspath(file)), "fingerprint.yaml")
+
+    click.echo("Analyzing firmware...")
+    fp = flash_backend.generate_fingerprint(file)
+
+    click.echo("Running runtime tests...")
+    ocd = OpenOCD()
+    ser = SerialDevice()
+    runtime = flash_backend.test_runtime(ocd, ser)
+    fp["runtime"] = runtime
+
+    action = "updated" if os.path.exists(output) else "created"
+    _write_fingerprint(fp, output)
+    click.secho(f"\nFingerprint {action}: {output}", fg="green")
+    click.echo()
+    _print_fingerprint_summary(fp, runtime)
+
+
+@fingerprint.command("test")
+@click.argument("fingerprint_file", type=click.Path(exists=True))
+def fingerprint_test(fingerprint_file: str):
+    """Test current state against existing fingerprint.
+
+    Runs tests and compares to expected values.
+    Returns non-zero if differs, creates fingerprint_diff_<timestamp>.yaml.
+
+    \b
+    Examples:
+      disco flash fingerprint test fingerprint.yaml
+    """
+    import yaml
+    from datetime import datetime
+    from ..openocd import OpenOCD
+    from ..serial import SerialDevice
+
+    # Load existing fingerprint
+    with open(fingerprint_file) as f:
+        expected = yaml.safe_load(f)
+
+    firmware_file = os.path.join(os.path.dirname(fingerprint_file), expected.get("filename", ""))
+
+    click.echo(f"Testing against: {fingerprint_file}")
+    click.echo(f"Firmware: {expected.get('filename')}")
+
+    # Generate current fingerprint
+    if os.path.exists(firmware_file):
+        click.echo("Analyzing firmware...")
+        current = flash_backend.generate_fingerprint(firmware_file)
+    else:
+        click.secho(f"Warning: Firmware file not found, skipping static analysis", fg="yellow")
+        current = {"static": {}, "runtime": {}}
+
+    click.echo("Running runtime tests...")
+    ocd = OpenOCD()
+    ser = SerialDevice()
+    runtime = flash_backend.test_runtime(ocd, ser)
+    current["runtime"] = runtime
+
+    # Compare
+    diffs = flash_backend.compare_fingerprints(expected, current)
+
+    if not diffs:
+        click.secho("\n✓ All tests passed - fingerprint matches", fg="green")
+        raise SystemExit(0)
+
+    # Show differences
+    click.secho(f"\n✗ {len(diffs)} difference(s) found:", fg="red")
+    for key, diff in diffs.items():
+        click.echo(f"  {key}: expected={diff['expected']}, actual={diff['actual']}")
+
+    # Write diff file
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    diff_file = fingerprint_file.replace(".yaml", f"_diff_{timestamp}.yaml")
+    diff_data = {
+        "expected_file": fingerprint_file,
+        "timestamp": timestamp,
+        "differences": diffs,
+        "current_runtime": runtime,
+    }
+    with open(diff_file, "w") as f:
+        yaml.dump(diff_data, f, default_flow_style=False, sort_keys=False)
+
+    click.secho(f"\nDiff written to: {diff_file}", fg="yellow")
+    raise SystemExit(1)

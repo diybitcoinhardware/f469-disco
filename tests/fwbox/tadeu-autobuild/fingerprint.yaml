@@ -1,0 +1,31 @@
+# Firmware fingerprint - auto-generated
+name: tadeu-autobuild
+filename: firmware.bin
+static:
+  size_bytes: 1485072
+  sha256: 6cb5f4429fc11cc1226c06f07493701e1d6c5079407e2844a0cff6feba471675
+  regions:
+  - start: '0x00000000'
+    end: '0x00004000'
+    size: 16384
+    type: code
+    label: bootloader
+  - start: '0x00004000'
+    end: '0x00020000'
+    size: 114688
+    type: zeros
+    label: preserved
+  - start: '0x00020000'
+    end: '0x0016a910'
+    size: 1354000
+    type: code
+    label: main
+  version_tag: 0100900099
+  build_type: production
+  filesystem_preservation: true
+runtime:
+  jtag_works: null
+  cpu_runs: null
+  usb_cdc: null
+  repl_responsive: null
+notes: ''

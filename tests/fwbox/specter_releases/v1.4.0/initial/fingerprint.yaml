@@ -1,0 +1,21 @@
+# Firmware fingerprint - auto-generated
+name: initial
+filename: initial_firmware_v1.4.0.bin
+static:
+  size_bytes: 1966048
+  sha256: 2d1405bb5924d9f66f3ccbb06a78e442693182785bbb140607c94dc10581a3c6
+  regions:
+  - start: '0x00000000'
+    end: '0x001dffe0'
+    size: 1966048
+    type: code
+    label: bootloader
+  version_tag: '0000000001'
+  build_type: unknown
+  filesystem_preservation: false
+runtime:
+  jtag_works: null
+  cpu_runs: null
+  usb_cdc: null
+  repl_responsive: null
+notes: ''
