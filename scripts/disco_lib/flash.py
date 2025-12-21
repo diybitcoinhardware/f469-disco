@@ -11,20 +11,17 @@ from .serial import SerialDevice
 
 
 def _is_blank_chunk(chunk: bytes) -> bool:
-    """Check if chunk is blank (all 0x00 or all 0xFF)."""
+    """Check if chunk is blank (all 0x00)."""
     if not chunk:
         return True
-    first = chunk[0]
-    if first not in (0x00, 0xFF):
-        return False
-    return all(b == first for b in chunk)
+    return all(b == 0x00 for b in chunk)
 
 
 def analyze_firmware(filepath: str, chunk_size: int = 4096) -> List[Tuple[int, int, bool]]:
     """Analyze firmware file to find code vs blank regions.
 
     Returns list of (start, end, has_code) tuples.
-    Blank regions are all 0x00 (zeros) or all 0xFF (erased flash).
+    Blank regions are all 0x00 (zeros for filesystem preservation).
     """
     with open(filepath, "rb") as f:
         data = f.read()
@@ -280,6 +277,70 @@ def program_firmware(
     if "error" in result_lower or "failed" in result_lower:
         return False
     return True
+
+
+def verify_firmware(
+    ocd: OpenOCD,
+    filepath: str,
+    addr: int = 0x08000000,
+    smart: bool = True,
+) -> bool:
+    """Verify flash contents against firmware file.
+
+    Args:
+        ocd: OpenOCD instance (must be running)
+        filepath: Path to firmware file
+        addr: Flash base address
+        smart: If True, only verify code regions (skip zeros)
+
+    Returns:
+        True if verification passed
+    """
+    import tempfile
+
+    filepath = os.path.abspath(filepath)
+    regions = analyze_firmware(filepath)
+    code_regions = get_code_regions(regions)
+    internal_zeros = has_internal_zeros(regions)
+
+    # Use longer timeout for halt - target may be booting after reset
+    ocd.send("halt", timeout=10)
+
+    if smart and internal_zeros and len(code_regions) > 0:
+        # Smart verify: only check code regions
+        for region_start, region_end in code_regions:
+            region_size = region_end - region_start
+            flash_addr = addr + region_start
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
+                tmp_path = tmp.name
+
+            read_timeout = max(60, int(region_size / (50 * 1024)) + 30)
+            ocd.send(f"dump_image {tmp_path} 0x{flash_addr:x} {region_size}", timeout=read_timeout)
+
+            try:
+                with open(filepath, "rb") as f:
+                    f.seek(region_start)
+                    file_data = f.read(region_size)
+
+                with open(tmp_path, "rb") as f:
+                    flash_data = f.read()
+
+                os.unlink(tmp_path)
+
+                if file_data != flash_data:
+                    return False
+            except Exception:
+                return False
+
+        return True
+    else:
+        # Full verify via OpenOCD
+        size = os.path.getsize(filepath)
+        timeout = max(60, int(size / (50 * 1024)) + 30)
+        result = ocd.send(f"verify_image {filepath} 0x{addr:08x}", timeout=timeout)
+        result_lower = result.lower()
+        return "verified" in result_lower and "error" not in result_lower
 
 
 def compare_fingerprints(fp1: Dict[str, Any], fp2: Dict[str, Any]) -> Dict[str, Any]:

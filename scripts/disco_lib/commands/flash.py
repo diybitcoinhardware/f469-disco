@@ -449,6 +449,28 @@ def _write_fingerprint(fingerprint: dict, output: str):
         f.write(yaml_str)
 
 
+def _flash_and_verify(ocd, filepath: str, addr: int) -> bool:
+    """Flash firmware and verify. Returns True on success."""
+    import time
+
+    click.echo("Flashing firmware...")
+    if not flash_backend.program_firmware(ocd, filepath, addr):
+        click.secho("Flash failed", fg="red")
+        return False
+
+    # Wait for target to stabilize after reset - OpenOCD needs time to
+    # re-establish connection after reset, otherwise we get "Connection reset"
+    time.sleep(2.0)
+
+    click.echo("Verifying flash...")
+    if not flash_backend.verify_firmware(ocd, filepath, addr):
+        click.secho("Flash verification failed", fg="red")
+        return False
+
+    click.secho("Flash verified OK", fg="green")
+    return True
+
+
 def _print_fingerprint_summary(fingerprint: dict, runtime_results: dict = None):
     """Print fingerprint summary."""
     click.echo(f"Name: {fingerprint['name']}")
@@ -491,13 +513,18 @@ def fingerprint_create(file: str, output: str):
     click.echo("Analyzing firmware...")
     fp = flash_backend.generate_fingerprint(file)
 
-    click.echo("Flashing firmware for runtime tests...")
+    # Get flash address from fingerprint
+    flash_addr_str = fp.get("static", {}).get("flash_address", "0x08020000")
+    flash_addr = int(flash_addr_str, 16)
+    click.echo(f"Flash address: {flash_addr_str} (auto-detected)")
+
     ocd = OpenOCD()
     ocd.require_running()
-    if not flash_backend.program_firmware(ocd, file):
-        click.secho("Flash failed", fg="red")
+    if not _flash_and_verify(ocd, file, flash_addr):
         raise SystemExit(1)
-    time.sleep(2.0)  # Wait for boot
+
+    click.echo("Waiting for device to boot...")
+    time.sleep(3.0)  # Wait for boot
 
     click.echo("Running runtime tests...")
     ser = SerialDevice()
@@ -533,13 +560,18 @@ def fingerprint_update(file: str, output: str):
     click.echo("Analyzing firmware...")
     fp = flash_backend.generate_fingerprint(file)
 
-    click.echo("Flashing firmware for runtime tests...")
+    # Get flash address from fingerprint
+    flash_addr_str = fp.get("static", {}).get("flash_address", "0x08020000")
+    flash_addr = int(flash_addr_str, 16)
+    click.echo(f"Flash address: {flash_addr_str} (auto-detected)")
+
     ocd = OpenOCD()
     ocd.require_running()
-    if not flash_backend.program_firmware(ocd, file):
-        click.secho("Flash failed", fg="red")
+    if not _flash_and_verify(ocd, file, flash_addr):
         raise SystemExit(1)
-    time.sleep(2.0)  # Wait for boot
+
+    click.echo("Waiting for device to boot...")
+    time.sleep(3.0)  # Wait for boot
 
     click.echo("Running runtime tests...")
     ser = SerialDevice()
@@ -603,12 +635,13 @@ def fingerprint_test(fingerprint_file: str):
         flash_addr = int(flash_addr_str, 16)
         click.echo(f"Flash address: {flash_addr_str} (auto-detected)")
 
-    click.echo("Flashing firmware for runtime tests...")
     ocd = OpenOCD()
     ocd.require_running()
-    if not flash_backend.program_firmware(ocd, firmware_file, flash_addr):
-        raise click.ClickException("Flash failed")
-    time.sleep(2.0)  # Wait for boot
+    if not _flash_and_verify(ocd, firmware_file, flash_addr):
+        raise click.ClickException("Flash/verify failed")
+
+    click.echo("Waiting for device to boot...")
+    time.sleep(3.0)  # Wait for boot
 
     click.echo("Running runtime tests...")
     ser = SerialDevice()

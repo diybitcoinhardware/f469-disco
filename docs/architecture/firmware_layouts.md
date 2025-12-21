@@ -109,3 +109,65 @@ Labels:
 - `preserved` - Other blank areas
 - `metadata` - Small code regions (< 64KB, likely integrity records)
 - `code` - Other code regions (additional modules)
+
+## Flash Addresses
+
+The disco tool auto-detects the correct flash address based on firmware layout:
+
+| Firmware Type | Flash Address | Detection |
+|--------------|---------------|-----------|
+| Initial/Full (with bootloader) | 0x08000000 | Has bootloader region + filesystem_preservation |
+| Upgrade (main only) | 0x08020000 | Single code region, no filesystem_preservation |
+| Development builds | 0x08000000 | Has bootloader + flash_storage regions |
+| Vanilla MicroPython | 0x08000000 | Has bootloader region |
+
+Use `disco flash program firmware.bin` - address is auto-detected.
+Override with `--addr 0x08020000 --force` if needed.
+
+## Flash Protection (RDP)
+
+Some firmware (notably official Specter DIY releases) enables STM32 Read-out Protection:
+
+| RDP Level | Effect | Recoverable? |
+|-----------|--------|--------------|
+| Level 0 | No protection | N/A |
+| Level 1 | Flash protected, debug restricted | Yes (mass erase) |
+| Level 2 | Permanent, debug disabled | **NO - device bricked** |
+
+### Symptoms of RDP Level 1
+
+- `disco flash erase` fails with "stm32x device protected"
+- CPU stuck at 0xfffffffe after flashing protected firmware
+- Memory reads return no output
+
+### Recovery from RDP Level 1
+
+Use OpenOCD to unlock (WARNING: erases all flash):
+
+```bash
+openocd -f board/stm32f469discovery.cfg -f ocd-unlock.cfg
+```
+
+Or manually:
+```bash
+openocd -f board/stm32f469discovery.cfg -c "init; reset halt; flash protect 0 0 last off; stm32f4x unlock 0; reset halt; exit"
+```
+
+See: https://github.com/cryptoadvance/specter-bootloader/blob/master/ocd-unlock.cfg
+
+After unlocking, power cycle the board and reconnect OpenOCD.
+
+### Avoiding RDP Issues
+
+- **Initial firmware** from official releases may enable RDP
+- Use **development builds** (debug.bin, specter-diy.bin) for testing
+- Use **upgrade firmware** which doesn't touch bootloader/protection
+
+## Known Issues
+
+### v1.4.0+ Initial Firmware
+
+Official `initial_firmware_vX.X.X.bin` releases enable RDP Level 1:
+- Flashing locks the device
+- Requires unlock procedure to recover
+- Safe to test: upgrade firmware, development builds, vanilla MicroPython

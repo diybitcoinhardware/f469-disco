@@ -23,6 +23,7 @@ static:
   version_tag: null
   build_type: unknown
   filesystem_preservation: true
+  flash_address: '0x08000000'
 runtime:
   jtag_works: true
   cpu_runs: true
