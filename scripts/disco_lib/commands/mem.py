@@ -4,9 +4,7 @@ import re
 
 import click
 
-from ..openocd import OpenOCD
-
-_ocd = OpenOCD()
+from ..ocd_provider import get_ocd
 
 
 @click.group()
@@ -49,47 +47,55 @@ def mem():
 @click.argument("count", default=8, type=int)
 def mem_read(addr: str, count: int):
     """Read memory words from address."""
-    _ocd.require_running()
+    get_ocd().require_running()
     click.secho(f"=== Memory @ {addr} ({count} words) ===", fg="blue")
-    _ocd.send("halt")
-    click.echo(_ocd.send(f"mdw {addr} {count}"))
+    get_ocd().send("halt")
+    try:
+        click.echo(get_ocd().send(f"mdw {addr} {count}"))
+    finally:
+        get_ocd().send("resume")
 
 
 @mem.command("vectors")
 @click.option("--fw", is_flag=True, help="Show firmware vectors at 0x08020000 instead")
 def mem_vectors(fw: bool):
     """Show vector table (bootloader or firmware)."""
-    _ocd.require_running()
-    _ocd.send("halt")
+    get_ocd().require_running()
+    get_ocd().send("halt")
+    try:
+        if fw:
+            click.secho("=== Vector Table @ 0x08020000 (Firmware) ===", fg="blue")
+            click.echo(get_ocd().send("mdw 0x08020000 8"))
+        else:
+            click.secho("=== Vector Table @ 0x08000000 (Bootloader) ===", fg="blue")
+            result = get_ocd().send("mdw 0x08000000 8")
+            click.echo(result)
+            click.echo()
 
-    if fw:
-        click.secho("=== Vector Table @ 0x08020000 (Firmware) ===", fg="blue")
-        click.echo(_ocd.send("mdw 0x08020000 8"))
-    else:
-        click.secho("=== Vector Table @ 0x08000000 (Bootloader) ===", fg="blue")
-        result = _ocd.send("mdw 0x08000000 8")
-        click.echo(result)
-        click.echo()
-
-        match = re.search(r":\s*(.+)", result)
-        if match:
-            words = match.group(1).split()
-            labels = [
-                "Initial SP", "Reset", "NMI", "HardFault",
-                "MemManage", "BusFault", "UsageFault", "Reserved",
-            ]
-            for label, word in zip(labels, words[:8]):
-                click.echo(f"  {label}: 0x{word}")
+            match = re.search(r":\s*(.+)", result)
+            if match:
+                words = match.group(1).split()
+                labels = [
+                    "Initial SP", "Reset", "NMI", "HardFault",
+                    "MemManage", "BusFault", "UsageFault", "Reserved",
+                ]
+                for label, word in zip(labels, words[:8]):
+                    click.echo(f"  {label}: 0x{word}")
+    finally:
+        get_ocd().send("resume")
 
 
 @mem.command("dump")
 @click.argument("count", default=32, type=int)
 def mem_dump(count: int):
     """Dump first N words from flash (default 32)."""
-    _ocd.require_running()
+    get_ocd().require_running()
     click.secho(f"=== Flash @ 0x08000000 ({count} words) ===", fg="blue")
-    _ocd.send("halt")
-    click.echo(_ocd.send(f"mdw 0x08000000 {count}"))
+    get_ocd().send("halt")
+    try:
+        click.echo(get_ocd().send(f"mdw 0x08000000 {count}"))
+    finally:
+        get_ocd().send("resume")
 
 
 @mem.command("save")
@@ -113,8 +119,7 @@ def mem_save(file: str, addr: str, size: str):
     """
     import os
 
-    _ocd.require_running()
-    _ocd.send("halt")
+    get_ocd().require_running()
 
     # Parse size (support hex or decimal)
     if size.startswith("0x"):
@@ -128,12 +133,16 @@ def mem_save(file: str, addr: str, size: str):
     click.echo(f"Size: {byte_count:,} bytes ({byte_count // 1024} KB)")
     click.echo(f"File: {file}")
 
-    # Use OpenOCD dump_image command
-    result = _ocd.send(f"dump_image {file} {addr} {byte_count}", timeout=60)
-    click.echo(result)
+    get_ocd().send("halt")
+    try:
+        # Use OpenOCD dump_image command
+        result = get_ocd().send(f"dump_image {file} {addr} {byte_count}", timeout=60)
+        click.echo(result)
 
-    if os.path.exists(file):
-        actual_size = os.path.getsize(file)
-        click.secho(f"Saved {actual_size:,} bytes to {file}", fg="green")
-    else:
-        click.secho("Failed to create file", fg="red")
+        if os.path.exists(file):
+            actual_size = os.path.getsize(file)
+            click.secho(f"Saved {actual_size:,} bytes to {file}", fg="green")
+        else:
+            click.secho("Failed to create file", fg="red")
+    finally:
+        get_ocd().send("resume")

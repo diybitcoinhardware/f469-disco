@@ -2,11 +2,10 @@
 
 import click
 
-from ..openocd import OpenOCD
+from ..ocd_provider import get_ocd
 from ..serial import SerialDevice
 from ..diagnostics import run_diagnostics
 
-_ocd = OpenOCD()
 _ser = SerialDevice()
 
 
@@ -36,4 +35,4 @@ def doctor(verbose: bool, no_log: bool):
     \b
     Logs are saved to: /tmp/disco_log/YYYY-MM-DD_HH-MM-SS.md
     """
-    run_diagnostics(_ocd, _ser, verbose, no_log)
+    run_diagnostics(get_ocd(), _ser, verbose, no_log)

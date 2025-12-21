@@ -6,10 +6,8 @@ import tempfile
 
 import click
 
-from ..openocd import OpenOCD
+from ..ocd_provider import get_ocd
 from .. import flash as flash_backend
-
-_ocd = OpenOCD()
 
 
 @click.group()
@@ -60,9 +58,9 @@ def flash():
 @flash.command("info")
 def flash_info():
     """Show flash bank info."""
-    _ocd.require_running()
+    get_ocd().require_running()
     click.secho("=== Flash Bank Info ===", fg="blue")
-    click.echo(_ocd.send("flash info 0"))
+    click.echo(get_ocd().send("flash info 0"))
 
 
 @flash.command("identify")
@@ -92,19 +90,22 @@ def flash_identify(file: str):
         with open(filepath, "rb") as f:
             data = f.read()
     else:
-        _ocd.require_running()
+        get_ocd().require_running()
         click.secho("=== Identifying Flashed Firmware ===", fg="blue")
         click.echo("Reading from flash...")
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
             tmp_path = tmp.name
 
-        _ocd.send("halt")
-        _ocd.send(f"dump_image {tmp_path} 0x08000000 0x180000", timeout=60)
+        get_ocd().send("halt")
+        try:
+            get_ocd().send(f"dump_image {tmp_path} 0x08000000 0x180000", timeout=60)
 
-        with open(tmp_path, "rb") as f:
-            data = f.read()
-        os.unlink(tmp_path)
+            with open(tmp_path, "rb") as f:
+                data = f.read()
+            os.unlink(tmp_path)
+        finally:
+            get_ocd().send("resume")
 
     match = re.search(version_pattern, data)
     click.echo()
@@ -200,7 +201,7 @@ def flash_read(file: str, addr: str, size: str):
       disco flash read backup.bin                        # Full 2MB flash
       disco flash read firmware.bin --addr 0x08020000 --size 0x100000
     """
-    _ocd.require_running()
+    get_ocd().require_running()
 
     file = os.path.abspath(file)
 
@@ -218,22 +219,24 @@ def flash_read(file: str, addr: str, size: str):
     click.echo(f"Timeout: {timeout}s")
     click.echo()
 
-    _ocd.send("halt")
+    get_ocd().send("halt")
+    try:
+        click.secho("Reading flash (this may take a while)...", fg="yellow")
+        result = get_ocd().send(f"dump_image {file} {addr} {byte_count}", timeout=timeout)
 
-    click.secho("Reading flash (this may take a while)...", fg="yellow")
-    result = _ocd.send(f"dump_image {file} {addr} {byte_count}", timeout=timeout)
+        if result:
+            click.echo(result)
 
-    if result:
-        click.echo(result)
-
-    if os.path.exists(file):
-        actual_size = os.path.getsize(file)
-        if actual_size == byte_count:
-            click.secho(f"Read {actual_size:,} bytes to {file}", fg="green")
+        if os.path.exists(file):
+            actual_size = os.path.getsize(file)
+            if actual_size == byte_count:
+                click.secho(f"Read {actual_size:,} bytes to {file}", fg="green")
+            else:
+                click.secho(f"Warning: Read {actual_size:,} bytes (expected {byte_count:,})", fg="yellow")
         else:
-            click.secho(f"Warning: Read {actual_size:,} bytes (expected {byte_count:,})", fg="yellow")
-    else:
-        click.secho("Failed to create output file", fg="red")
+            click.secho("Failed to create output file", fg="red")
+    finally:
+        get_ocd().send("resume")
 
 
 @flash.command("verify")
@@ -252,7 +255,7 @@ def flash_verify(file: str, addr: str, smart: bool):
       disco flash verify firmware.bin --full    # Strict verify
       disco flash verify bootloader.bin --addr 0x08000000
     """
-    _ocd.require_running()
+    get_ocd().require_running()
 
     file = os.path.abspath(file)
     size = os.path.getsize(file)
@@ -273,84 +276,89 @@ def flash_verify(file: str, addr: str, smart: bool):
         click.secho("Note: File has zeros between code - will verify code regions only", fg="yellow")
     click.echo()
 
-    _ocd.send("halt")
+    get_ocd().send("halt")
+    try:
+        if smart and internal_zeros and len(code_regions) > 0:
+            click.secho("Verifying code regions...", fg="yellow")
+            all_passed = True
 
-    if smart and internal_zeros and len(code_regions) > 0:
-        click.secho("Verifying code regions...", fg="yellow")
-        all_passed = True
-
-        for region_start, region_end in code_regions:
-            region_size = region_end - region_start
-            if addr.startswith("0x"):
-                base_addr = int(addr, 16)
-            else:
-                base_addr = int(addr)
-
-            flash_addr = base_addr + region_start
-            click.echo(f"  Region 0x{region_start:x}-0x{region_end:x} at 0x{flash_addr:08x}...")
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
-                tmp_path = tmp.name
-
-            read_timeout = max(60, int(region_size / (50 * 1024)) + 30)
-            _ocd.send(
-                f"dump_image {tmp_path} 0x{flash_addr:x} {region_size}",
-                timeout=read_timeout
-            )
-
-            try:
-                with open(file, "rb") as f:
-                    f.seek(region_start)
-                    file_data = f.read(region_size)
-
-                with open(tmp_path, "rb") as f:
-                    flash_data = f.read()
-
-                os.unlink(tmp_path)
-
-                if file_data == flash_data:
-                    click.secho(f"    Match ({region_size:,} bytes)", fg="green")
+            for region_start, region_end in code_regions:
+                region_size = region_end - region_start
+                if addr.startswith("0x"):
+                    base_addr = int(addr, 16)
                 else:
-                    click.secho("    Mismatch!", fg="red")
+                    base_addr = int(addr)
+
+                flash_addr = base_addr + region_start
+                click.echo(f"  Region 0x{region_start:x}-0x{region_end:x} at 0x{flash_addr:08x}...")
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
+                    tmp_path = tmp.name
+
+                read_timeout = max(60, int(region_size / (50 * 1024)) + 30)
+                get_ocd().send(
+                    f"dump_image {tmp_path} 0x{flash_addr:x} {region_size}",
+                    timeout=read_timeout
+                )
+
+                try:
+                    with open(file, "rb") as f:
+                        f.seek(region_start)
+                        file_data = f.read(region_size)
+
+                    with open(tmp_path, "rb") as f:
+                        flash_data = f.read()
+
+                    os.unlink(tmp_path)
+
+                    if file_data == flash_data:
+                        click.secho(f"    Match ({region_size:,} bytes)", fg="green")
+                    else:
+                        click.secho("    Mismatch!", fg="red")
+                        all_passed = False
+                except Exception as e:
+                    click.secho(f"    Error: {e}", fg="red")
                     all_passed = False
-            except Exception as e:
-                click.secho(f"    Error: {e}", fg="red")
-                all_passed = False
 
-        click.echo()
-        if all_passed:
-            click.secho("Verification PASSED! (code regions verified)", fg="green")
+            click.echo()
+            if all_passed:
+                click.secho("Verification PASSED! (code regions verified)", fg="green")
+            else:
+                click.secho("Verification FAILED!", fg="red")
         else:
-            click.secho("Verification FAILED!", fg="red")
-    else:
-        click.secho("Verifying (this may take a while)...", fg="yellow")
-        result = _ocd.send(f"verify_image {file} {addr}", timeout=timeout)
+            click.secho("Verifying (this may take a while)...", fg="yellow")
+            result = get_ocd().send(f"verify_image {file} {addr}", timeout=timeout)
 
-        if result:
-            click.echo(result)
+            if result:
+                click.echo(result)
 
-        result_lower = result.lower()
-        if "verified" in result_lower and "error" not in result_lower:
-            click.secho("Verification PASSED!", fg="green")
-        elif "error" in result_lower or "mismatch" in result_lower:
-            click.secho("Verification FAILED!", fg="red")
-            if internal_zeros:
-                click.echo()
-                click.secho("Hint: File has zeros between code regions.", fg="yellow")
-                click.echo("Use 'disco flash verify --smart' to skip these areas.")
-        else:
-            click.secho("Verification status unclear - check output above", fg="yellow")
+            result_lower = result.lower()
+            if "verified" in result_lower and "error" not in result_lower:
+                click.secho("Verification PASSED!", fg="green")
+            elif "error" in result_lower or "mismatch" in result_lower:
+                click.secho("Verification FAILED!", fg="red")
+                if internal_zeros:
+                    click.echo()
+                    click.secho("Hint: File has zeros between code regions.", fg="yellow")
+                    click.echo("Use 'disco flash verify --smart' to skip these areas.")
+            else:
+                click.secho("Verification status unclear - check output above", fg="yellow")
+    finally:
+        get_ocd().send("resume")
 
 
 @flash.command("erase")
 def flash_erase():
     """Mass erase flash (DANGEROUS)."""
-    _ocd.require_running()
+    get_ocd().require_running()
     click.secho("WARNING: This will erase all flash memory!", fg="red")
     if click.confirm("Type 'y' to confirm"):
-        _ocd.send("halt")
-        click.echo(_ocd.send("flash erase_sector 0 0 last"))
-        click.secho("Flash erased", fg="green")
+        get_ocd().send("halt")
+        try:
+            click.echo(get_ocd().send("flash erase_sector 0 0 last"))
+            click.secho("Flash erased", fg="green")
+        finally:
+            get_ocd().send("resume")
     else:
         click.echo("Aborted")
 
@@ -380,7 +388,7 @@ def flash_program(file: str, addr: str | None, force: bool, verify: bool, reset:
       files with zeros between code. After programming, use
       'disco flash verify --smart' for accurate verification.
     """
-    _ocd.require_running()
+    get_ocd().require_running()
 
     file = os.path.abspath(file)
     size = os.path.getsize(file)

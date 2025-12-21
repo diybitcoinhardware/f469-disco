@@ -6,10 +6,9 @@ import sys
 
 import click
 
-from ..openocd import OpenOCD
+from ..ocd_provider import get_ocd
 from ..serial import SerialDevice
 
-_ocd = OpenOCD()
 _ser = SerialDevice()
 
 # USB Vendor/Product IDs
@@ -75,12 +74,14 @@ def cables():
                 usb_otg_serial = True
 
     jtag_ok = False
-    ocd_running = _ocd.is_running()
+    ocd_running = get_ocd().is_running()
     if ocd_running:
-        _ocd.send("halt")
-        result = _ocd.send("reg pc")
-        _ocd.send("resume")
-        jtag_ok = "0x" in result
+        get_ocd().send("halt")
+        try:
+            result = get_ocd().send("reg pc")
+            jtag_ok = "0x" in result
+        finally:
+            get_ocd().send("resume")
 
     click.echo()
     click.echo("MicroUSB (ST-LINK connector):")

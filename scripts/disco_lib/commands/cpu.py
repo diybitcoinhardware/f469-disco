@@ -4,9 +4,7 @@ import re
 
 import click
 
-from ..openocd import OpenOCD
-
-_ocd = OpenOCD()
+from ..ocd_provider import get_ocd
 
 
 @click.group()
@@ -38,83 +36,90 @@ def cpu_halt():
 
     ⚠️  This disconnects USB CDC - REPL will be unavailable until resumed.
     """
-    _ocd.require_running()
-    _ocd.send("halt")
+    get_ocd().require_running()
+    get_ocd().send("halt")
     click.secho("CPU halted", fg="green")
     click.secho("Note: USB CDC (REPL) disconnected while halted", fg="yellow")
-    click.echo(_ocd.send("reg pc sp"))
+    click.echo(get_ocd().send("reg pc sp"))
 
 
 @cpu.command("resume")
 def cpu_resume():
     """Resume execution."""
-    _ocd.require_running()
-    _ocd.send("resume")
+    get_ocd().require_running()
+    get_ocd().send("resume")
     click.secho("CPU resumed", fg="green")
 
 
 @cpu.command("reset")
 def cpu_reset():
     """Reset and halt."""
-    _ocd.require_running()
-    _ocd.send("reset halt")
+    get_ocd().require_running()
+    get_ocd().send("reset halt")
     click.secho("CPU reset and halted", fg="green")
-    click.echo(_ocd.send("reg pc sp"))
+    click.echo(get_ocd().send("reg pc sp"))
 
 
 @cpu.command("step")
 def cpu_step():
     """Single step."""
-    _ocd.require_running()
-    _ocd.send("step")
-    click.echo(_ocd.send("reg pc"))
+    get_ocd().require_running()
+    get_ocd().send("step")
+    click.echo(get_ocd().send("reg pc"))
 
 
 @cpu.command("regs")
 def cpu_regs():
     """Show all CPU registers."""
-    _ocd.require_running()
+    get_ocd().require_running()
     click.secho("=== CPU Registers ===", fg="blue")
-    _ocd.send("halt")
-    click.echo(_ocd.send("reg"))
+    get_ocd().send("halt")
+    try:
+        click.echo(get_ocd().send("reg"))
+    finally:
+        get_ocd().send("resume")
 
 
 @cpu.command("pc")
 def cpu_pc():
     """Show current PC and memory around it."""
-    _ocd.require_running()
+    get_ocd().require_running()
     click.secho("=== Current PC ===", fg="blue")
-    _ocd.send("halt")
-
-    result = _ocd.send("reg pc")
-    match = re.search(r"0x[0-9a-fA-F]+", result)
-    if match:
-        pc_val = int(match.group(), 16)
-        click.echo(f"PC: 0x{pc_val:08x}")
-        click.echo()
-        click.echo("Memory around PC:")
-        pc_aligned = (pc_val & ~0xF) - 0x10
-        click.echo(_ocd.send(f"mdw 0x{pc_aligned:08x} 16"))
-    else:
-        click.echo(result)
+    get_ocd().send("halt")
+    try:
+        result = get_ocd().send("reg pc")
+        match = re.search(r"0x[0-9a-fA-F]+", result)
+        if match:
+            pc_val = int(match.group(), 16)
+            click.echo(f"PC: 0x{pc_val:08x}")
+            click.echo()
+            click.echo("Memory around PC:")
+            pc_aligned = (pc_val & ~0xF) - 0x10
+            click.echo(get_ocd().send(f"mdw 0x{pc_aligned:08x} 16"))
+        else:
+            click.echo(result)
+    finally:
+        get_ocd().send("resume")
 
 
 @cpu.command("stack")
 @click.argument("count", default=16, type=int)
 def cpu_stack(count: int):
     """Show stack (N words, default 16)."""
-    _ocd.require_running()
+    get_ocd().require_running()
     click.secho(f"=== Stack ({count} words) ===", fg="blue")
-    _ocd.send("halt")
-
-    result = _ocd.send("reg sp")
-    match = re.search(r"0x[0-9a-fA-F]+", result)
-    if match:
-        sp_val = int(match.group(), 16)
-        click.echo(f"SP: 0x{sp_val:08x}")
-        click.echo(_ocd.send(f"mdw 0x{sp_val:08x} {count}"))
-    else:
-        click.echo(result)
+    get_ocd().send("halt")
+    try:
+        result = get_ocd().send("reg sp")
+        match = re.search(r"0x[0-9a-fA-F]+", result)
+        if match:
+            sp_val = int(match.group(), 16)
+            click.echo(f"SP: 0x{sp_val:08x}")
+            click.echo(get_ocd().send(f"mdw 0x{sp_val:08x} {count}"))
+        else:
+            click.echo(result)
+    finally:
+        get_ocd().send("resume")
 
 
 @cpu.command("gdb")
@@ -149,7 +154,7 @@ def cpu_gdb(elf: str, run: bool):
     import os
     import shutil
 
-    _ocd.require_running()
+    get_ocd().require_running()
 
     # Find GDB
     gdb_names = ["arm-none-eabi-gdb", "gdb-multiarch", "gdb"]

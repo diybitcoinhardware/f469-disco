@@ -3,9 +3,7 @@
 import click
 
 from .. import GDB_PORT, OPENOCD_PORT
-from ..openocd import OpenOCD
-
-_ocd = OpenOCD()
+from ..ocd_provider import get_ocd
 
 
 @click.group()
@@ -41,22 +39,22 @@ def ocd():
 @ocd.command("connect")
 def ocd_connect():
     """Start OpenOCD server (background)."""
-    _ocd.start()
+    get_ocd().start()
 
 
 @ocd.command("disconnect")
 def ocd_disconnect():
     """Stop OpenOCD server."""
-    _ocd.stop()
+    get_ocd().stop()
 
 
 @ocd.command("status")
 def ocd_status():
     """Check if OpenOCD is running and board connected."""
-    if _ocd.is_running():
+    if get_ocd().is_running():
         click.secho("OpenOCD: running", fg="green")
         click.echo(f"Ports: telnet={OPENOCD_PORT}, gdb={GDB_PORT}")
-        click.echo(_ocd.send("reg pc sp"))
+        click.echo(get_ocd().send("reg pc sp"))
     else:
         click.secho("OpenOCD: not running", fg="red")
 
@@ -73,10 +71,10 @@ def ocd_cmd(command):
       disco ocd cmd flash probe 0
       disco ocd cmd targets
     """
-    _ocd.require_running()
+    get_ocd().require_running()
     cmd_str = " ".join(command)
     click.secho(f"> {cmd_str}", fg="cyan")
-    result = _ocd.send(cmd_str)
+    result = get_ocd().send(cmd_str)
     if result:
         click.echo(result)
     else:

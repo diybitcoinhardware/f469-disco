@@ -5,10 +5,9 @@ import time
 
 import click
 
-from ..openocd import OpenOCD
+from ..ocd_provider import get_ocd
 from ..serial import SerialDevice
 
-_ocd = OpenOCD()
 _ser = SerialDevice()
 
 
@@ -117,12 +116,12 @@ def serial_boot(timeout: int):
     """Reset board and capture boot output (default 5s)."""
     click.secho(f"=== Boot Capture ({timeout}s timeout) ===", fg="blue")
     dev = _ser.require_device()
-    _ocd.require_running()
+    get_ocd().require_running()
 
     click.echo(f"Device: {dev}")
     click.echo("Resetting board and capturing output...")
 
-    _ocd.send("reset run")
+    get_ocd().send("reset run")
     time.sleep(0.3)
     output = _ser.read_timeout(dev, timeout)
 
