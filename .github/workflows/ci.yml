@@ -23,6 +23,9 @@ jobs:
       - name: Run unit tests
         run: pytest scripts/disco_lib/tests/unit -v
 
+      - name: Run fingerprint integration tests
+        run: pytest scripts/disco_lib/tests/integration -v
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
