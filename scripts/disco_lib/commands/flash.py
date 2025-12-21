@@ -524,7 +524,7 @@ def fingerprint_create(file: str, output: str):
         raise SystemExit(1)
 
     click.echo("Waiting for device to boot...")
-    time.sleep(3.0)  # Wait for boot
+    time.sleep(5.0)  # Wait for boot + USB re-enumeration
 
     click.echo("Running runtime tests...")
     ser = SerialDevice()
@@ -571,7 +571,7 @@ def fingerprint_update(file: str, output: str):
         raise SystemExit(1)
 
     click.echo("Waiting for device to boot...")
-    time.sleep(3.0)  # Wait for boot
+    time.sleep(5.0)  # Wait for boot + USB re-enumeration
 
     click.echo("Running runtime tests...")
     ser = SerialDevice()
@@ -641,7 +641,7 @@ def fingerprint_test(fingerprint_file: str):
         raise click.ClickException("Flash/verify failed")
 
     click.echo("Waiting for device to boot...")
-    time.sleep(3.0)  # Wait for boot
+    time.sleep(5.0)  # Wait for boot + USB re-enumeration
 
     click.echo("Running runtime tests...")
     ser = SerialDevice()

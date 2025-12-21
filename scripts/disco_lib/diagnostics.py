@@ -288,7 +288,7 @@ def check_usb(ser: SerialDevice, report: DiagnosticReport):
     dev = ser.auto_detect()
     if dev:
         try:
-            response = ser.repl_test(dev, timeout=1.0)
+            response = ser.repl_test(dev, timeout=2.0)
             if response and (">>>" in response or "MicroPython" in response):
                 report.repl_responsive = True
             else:

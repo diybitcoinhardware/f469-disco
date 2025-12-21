@@ -306,41 +306,45 @@ def verify_firmware(
     # Use longer timeout for halt - target may be booting after reset
     ocd.send("halt", timeout=10)
 
-    if smart and internal_zeros and len(code_regions) > 0:
-        # Smart verify: only check code regions
-        for region_start, region_end in code_regions:
-            region_size = region_end - region_start
-            flash_addr = addr + region_start
+    try:
+        if smart and internal_zeros and len(code_regions) > 0:
+            # Smart verify: only check code regions
+            for region_start, region_end in code_regions:
+                region_size = region_end - region_start
+                flash_addr = addr + region_start
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
-                tmp_path = tmp.name
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
+                    tmp_path = tmp.name
 
-            read_timeout = max(60, int(region_size / (50 * 1024)) + 30)
-            ocd.send(f"dump_image {tmp_path} 0x{flash_addr:x} {region_size}", timeout=read_timeout)
+                read_timeout = max(60, int(region_size / (50 * 1024)) + 30)
+                ocd.send(f"dump_image {tmp_path} 0x{flash_addr:x} {region_size}", timeout=read_timeout)
 
-            try:
-                with open(filepath, "rb") as f:
-                    f.seek(region_start)
-                    file_data = f.read(region_size)
+                try:
+                    with open(filepath, "rb") as f:
+                        f.seek(region_start)
+                        file_data = f.read(region_size)
 
-                with open(tmp_path, "rb") as f:
-                    flash_data = f.read()
+                    with open(tmp_path, "rb") as f:
+                        flash_data = f.read()
 
-                os.unlink(tmp_path)
+                    os.unlink(tmp_path)
 
-                if file_data != flash_data:
+                    if file_data != flash_data:
+                        return False
+                except Exception:
                     return False
-            except Exception:
-                return False
 
-        return True
-    else:
-        # Full verify via OpenOCD
-        size = os.path.getsize(filepath)
-        timeout = max(60, int(size / (50 * 1024)) + 30)
-        result = ocd.send(f"verify_image {filepath} 0x{addr:08x}", timeout=timeout)
-        result_lower = result.lower()
-        return "verified" in result_lower and "error" not in result_lower
+            return True
+        else:
+            # Full verify via OpenOCD
+            size = os.path.getsize(filepath)
+            timeout = max(60, int(size / (50 * 1024)) + 30)
+            result = ocd.send(f"verify_image {filepath} 0x{addr:08x}", timeout=timeout)
+            result_lower = result.lower()
+            return "verified" in result_lower and "error" not in result_lower
+    finally:
+        # Always resume CPU after verification
+        ocd.send("resume")
 
 
 def compare_fingerprints(fp1: Dict[str, Any], fp2: Dict[str, Any]) -> Dict[str, Any]:
