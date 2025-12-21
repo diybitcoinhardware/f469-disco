@@ -2,65 +2,14 @@
 
 import os
 import time
-from contextlib import contextmanager
 
 import click
 import serial as pyserial
 
 from ..serial import SerialDevice
+from .. import repl as repl_backend
 
 _ser = SerialDevice()
-
-
-@contextmanager
-def _mpremote_transport(dev: str):
-    """Context manager for mpremote SerialTransport."""
-    from mpremote.transport_serial import SerialTransport
-    transport = SerialTransport(dev, _ser.baud)
-    transport.enter_raw_repl()
-    try:
-        yield transport
-    finally:
-        transport.exit_raw_repl()
-        transport.close()
-
-
-def _repl_exec(dev: str, code: str, timeout: float = 3.0) -> str:
-    """Execute Python code on REPL and return output."""
-    with pyserial.Serial(dev, _ser.baud, timeout=timeout) as ser:
-        # Interrupt any running code
-        ser.write(b"\x03")
-        time.sleep(0.1)
-        # Clear buffer
-        ser.read(4096)
-
-        # Send code
-        ser.write(code.encode() + b"\r\n")
-        time.sleep(0.5)
-
-        # Read response
-        data = ser.read(8192)
-        text = data.decode("utf-8", errors="replace")
-
-        # Filter output: remove command echo and trailing prompt
-        lines = text.split("\n")
-        output_lines = []
-        for line in lines:
-            line = line.rstrip("\r")
-            # Skip command echo
-            if line.strip() == code.strip():
-                continue
-            # Skip empty prompts
-            if line.strip() in (">>>", "...", ""):
-                continue
-            # Remove leading >>> if present
-            if line.startswith(">>> "):
-                line = line[4:]
-            elif line.startswith("... "):
-                line = line[4:]
-            output_lines.append(line)
-
-        return "\n".join(output_lines).strip()
 
 
 @click.group()
@@ -102,7 +51,7 @@ def repl_exec(code: str, timeout: int):
     """
     dev = _ser.require_device()
     try:
-        output = _repl_exec(dev, code, timeout)
+        output = repl_backend.exec_code(dev, code, _ser.baud, timeout)
         if output:
             click.echo(output)
     except pyserial.SerialException as e:
@@ -116,20 +65,16 @@ def repl_info():
     try:
         click.secho("=== Board Info ===", fg="blue")
 
-        # Version
-        output = _repl_exec(dev, "import sys; print(sys.implementation)", timeout=2)
+        output = repl_backend.exec_code(dev, "import sys; print(sys.implementation)", _ser.baud, 2)
         click.echo(f"Implementation: {output}")
 
-        # Frequency
-        output = _repl_exec(dev, "import machine; print(machine.freq())", timeout=2)
+        output = repl_backend.exec_code(dev, "import machine; print(machine.freq())", _ser.baud, 2)
         click.echo(f"CPU Frequency: {output} Hz")
 
-        # Memory
-        output = _repl_exec(dev, "import gc; gc.collect(); print(gc.mem_free())", timeout=2)
+        output = repl_backend.exec_code(dev, "import gc; gc.collect(); print(gc.mem_free())", _ser.baud, 2)
         click.echo(f"Free Memory: {output} bytes")
 
-        # Platform
-        output = _repl_exec(dev, "import sys; print(sys.platform)", timeout=2)
+        output = repl_backend.exec_code(dev, "import sys; print(sys.platform)", _ser.baud, 2)
         click.echo(f"Platform: {output}")
 
     except pyserial.SerialException as e:
@@ -143,7 +88,7 @@ def repl_modules(timeout: int):
     dev = _ser.require_device()
     try:
         click.secho("=== Available Modules ===", fg="blue")
-        output = _repl_exec(dev, "help('modules')", timeout=timeout)
+        output = repl_backend.exec_code(dev, "help('modules')", _ser.baud, timeout)
         click.echo(output)
     except pyserial.SerialException as e:
         raise click.ClickException(f"Serial error: {e}")
@@ -154,7 +99,7 @@ def repl_help():
     """Show MicroPython help."""
     dev = _ser.require_device()
     try:
-        output = _repl_exec(dev, "help()", timeout=3)
+        output = repl_backend.exec_code(dev, "help()", _ser.baud, 3)
         click.echo(output)
     except pyserial.SerialException as e:
         raise click.ClickException(f"Serial error: {e}")
@@ -165,15 +110,9 @@ def repl_reset():
     """Soft-reset the board (Ctrl-D)."""
     dev = _ser.require_device()
     try:
-        with pyserial.Serial(dev, _ser.baud, timeout=3) as ser:
-            # Send Ctrl-D for soft reset
-            ser.write(b"\x03")  # Ctrl-C first
-            time.sleep(0.1)
-            ser.write(b"\x04")  # Ctrl-D
-            time.sleep(1)
-            data = ser.read(4096)
-            click.echo(data.decode("utf-8", errors="replace"))
-            click.secho("Soft reset sent", fg="green")
+        output = repl_backend.soft_reset(dev, _ser.baud, 3)
+        click.echo(output)
+        click.secho("Soft reset sent", fg="green")
     except pyserial.SerialException as e:
         raise click.ClickException(f"Serial error: {e}")
 
@@ -190,11 +129,14 @@ def repl_hello(message: str):
     """
     dev = _ser.require_device()
     try:
-        # Initialize display with delay for hardware to settle
         click.echo("Initializing display...")
-        _repl_exec(dev, "import display; display.init(True); import time; time.sleep_ms(100)", timeout=5)
+        repl_backend.exec_code(
+            dev,
+            "import display; display.init(True); import time; time.sleep_ms(100)",
+            _ser.baud,
+            5
+        )
 
-        # Create label with large font (28 is max built-in size)
         escaped_msg = message.replace("'", "\\'")
         code = (
             f"import lvgl as lv; scr = lv.scr_act(); scr.clean(); "
@@ -205,7 +147,7 @@ def repl_hello(message: str):
         )
 
         click.echo(f"Displaying: {message}")
-        _repl_exec(dev, code, timeout=3)
+        repl_backend.exec_code(dev, code, _ser.baud, 3)
         click.secho("Done!", fg="green")
 
     except pyserial.SerialException as e:
@@ -224,7 +166,7 @@ def repl_ls(path: str):
       disco repl ls /sd
     """
     dev = _ser.require_device()
-    with _mpremote_transport(dev) as transport:
+    with repl_backend.mpremote_transport(dev, _ser.baud) as transport:
         try:
             files = transport.fs_listdir(path)
             click.secho(f"=== {path} ===", fg="blue")
@@ -248,7 +190,7 @@ def repl_cat(path: str):
       disco repl cat /flash/boot.py
     """
     dev = _ser.require_device()
-    with _mpremote_transport(dev) as transport:
+    with repl_backend.mpremote_transport(dev, _ser.baud) as transport:
         try:
             data = transport.fs_readfile(path)
             click.echo(data.decode("utf-8", errors="replace"))
@@ -275,7 +217,7 @@ def repl_cp(src: str, dest: str):
         # Board -> local
         board_path = src[1:]
         local_path = dest
-        with _mpremote_transport(dev) as transport:
+        with repl_backend.mpremote_transport(dev, _ser.baud) as transport:
             try:
                 data = transport.fs_readfile(board_path)
                 with open(local_path, "wb") as f:
@@ -292,7 +234,7 @@ def repl_cp(src: str, dest: str):
             raise click.ClickException(f"Local file not found: {local_path}")
         with open(local_path, "rb") as f:
             data = f.read()
-        with _mpremote_transport(dev) as transport:
+        with repl_backend.mpremote_transport(dev, _ser.baud) as transport:
             try:
                 transport.fs_writefile(board_path, data)
                 click.secho(f"Copied {local_path} -> {board_path} ({len(data)} bytes)", fg="green")
@@ -337,7 +279,7 @@ def repl_import(module: str, timeout: int):
 
     # Wait for USB CDC device
     click.echo("Waiting for USB CDC device...")
-    for i in range(10):
+    for _ in range(10):
         dev = _ser.auto_detect()
         if dev:
             break
@@ -350,7 +292,7 @@ def repl_import(module: str, timeout: int):
     click.echo()
 
     try:
-        output = _repl_exec(dev, f"import {module}", timeout=timeout)
+        output = repl_backend.exec_code(dev, f"import {module}", _ser.baud, timeout)
         if output:
             click.echo(output)
         else:
@@ -376,7 +318,7 @@ def repl_rm(path: str, force: bool):
             click.echo("Aborted")
             return
 
-    with _mpremote_transport(dev) as transport:
+    with repl_backend.mpremote_transport(dev, _ser.baud) as transport:
         try:
             transport.fs_rmfile(path)
             click.secho(f"Removed {path}", fg="green")

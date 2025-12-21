@@ -1,58 +1,15 @@
 """Flash programming commands."""
 
 import os
-from typing import List, Tuple
+import re
+import tempfile
 
 import click
 
 from ..openocd import OpenOCD
+from .. import flash as flash_backend
 
 _ocd = OpenOCD()
-
-def _analyze_firmware(filepath: str, chunk_size: int = 4096) -> List[Tuple[int, int, bool]]:
-    """Analyze firmware file to find code vs zero regions.
-
-    Returns list of (start, end, has_data) tuples.
-    """
-    with open(filepath, "rb") as f:
-        data = f.read()
-
-    regions = []
-    i = 0
-    while i < len(data):
-        chunk = data[i:i + chunk_size]
-        has_data = any(b != 0 for b in chunk)
-
-        # Extend region while same type
-        start = i
-        while i < len(data):
-            chunk = data[i:i + chunk_size]
-            chunk_has_data = any(b != 0 for b in chunk)
-            if chunk_has_data != has_data:
-                break
-            i += chunk_size
-
-        regions.append((start, min(i, len(data)), has_data))
-
-    return regions
-
-
-def _has_internal_zeros(regions: List[Tuple[int, int, bool]]) -> bool:
-    """Check if firmware has zero regions between code regions.
-
-    This pattern indicates filesystem preservation - zeros between code
-    regions won't overwrite existing flash data when programmed.
-    """
-    code_seen = False
-    for start, end, has_data in regions:
-        if has_data:
-            code_seen = True
-        elif code_seen and not has_data:
-            # Zero region after code - check if more code follows
-            idx = regions.index((start, end, has_data))
-            if any(hd for _, _, hd in regions[idx + 1:]):
-                return True
-    return False
 
 
 @click.group()
@@ -125,37 +82,30 @@ def flash_identify(file: str):
       disco flash identify                    # Check currently flashed firmware
       disco flash identify firmware.bin       # Check a firmware file
     """
-    import re
-    import tempfile
-
     version_pattern = rb'<version:tag10>([^<]*)</version:tag10>'
 
     if file:
-        # Check file
         filepath = os.path.abspath(file)
-        click.secho(f"=== Identifying Firmware ===", fg="blue")
+        click.secho("=== Identifying Firmware ===", fg="blue")
         click.echo(f"File: {filepath}")
 
         with open(filepath, "rb") as f:
             data = f.read()
     else:
-        # Read from flash
         _ocd.require_running()
-        click.secho(f"=== Identifying Flashed Firmware ===", fg="blue")
+        click.secho("=== Identifying Flashed Firmware ===", fg="blue")
         click.echo("Reading from flash...")
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
             tmp_path = tmp.name
 
         _ocd.send("halt")
-        # Read first 1.5MB - should contain version tag
-        result = _ocd.send(f"dump_image {tmp_path} 0x08000000 0x180000", timeout=60)
+        _ocd.send(f"dump_image {tmp_path} 0x08000000 0x180000", timeout=60)
 
         with open(tmp_path, "rb") as f:
             data = f.read()
         os.unlink(tmp_path)
 
-    # Search for version tag
     match = re.search(version_pattern, data)
     click.echo()
 
@@ -172,7 +122,7 @@ def flash_identify(file: str):
             click.echo("  - USB/REPL enabled by default")
             click.echo("  - Runs hardwaretest.py")
         else:
-            click.secho(f"Build type: UNKNOWN", fg="cyan")
+            click.secho("Build type: UNKNOWN", fg="cyan")
             click.echo(f"  - Version: {version}")
     else:
         click.secho("No version tag found", fg="red")
@@ -199,11 +149,10 @@ def flash_analyze(file: str):
     click.echo(f"Size: {size:,} bytes ({size/1024:.1f} KB)")
     click.echo()
 
-    regions = _analyze_firmware(file)
-    has_internal_zeros = _has_internal_zeros(regions)
+    regions = flash_backend.analyze_firmware(file)
+    internal_zeros = flash_backend.has_internal_zeros(regions)
 
-    # Calculate totals
-    code_bytes = sum(end - start for start, end, has_data in regions if has_data)
+    code_bytes = flash_backend.calculate_code_bytes(regions)
     zero_bytes = sum(end - start for start, end, has_data in regions if not has_data)
 
     click.secho("Regions:", fg="cyan")
@@ -214,7 +163,6 @@ def flash_analyze(file: str):
             code_seen = True
             click.echo(f"  0x{start:08x} - 0x{end:08x}: {region_size:>8,} bytes  [CODE]")
         else:
-            # Check if this zero region is between code regions
             idx = regions.index((start, end, has_data))
             more_code_after = any(hd for _, _, hd in regions[idx + 1:])
             if code_seen and more_code_after:
@@ -229,9 +177,9 @@ def flash_analyze(file: str):
     click.echo(f"Code:  {code_bytes:,} bytes ({code_bytes/1024:.1f} KB)")
     click.echo(f"Zeros: {zero_bytes:,} bytes ({zero_bytes/1024:.1f} KB)")
 
-    if has_internal_zeros:
+    if internal_zeros:
         click.echo()
-        click.secho("⚠ Data preservation detected:", fg="yellow")
+        click.secho("Warning: Data preservation detected:", fg="yellow")
         click.echo("  This firmware has zeros between code regions.")
         click.echo("  Existing flash data in zero regions will NOT be overwritten.")
         click.echo("  (Typically used to preserve filesystem during updates)")
@@ -256,13 +204,11 @@ def flash_read(file: str, addr: str, size: str):
 
     file = os.path.abspath(file)
 
-    # Parse size (hex or decimal)
     if size.startswith("0x"):
         byte_count = int(size, 16)
     else:
         byte_count = int(size)
 
-    # Calculate timeout based on size (~50KB/s read speed + margin)
     timeout = max(60, int(byte_count / (50 * 1024)) + 30)
 
     click.secho("=== Reading Flash ===", fg="blue")
@@ -311,12 +257,10 @@ def flash_verify(file: str, addr: str, smart: bool):
     file = os.path.abspath(file)
     size = os.path.getsize(file)
 
-    # Analyze firmware for zero regions
-    regions = _analyze_firmware(file)
-    code_regions = [(s, e) for s, e, has_data in regions if has_data]
-    has_internal_zeros = _has_internal_zeros(regions)
+    regions = flash_backend.analyze_firmware(file)
+    code_regions = flash_backend.get_code_regions(regions)
+    internal_zeros = flash_backend.has_internal_zeros(regions)
 
-    # Calculate timeout based on total size
     timeout = max(60, int(size / (50 * 1024)) + 30)
 
     click.secho("=== Verifying Flash ===", fg="blue")
@@ -325,20 +269,18 @@ def flash_verify(file: str, addr: str, smart: bool):
     click.echo(f"Address: {addr}")
     click.echo(f"Mode: {'smart (code regions only)' if smart else 'full (strict)'}")
 
-    if has_internal_zeros and smart:
+    if internal_zeros and smart:
         click.secho("Note: File has zeros between code - will verify code regions only", fg="yellow")
     click.echo()
 
     _ocd.send("halt")
 
-    if smart and has_internal_zeros and len(code_regions) > 0:
-        # Smart verify: check each code region separately
+    if smart and internal_zeros and len(code_regions) > 0:
         click.secho("Verifying code regions...", fg="yellow")
         all_passed = True
 
         for region_start, region_end in code_regions:
             region_size = region_end - region_start
-            # Parse base address
             if addr.startswith("0x"):
                 base_addr = int(addr, 16)
             else:
@@ -347,19 +289,15 @@ def flash_verify(file: str, addr: str, smart: bool):
             flash_addr = base_addr + region_start
             click.echo(f"  Region 0x{region_start:x}-0x{region_end:x} at 0x{flash_addr:08x}...")
 
-            # Read flash region and compare with file
-            import tempfile
             with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
                 tmp_path = tmp.name
 
-            # Timeout: ~50KB/s read speed + margin
             read_timeout = max(60, int(region_size / (50 * 1024)) + 30)
-            result = _ocd.send(
+            _ocd.send(
                 f"dump_image {tmp_path} 0x{flash_addr:x} {region_size}",
                 timeout=read_timeout
             )
 
-            # Compare with file region
             try:
                 with open(file, "rb") as f:
                     f.seek(region_start)
@@ -371,12 +309,12 @@ def flash_verify(file: str, addr: str, smart: bool):
                 os.unlink(tmp_path)
 
                 if file_data == flash_data:
-                    click.secho(f"    ✓ Match ({region_size:,} bytes)", fg="green")
+                    click.secho(f"    Match ({region_size:,} bytes)", fg="green")
                 else:
-                    click.secho(f"    ✗ Mismatch!", fg="red")
+                    click.secho("    Mismatch!", fg="red")
                     all_passed = False
             except Exception as e:
-                click.secho(f"    ✗ Error: {e}", fg="red")
+                click.secho(f"    Error: {e}", fg="red")
                 all_passed = False
 
         click.echo()
@@ -385,7 +323,6 @@ def flash_verify(file: str, addr: str, smart: bool):
         else:
             click.secho("Verification FAILED!", fg="red")
     else:
-        # Full verify using OpenOCD
         click.secho("Verifying (this may take a while)...", fg="yellow")
         result = _ocd.send(f"verify_image {file} {addr}", timeout=timeout)
 
@@ -397,7 +334,7 @@ def flash_verify(file: str, addr: str, smart: bool):
             click.secho("Verification PASSED!", fg="green")
         elif "error" in result_lower or "mismatch" in result_lower:
             click.secho("Verification FAILED!", fg="red")
-            if has_internal_zeros:
+            if internal_zeros:
                 click.echo()
                 click.secho("Hint: File has zeros between code regions.", fg="yellow")
                 click.echo("Use 'disco flash verify --smart' to skip these areas.")
@@ -443,18 +380,16 @@ def flash_program(file: str, addr: str, verify: bool, reset: bool, timeout: int)
     file = os.path.abspath(file)
     size = os.path.getsize(file)
 
-    # Analyze firmware
-    regions = _analyze_firmware(file)
-    code_regions = [(s, e) for s, e, has_data in regions if has_data]
-    has_internal_zeros = _has_internal_zeros(regions)
-    code_bytes = sum(e - s for s, e, has_data in regions if has_data)
+    regions = flash_backend.analyze_firmware(file)
+    code_regions = flash_backend.get_code_regions(regions)
+    internal_zeros = flash_backend.has_internal_zeros(regions)
+    code_bytes = flash_backend.calculate_code_bytes(regions)
 
-    # Auto-calculate timeout: ~100KB/s + erase time + verify time + margin
     if timeout == 0:
         size_mb = size / (1024 * 1024)
-        timeout = int(30 + (size_mb * 40))  # 30s base + 40s per MB
+        timeout = int(30 + (size_mb * 40))
         if verify:
-            timeout += int(size_mb * 20)  # Extra 20s per MB for verify
+            timeout += int(size_mb * 20)
 
     click.secho("=== Programming Firmware ===", fg="blue")
     click.echo(f"File: {file}")
@@ -463,7 +398,7 @@ def flash_program(file: str, addr: str, verify: bool, reset: bool, timeout: int)
     click.echo(f"Address: {addr}")
     click.echo(f"Timeout: {timeout}s")
 
-    if has_internal_zeros:
+    if internal_zeros:
         click.echo()
         click.secho("Data preservation: YES", fg="yellow")
         click.echo("  Zeros between code regions - existing data preserved.")
@@ -486,7 +421,6 @@ def flash_program(file: str, addr: str, verify: bool, reset: bool, timeout: int)
 
     result = _ocd.send(cmd, timeout=timeout)
 
-    # Check result
     result_lower = result.lower()
     if result:
         click.echo(result)
@@ -498,11 +432,11 @@ def flash_program(file: str, addr: str, verify: bool, reset: bool, timeout: int)
         click.secho("Programming and verification complete!", fg="green")
     elif "wrote" in result_lower:
         click.secho("Programming complete!", fg="green")
-        if verify and has_internal_zeros:
+        if verify and internal_zeros:
             click.echo()
             click.secho("OpenOCD verify may have failed on zero regions.", fg="yellow")
             click.echo("Run 'disco flash verify --smart' to verify code regions only.")
-    elif has_internal_zeros and "mismatch" in result_lower:
+    elif internal_zeros and "mismatch" in result_lower:
         click.secho("Programming complete (data preserved in zero regions).", fg="green")
         click.echo()
         click.echo("Mismatch is expected in preserved areas.")
