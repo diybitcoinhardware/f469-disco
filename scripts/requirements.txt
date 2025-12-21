@@ -1,0 +1,7 @@
+# Disco tool dependencies
+click>=8.0
+pyserial>=3.5
+mpremote>=1.20
+
+# Testing
+pytest>=7.0
