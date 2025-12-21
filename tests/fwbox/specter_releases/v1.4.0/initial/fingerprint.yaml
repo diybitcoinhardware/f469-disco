@@ -6,16 +6,56 @@ static:
   sha256: 2d1405bb5924d9f66f3ccbb06a78e442693182785bbb140607c94dc10581a3c6
   regions:
   - start: '0x00000000'
-    end: '0x001dffe0'
-    size: 1966048
+    end: '0x00002000'
+    size: 8192
     type: code
     label: bootloader
+  - start: '0x00002000'
+    end: '0x00003000'
+    size: 4096
+    type: blank
+    label: preserved
+  - start: '0x00003000'
+    end: '0x00004000'
+    size: 4096
+    type: code
+    label: bootloader
+  - start: '0x00004000'
+    end: '0x00020000'
+    size: 114688
+    type: blank
+    label: flash_storage
+  - start: '0x00020000'
+    end: '0x00134000'
+    size: 1130496
+    type: code
+    label: main
+  - start: '0x00134000'
+    end: '0x001bf000'
+    size: 569344
+    type: blank
+    label: preserved
+  - start: '0x001bf000'
+    end: '0x001d8000'
+    size: 102400
+    type: code
+    label: code
+  - start: '0x001d8000'
+    end: '0x001df000'
+    size: 28672
+    type: blank
+    label: preserved
+  - start: '0x001df000'
+    end: '0x001dffe0'
+    size: 4064
+    type: code
+    label: metadata
   version_tag: '0000000001'
   build_type: unknown
-  filesystem_preservation: false
+  filesystem_preservation: true
 runtime:
-  jtag_works: null
-  cpu_runs: null
-  usb_cdc: null
-  repl_responsive: null
+  jtag_works: true
+  cpu_runs: true
+  usb_cdc: true
+  repl_responsive: false
 notes: ''

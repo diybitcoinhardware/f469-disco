@@ -357,17 +357,22 @@ def flash_erase():
 
 @flash.command("program")
 @click.argument("file", type=click.Path(exists=True))
-@click.option("--addr", default="0x08020000", help="Flash address (default: 0x08020000)")
+@click.option("--addr", default=None, help="Flash address (auto-detected if not specified)")
+@click.option("--force", is_flag=True, help="Force --addr even if it conflicts with auto-detected")
 @click.option("--verify/--no-verify", default=True, help="Verify after programming")
 @click.option("--reset/--no-reset", default=True, help="Reset after programming")
 @click.option("--timeout", "-t", default=0, type=int, help="Timeout in seconds (0=auto based on size)")
-def flash_program(file: str, addr: str, verify: bool, reset: bool, timeout: int):
+def flash_program(file: str, addr: str | None, force: bool, verify: bool, reset: bool, timeout: int):
     """Program firmware to flash.
 
     Analyzes firmware layout before programming. Zero regions between code
     sections won't overwrite existing flash data (preserves filesystem).
 
-    Timeout is automatically calculated based on file size if not specified.
+    Flash address is auto-detected based on firmware layout:
+      - Initial/full images (with bootloader) → 0x08000000
+      - Upgrade images (main firmware only) → 0x08020000
+
+    Use --addr to override, requires --force if it conflicts with auto-detect.
 
     \b
     Note on verification:
@@ -385,18 +390,27 @@ def flash_program(file: str, addr: str, verify: bool, reset: bool, timeout: int)
     internal_zeros = flash_backend.has_internal_zeros(regions)
     code_bytes = flash_backend.calculate_code_bytes(regions)
 
-    if timeout == 0:
-        size_mb = size / (1024 * 1024)
-        timeout = int(30 + (size_mb * 40))
-        if verify:
-            timeout += int(size_mb * 20)
+    # Auto-detect flash address
+    detected_addr = flash_backend.detect_flash_address(regions, internal_zeros)
+
+    # Handle user-provided address
+    if addr is not None:
+        addr_int = int(addr, 16) if addr.startswith("0x") else int(addr)
+        if addr_int != detected_addr and not force:
+            raise click.ClickException(
+                f"Address mismatch: --addr=0x{addr_int:08x} but detected 0x{detected_addr:08x}\n"
+                f"Use --force to override auto-detection"
+            )
+    else:
+        addr_int = detected_addr
 
     click.secho("=== Programming Firmware ===", fg="blue")
     click.echo(f"File: {file}")
     click.echo(f"Size: {size:,} bytes ({size/1024:.1f} KB)")
     click.echo(f"Code: {code_bytes:,} bytes in {len(code_regions)} region(s)")
-    click.echo(f"Address: {addr}")
-    click.echo(f"Timeout: {timeout}s")
+    addr_source = "auto-detected" if addr is None else ("forced" if force else "user")
+    click.echo(f"Address: 0x{addr_int:08x} ({addr_source})")
+    click.echo(f"Timeout: {timeout}s" if timeout else "Timeout: auto")
 
     if internal_zeros:
         click.echo()
@@ -406,41 +420,16 @@ def flash_program(file: str, addr: str, verify: bool, reset: bool, timeout: int)
             click.secho("  Note: OpenOCD verify may report mismatch (expected).", fg="yellow")
     click.echo()
 
-    click.echo("Halting CPU...")
-    _ocd.send("halt")
-
-    cmd = f"program {file} {addr}"
-    if verify:
-        cmd += " verify"
-    if reset:
-        cmd += " reset"
-
-    click.echo(f"Running: {cmd}")
-    click.echo()
     click.secho("Programming in progress (this may take a while)...", fg="yellow")
 
-    result = _ocd.send(cmd, timeout=timeout)
+    success = flash_backend.program_firmware(_ocd, file, addr_int, verify, reset, timeout)
 
-    result_lower = result.lower()
-    if result:
-        click.echo(result)
-
-    if "error" in result_lower or "failed" in result_lower:
-        click.secho("Programming FAILED!", fg="red")
-        click.echo("Check the error message above.")
-    elif "verified" in result_lower:
-        click.secho("Programming and verification complete!", fg="green")
-    elif "wrote" in result_lower:
+    if success:
         click.secho("Programming complete!", fg="green")
         if verify and internal_zeros:
             click.echo()
             click.secho("OpenOCD verify may have failed on zero regions.", fg="yellow")
             click.echo("Run 'disco flash verify --smart' to verify code regions only.")
-    elif internal_zeros and "mismatch" in result_lower:
-        click.secho("Programming complete (data preserved in zero regions).", fg="green")
-        click.echo()
-        click.echo("Mismatch is expected in preserved areas.")
-        click.echo("Run 'disco flash verify --smart' to confirm code regions.")
     else:
         click.secho("Programming status unclear - check output above", fg="yellow")
 
@@ -488,6 +477,7 @@ def fingerprint_create(file: str, output: str):
     Examples:
       disco flash fingerprint create firmware.bin
     """
+    import time
     from ..openocd import OpenOCD
     from ..serial import SerialDevice
 
@@ -501,8 +491,15 @@ def fingerprint_create(file: str, output: str):
     click.echo("Analyzing firmware...")
     fp = flash_backend.generate_fingerprint(file)
 
-    click.echo("Running runtime tests...")
+    click.echo("Flashing firmware for runtime tests...")
     ocd = OpenOCD()
+    ocd.require_running()
+    if not flash_backend.program_firmware(ocd, file):
+        click.secho("Flash failed", fg="red")
+        raise SystemExit(1)
+    time.sleep(2.0)  # Wait for boot
+
+    click.echo("Running runtime tests...")
     ser = SerialDevice()
     runtime = flash_backend.test_runtime(ocd, ser)
     fp["runtime"] = runtime
@@ -526,6 +523,7 @@ def fingerprint_update(file: str, output: str):
     Examples:
       disco flash fingerprint update firmware.bin
     """
+    import time
     from ..openocd import OpenOCD
     from ..serial import SerialDevice
 
@@ -535,8 +533,15 @@ def fingerprint_update(file: str, output: str):
     click.echo("Analyzing firmware...")
     fp = flash_backend.generate_fingerprint(file)
 
-    click.echo("Running runtime tests...")
+    click.echo("Flashing firmware for runtime tests...")
     ocd = OpenOCD()
+    ocd.require_running()
+    if not flash_backend.program_firmware(ocd, file):
+        click.secho("Flash failed", fg="red")
+        raise SystemExit(1)
+    time.sleep(2.0)  # Wait for boot
+
+    click.echo("Running runtime tests...")
     ser = SerialDevice()
     runtime = flash_backend.test_runtime(ocd, ser)
     fp["runtime"] = runtime
@@ -553,17 +558,25 @@ def fingerprint_update(file: str, output: str):
 def fingerprint_test(fingerprint_file: str):
     """Test current state against existing fingerprint.
 
-    Runs tests and compares to expected values.
+    Flashes firmware, runs tests and compares to expected values.
     Returns non-zero if differs, creates fingerprint_diff_<timestamp>.yaml.
 
     \b
     Examples:
       disco flash fingerprint test fingerprint.yaml
     """
+    import time
     import yaml
     from datetime import datetime
     from ..openocd import OpenOCD
     from ..serial import SerialDevice
+
+    # Validate file type
+    if not fingerprint_file.endswith(('.yaml', '.yml')):
+        raise click.ClickException(
+            f"Expected a fingerprint YAML file, got: {os.path.basename(fingerprint_file)}\n"
+            f"Usage: disco flash fingerprint test fingerprint.yaml"
+        )
 
     # Load existing fingerprint
     with open(fingerprint_file) as f:
@@ -574,16 +587,30 @@ def fingerprint_test(fingerprint_file: str):
     click.echo(f"Testing against: {fingerprint_file}")
     click.echo(f"Firmware: {expected.get('filename')}")
 
-    # Generate current fingerprint
-    if os.path.exists(firmware_file):
-        click.echo("Analyzing firmware...")
-        current = flash_backend.generate_fingerprint(firmware_file)
+    if not os.path.exists(firmware_file):
+        raise click.ClickException(f"Firmware file not found: {firmware_file}")
+
+    click.echo("Analyzing firmware...")
+    current = flash_backend.generate_fingerprint(firmware_file)
+
+    # Get flash address from fingerprint or auto-detect
+    flash_addr_str = expected.get("static", {}).get("flash_address")
+    if flash_addr_str:
+        flash_addr = int(flash_addr_str, 16)
+        click.echo(f"Flash address: {flash_addr_str} (from fingerprint)")
     else:
-        click.secho(f"Warning: Firmware file not found, skipping static analysis", fg="yellow")
-        current = {"static": {}, "runtime": {}}
+        flash_addr_str = current.get("static", {}).get("flash_address", "0x08020000")
+        flash_addr = int(flash_addr_str, 16)
+        click.echo(f"Flash address: {flash_addr_str} (auto-detected)")
+
+    click.echo("Flashing firmware for runtime tests...")
+    ocd = OpenOCD()
+    ocd.require_running()
+    if not flash_backend.program_firmware(ocd, firmware_file, flash_addr):
+        raise click.ClickException("Flash failed")
+    time.sleep(2.0)  # Wait for boot
 
     click.echo("Running runtime tests...")
-    ocd = OpenOCD()
     ser = SerialDevice()
     runtime = flash_backend.test_runtime(ocd, ser)
     current["runtime"] = runtime

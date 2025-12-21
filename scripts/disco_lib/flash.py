@@ -10,10 +10,21 @@ from .openocd import OpenOCD
 from .serial import SerialDevice
 
 
-def analyze_firmware(filepath: str, chunk_size: int = 4096) -> List[Tuple[int, int, bool]]:
-    """Analyze firmware file to find code vs zero regions.
+def _is_blank_chunk(chunk: bytes) -> bool:
+    """Check if chunk is blank (all 0x00 or all 0xFF)."""
+    if not chunk:
+        return True
+    first = chunk[0]
+    if first not in (0x00, 0xFF):
+        return False
+    return all(b == first for b in chunk)
 
-    Returns list of (start, end, has_data) tuples.
+
+def analyze_firmware(filepath: str, chunk_size: int = 4096) -> List[Tuple[int, int, bool]]:
+    """Analyze firmware file to find code vs blank regions.
+
+    Returns list of (start, end, has_code) tuples.
+    Blank regions are all 0x00 (zeros) or all 0xFF (erased flash).
     """
     with open(filepath, "rb") as f:
         data = f.read()
@@ -22,18 +33,18 @@ def analyze_firmware(filepath: str, chunk_size: int = 4096) -> List[Tuple[int, i
     i = 0
     while i < len(data):
         chunk = data[i:i + chunk_size]
-        has_data = any(b != 0 for b in chunk)
+        has_code = not _is_blank_chunk(chunk)
 
         # Extend region while same type
         start = i
         while i < len(data):
             chunk = data[i:i + chunk_size]
-            chunk_has_data = any(b != 0 for b in chunk)
-            if chunk_has_data != has_data:
+            chunk_has_code = not _is_blank_chunk(chunk)
+            if chunk_has_code != has_code:
                 break
             i += chunk_size
 
-        regions.append((start, min(i, len(data)), has_data))
+        regions.append((start, min(i, len(data)), has_code))
 
     return regions
 
@@ -84,6 +95,32 @@ def get_build_type(version_tag: str | None) -> str:
     return "unknown"
 
 
+def detect_flash_address(regions: List[Tuple[int, int, bool]], fs_preservation: bool) -> int:
+    """Auto-detect correct flash address based on firmware layout.
+
+    Returns:
+        0x08000000 for initial/full images (with bootloader)
+        0x08020000 for upgrade images (main firmware only)
+    """
+    code_regions = [(s, e) for s, e, has_data in regions if has_data]
+
+    # Single code region without fs preservation = upgrade firmware
+    if len(code_regions) == 1 and not fs_preservation:
+        return 0x08020000
+
+    # Multiple regions with gaps = initial firmware
+    if fs_preservation:
+        return 0x08000000
+
+    # Has small bootloader-like region at start = initial
+    for start, end, has_data in regions:
+        if has_data and start < 0x20000 and (end - start) <= 0x10000:
+            return 0x08000000
+
+    # Default to 0x08020000 (safer - won't overwrite bootloader)
+    return 0x08020000
+
+
 def generate_fingerprint(filepath: str) -> Dict[str, Any]:
     """Generate fingerprint dictionary for a firmware file."""
     filepath = os.path.abspath(filepath)
@@ -98,21 +135,42 @@ def generate_fingerprint(filepath: str) -> Dict[str, Any]:
     version_tag = extract_version_tag(data)
     build_type = get_build_type(version_tag)
     fs_preservation = has_internal_zeros(regions)
+    flash_addr = detect_flash_address(regions, fs_preservation)
 
-    # Label regions
+    # Label regions with smarter logic
+    code_regions = [(s, e, e - s) for s, e, has_data in regions if has_data]
+    num_code_regions = len(code_regions)
+
+    # Find the largest code region (main firmware)
+    main_region = max(code_regions, key=lambda x: x[2]) if code_regions else None
+    main_start = main_region[0] if main_region else None
+
     region_list = []
-    code_idx = 0
     for start, end, has_data in regions:
+        size = end - start
         if has_data:
-            if code_idx == 0 and start == 0:
-                label = "bootloader"
-            else:
+            if num_code_regions == 1:
+                # Single code region - it's the full firmware
+                label = "firmware"
+            elif start == main_start:
+                # Largest code region is main firmware
                 label = "main"
-            code_idx += 1
+            elif start < 0x20000 and size <= 0x10000:
+                # Small code in bootloader area (< 64KB before 0x20000)
+                label = "bootloader"
+            elif size < 0x10000:
+                # Small code regions elsewhere are metadata/integrity
+                label = "metadata"
+            else:
+                label = "code"
             rtype = "code"
         else:
-            label = "preserved"
-            rtype = "zeros"
+            # Blank regions
+            if start >= 0x4000 and start < 0x20000:
+                label = "flash_storage"
+            else:
+                label = "preserved"
+            rtype = "blank"
 
         region_list.append({
             "start": f"0x{start:08x}",
@@ -132,6 +190,7 @@ def generate_fingerprint(filepath: str) -> Dict[str, Any]:
             "version_tag": version_tag,
             "build_type": build_type,
             "filesystem_preservation": fs_preservation,
+            "flash_address": f"0x{flash_addr:08x}",
         },
         "runtime": {
             "jtag_works": None,
@@ -175,6 +234,54 @@ def test_runtime(ocd: OpenOCD, ser: SerialDevice) -> Dict[str, bool | None]:
     }
 
 
+def program_firmware(
+    ocd: OpenOCD,
+    filepath: str,
+    addr: int = 0x08020000,
+    verify: bool = False,
+    reset: bool = True,
+    timeout: int = 0,
+) -> bool:
+    """Program firmware to flash.
+
+    Args:
+        ocd: OpenOCD instance (must be running)
+        filepath: Path to firmware file
+        addr: Flash address (default 0x08020000)
+        verify: Verify after programming
+        reset: Reset after programming
+        timeout: Timeout in seconds (0=auto)
+
+    Returns:
+        True if programming succeeded
+    """
+    import os
+
+    filepath = os.path.abspath(filepath)
+    size = os.path.getsize(filepath)
+
+    if timeout == 0:
+        size_mb = size / (1024 * 1024)
+        timeout = int(30 + (size_mb * 40))
+        if verify:
+            timeout += int(size_mb * 20)
+
+    ocd.send("halt")
+
+    cmd = f"program {filepath} 0x{addr:08x}"
+    if verify:
+        cmd += " verify"
+    if reset:
+        cmd += " reset"
+
+    result = ocd.send(cmd, timeout=timeout)
+    result_lower = result.lower()
+
+    if "error" in result_lower or "failed" in result_lower:
+        return False
+    return True
+
+
 def compare_fingerprints(fp1: Dict[str, Any], fp2: Dict[str, Any]) -> Dict[str, Any]:
     """Compare two fingerprints and return differences.
 
@@ -183,7 +290,7 @@ def compare_fingerprints(fp1: Dict[str, Any], fp2: Dict[str, Any]) -> Dict[str, 
     diffs = {}
 
     # Compare static fields
-    for key in ["size_bytes", "sha256", "version_tag", "build_type", "filesystem_preservation"]:
+    for key in ["size_bytes", "sha256", "version_tag", "build_type", "filesystem_preservation", "flash_address"]:
         v1 = fp1.get("static", {}).get(key)
         v2 = fp2.get("static", {}).get(key)
         if v1 != v2:

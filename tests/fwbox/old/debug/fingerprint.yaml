@@ -13,8 +13,8 @@ static:
   - start: '0x00004000'
     end: '0x00020000'
     size: 114688
-    type: zeros
-    label: preserved
+    type: blank
+    label: flash_storage
   - start: '0x00020000'
     end: '0x0016a640'
     size: 1353280
@@ -24,8 +24,8 @@ static:
   build_type: debug
   filesystem_preservation: true
 runtime:
-  jtag_works: null
-  cpu_runs: null
-  usb_cdc: null
-  repl_responsive: null
+  jtag_works: true
+  cpu_runs: true
+  usb_cdc: true
+  repl_responsive: false
 notes: ''

@@ -13,8 +13,8 @@ static:
   - start: '0x00004000'
     end: '0x00020000'
     size: 114688
-    type: zeros
-    label: preserved
+    type: blank
+    label: flash_storage
   - start: '0x00020000'
     end: '0x0013e508'
     size: 1172744
