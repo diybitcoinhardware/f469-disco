@@ -8,17 +8,30 @@ MicroPython firmware for STM32F469-Discovery board with Bitcoin/crypto focus.
 
 ## Setup
 
+**Nix (recommended):** The project has a `flake.nix` providing all build tools:
+```bash
+nix develop   # enters shell with arm-gcc, openocd, gdb, python, SDL2
 ```
+
+**Python venv** (for disco tool only):
+```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r scripts/requirements.txt
 ```
 
 ## Build
 
+Requires Nix or manual install of arm-none-eabi-gcc toolchain.
+
+```bash
+nix develop -c make disco   # firmware → bin/upy-f469disco.bin
+nix develop -c make unix    # simulator → bin/micropython_unix
+nix develop -c make test    # run tests
 ```
-make disco   # firmware → bin/upy-f469disco.bin
-make unix    # simulator → bin/micropython_unix
-make test    # run tests
+
+Or inside `nix develop` shell:
+```bash
+make disco && make unix && make test
 ```
 
 ## Board Interaction
