@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build firmware
+        run: |
+          nix develop -c make mpy-cross
+          nix develop -c make disco
+          nix develop -c make empty
+          nix develop -c make unix
+
+      - name: Run tests
+        run: nix develop -c make test
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            bin/upy-f469disco.bin
+            bin/upy-f469disco-empty.bin
