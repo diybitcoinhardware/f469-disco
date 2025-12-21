@@ -6,7 +6,7 @@ import click
 
 from .openocd import OpenOCD
 from .serial import SerialDevice
-from .commands import ocd, cpu, mem, flash, serial, repl, doctor
+from .commands import ocd, cpu, mem, flash, serial, repl, doctor, quickstart
 
 _ocd = OpenOCD()
 _ser = SerialDevice()
@@ -44,6 +44,7 @@ cli.add_command(flash)
 cli.add_command(serial)
 cli.add_command(repl)
 cli.add_command(doctor)
+cli.add_command(quickstart)
 
 
 # =============================================================================
