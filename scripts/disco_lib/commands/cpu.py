@@ -1,10 +1,10 @@
 """CPU control commands."""
 
-import re
-
 import click
 
 from ..ocd_provider import get_ocd
+from .. import cpu as cpu_backend
+from .. import memory
 
 
 @click.group()
@@ -15,7 +15,7 @@ def cpu():
     These commands require OpenOCD to be running (disco ocd connect).
 
     \b
-    ⚠️  WARNING: Halting the CPU disconnects USB CDC (REPL).
+    WARNING: Halting the CPU disconnects USB CDC (REPL).
     Use 'disco cpu resume' or 'disco ocd cmd reset run' to restore.
 
     \b
@@ -34,20 +34,20 @@ def cpu():
 def cpu_halt():
     """Halt the CPU.
 
-    ⚠️  This disconnects USB CDC - REPL will be unavailable until resumed.
+    WARNING: This disconnects USB CDC - REPL will be unavailable until resumed.
     """
     get_ocd().require_running()
-    get_ocd().send("halt")
+    cpu_backend.halt(get_ocd())
     click.secho("CPU halted", fg="green")
     click.secho("Note: USB CDC (REPL) disconnected while halted", fg="yellow")
-    click.echo(get_ocd().send("reg pc sp"))
+    click.echo(cpu_backend.read_pc_sp(get_ocd()))
 
 
 @cpu.command("resume")
 def cpu_resume():
     """Resume execution."""
     get_ocd().require_running()
-    get_ocd().send("resume")
+    cpu_backend.resume(get_ocd())
     click.secho("CPU resumed", fg="green")
 
 
@@ -55,17 +55,17 @@ def cpu_resume():
 def cpu_reset():
     """Reset and halt."""
     get_ocd().require_running()
-    get_ocd().send("reset halt")
+    cpu_backend.reset_halt(get_ocd())
     click.secho("CPU reset and halted", fg="green")
-    click.echo(get_ocd().send("reg pc sp"))
+    click.echo(cpu_backend.read_pc_sp(get_ocd()))
 
 
 @cpu.command("step")
 def cpu_step():
     """Single step."""
     get_ocd().require_running()
-    get_ocd().send("step")
-    click.echo(get_ocd().send("reg pc"))
+    cpu_backend.step(get_ocd())
+    click.echo(cpu_backend.read_reg(get_ocd(), "pc"))
 
 
 @cpu.command("regs")
@@ -73,11 +73,8 @@ def cpu_regs():
     """Show all CPU registers."""
     get_ocd().require_running()
     click.secho("=== CPU Registers ===", fg="blue")
-    get_ocd().send("halt")
-    try:
-        click.echo(get_ocd().send("reg"))
-    finally:
-        get_ocd().send("resume")
+    with cpu_backend.halted(get_ocd()):
+        click.echo(cpu_backend.read_regs(get_ocd()))
 
 
 @cpu.command("pc")
@@ -85,21 +82,16 @@ def cpu_pc():
     """Show current PC and memory around it."""
     get_ocd().require_running()
     click.secho("=== Current PC ===", fg="blue")
-    get_ocd().send("halt")
-    try:
-        result = get_ocd().send("reg pc")
-        match = re.search(r"0x[0-9a-fA-F]+", result)
-        if match:
-            pc_val = int(match.group(), 16)
+    with cpu_backend.halted(get_ocd()):
+        pc_val = cpu_backend.read_pc(get_ocd())
+        if pc_val is not None:
             click.echo(f"PC: 0x{pc_val:08x}")
             click.echo()
             click.echo("Memory around PC:")
             pc_aligned = (pc_val & ~0xF) - 0x10
-            click.echo(get_ocd().send(f"mdw 0x{pc_aligned:08x} 16"))
+            click.echo(memory.read_words(get_ocd(), pc_aligned, 16))
         else:
-            click.echo(result)
-    finally:
-        get_ocd().send("resume")
+            click.echo(cpu_backend.read_reg(get_ocd(), "pc"))
 
 
 @cpu.command("stack")
@@ -108,18 +100,13 @@ def cpu_stack(count: int):
     """Show stack (N words, default 16)."""
     get_ocd().require_running()
     click.secho(f"=== Stack ({count} words) ===", fg="blue")
-    get_ocd().send("halt")
-    try:
-        result = get_ocd().send("reg sp")
-        match = re.search(r"0x[0-9a-fA-F]+", result)
-        if match:
-            sp_val = int(match.group(), 16)
+    with cpu_backend.halted(get_ocd()):
+        sp_val = cpu_backend.read_sp(get_ocd())
+        if sp_val is not None:
             click.echo(f"SP: 0x{sp_val:08x}")
-            click.echo(get_ocd().send(f"mdw 0x{sp_val:08x} {count}"))
+            click.echo(memory.read_words(get_ocd(), sp_val, count))
         else:
-            click.echo(result)
-    finally:
-        get_ocd().send("resume")
+            click.echo(cpu_backend.read_reg(get_ocd(), "sp"))
 
 
 @cpu.command("gdb")

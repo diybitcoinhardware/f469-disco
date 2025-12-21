@@ -7,6 +7,7 @@ import click
 
 from ..ocd_provider import get_ocd
 from ..serial import SerialDevice
+from .. import cpu as cpu_backend
 
 _ser = SerialDevice()
 
@@ -121,7 +122,7 @@ def serial_boot(timeout: int):
     click.echo(f"Device: {dev}")
     click.echo("Resetting board and capturing output...")
 
-    get_ocd().send("reset run")
+    cpu_backend.reset_run(get_ocd())
     time.sleep(0.3)
     output = _ser.read_timeout(dev, timeout)
 

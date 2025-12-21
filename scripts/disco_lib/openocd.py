@@ -4,6 +4,8 @@ import re
 import socket
 import subprocess
 import time
+from contextlib import contextmanager
+from typing import Generator
 
 import click
 
@@ -139,3 +141,32 @@ class OpenOCD:
             raise click.ClickException(
                 "OpenOCD not running. Run 'disco connect' first."
             )
+
+    @contextmanager
+    def running(self, auto_start: bool = True) -> Generator["OpenOCD", None, None]:
+        """Context manager ensuring OpenOCD is running.
+
+        Starts OpenOCD if not running (when auto_start=True).
+        Keeps it running after context exits (user usually wants this).
+
+        Usage:
+            ocd = OpenOCD()
+            with ocd.running():
+                result = ocd.send("reg pc")
+
+        Args:
+            auto_start: If True, start OpenOCD if not running. If False, raise error.
+
+        Raises:
+            click.ClickException: If OpenOCD not running and auto_start=False,
+                                  or if start fails.
+        """
+        if not self.is_running():
+            if auto_start:
+                if not self.start():
+                    raise click.ClickException("Failed to start OpenOCD")
+            else:
+                raise click.ClickException(
+                    "OpenOCD not running. Run 'disco ocd connect' first."
+                )
+        yield self

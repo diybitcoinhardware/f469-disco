@@ -1,6 +1,7 @@
 """Centralized OpenOCD instance provider with test support."""
 
-from typing import Optional, Protocol, runtime_checkable
+from contextlib import contextmanager
+from typing import Generator, Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -12,6 +13,7 @@ class OCDProtocol(Protocol):
     def require_running(self) -> None: ...
     def start(self) -> bool: ...
     def stop(self) -> None: ...
+    def running(self, auto_start: bool = True) -> Generator["OCDProtocol", None, None]: ...
 
 
 _instance: Optional[OCDProtocol] = None
@@ -36,3 +38,27 @@ def reset_ocd() -> None:
     """Reset to None (test cleanup)."""
     global _instance
     _instance = None
+
+
+@contextmanager
+def with_ocd(auto_start: bool = True) -> Generator[OCDProtocol, None, None]:
+    """Get OCD instance, ensuring it's running.
+
+    Convenience function combining get_ocd() with running() context manager.
+    Auto-starts OpenOCD if not running (when auto_start=True).
+
+    Usage:
+        from disco_lib.ocd_provider import with_ocd
+
+        with with_ocd() as ocd:
+            result = ocd.send("reg pc")
+
+    Args:
+        auto_start: If True, start OpenOCD if not running.
+
+    Yields:
+        OCDProtocol instance ready to use.
+    """
+    ocd = get_ocd()
+    with ocd.running(auto_start):
+        yield ocd

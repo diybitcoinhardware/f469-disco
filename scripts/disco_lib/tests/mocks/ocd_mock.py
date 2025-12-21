@@ -1,6 +1,7 @@
 """Mock OpenOCD for testing halt/resume balance."""
 
-from typing import Dict, List, Optional
+from contextlib import contextmanager
+from typing import Dict, Generator, List, Optional
 
 
 class OCDMock:
@@ -87,6 +88,11 @@ class OCDMock:
     def stop(self) -> None:
         """Mock stop - no-op."""
         pass
+
+    @contextmanager
+    def running(self, auto_start: bool = True) -> Generator["OCDMock", None, None]:
+        """Mock running context manager - always succeeds."""
+        yield self
 
     # Configuration methods (chainable)
     def set_response(self, cmd: str, response: str) -> "OCDMock":

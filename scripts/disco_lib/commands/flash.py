@@ -8,6 +8,7 @@ import click
 
 from ..ocd_provider import get_ocd
 from .. import flash as flash_backend
+from .. import cpu as cpu_backend
 
 
 @click.group()
@@ -60,7 +61,7 @@ def flash_info():
     """Show flash bank info."""
     get_ocd().require_running()
     click.secho("=== Flash Bank Info ===", fg="blue")
-    click.echo(get_ocd().send("flash info 0"))
+    click.echo(flash_backend.read_info(get_ocd()))
 
 
 @flash.command("identify")
@@ -97,15 +98,12 @@ def flash_identify(file: str):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
             tmp_path = tmp.name
 
-        get_ocd().send("halt")
-        try:
-            get_ocd().send(f"dump_image {tmp_path} 0x08000000 0x180000", timeout=60)
+        with cpu_backend.halted(get_ocd()):
+            flash_backend.dump_image(get_ocd(), tmp_path, 0x08000000, 0x180000, timeout=60)
 
             with open(tmp_path, "rb") as f:
                 data = f.read()
             os.unlink(tmp_path)
-        finally:
-            get_ocd().send("resume")
 
     match = re.search(version_pattern, data)
     click.echo()
@@ -205,6 +203,12 @@ def flash_read(file: str, addr: str, size: str):
 
     file = os.path.abspath(file)
 
+    # Parse address
+    if addr.startswith("0x"):
+        addr_int = int(addr, 16)
+    else:
+        addr_int = int(addr)
+
     if size.startswith("0x"):
         byte_count = int(size, 16)
     else:
@@ -213,16 +217,15 @@ def flash_read(file: str, addr: str, size: str):
     timeout = max(60, int(byte_count / (50 * 1024)) + 30)
 
     click.secho("=== Reading Flash ===", fg="blue")
-    click.echo(f"Address: {addr}")
+    click.echo(f"Address: 0x{addr_int:08x}")
     click.echo(f"Size: {byte_count:,} bytes ({byte_count/1024:.1f} KB)")
     click.echo(f"File: {file}")
     click.echo(f"Timeout: {timeout}s")
     click.echo()
 
-    get_ocd().send("halt")
-    try:
+    with cpu_backend.halted(get_ocd()):
         click.secho("Reading flash (this may take a while)...", fg="yellow")
-        result = get_ocd().send(f"dump_image {file} {addr} {byte_count}", timeout=timeout)
+        result = flash_backend.dump_image(get_ocd(), file, addr_int, byte_count, timeout=timeout)
 
         if result:
             click.echo(result)
@@ -235,8 +238,6 @@ def flash_read(file: str, addr: str, size: str):
                 click.secho(f"Warning: Read {actual_size:,} bytes (expected {byte_count:,})", fg="yellow")
         else:
             click.secho("Failed to create output file", fg="red")
-    finally:
-        get_ocd().send("resume")
 
 
 @flash.command("verify")
@@ -260,91 +261,37 @@ def flash_verify(file: str, addr: str, smart: bool):
     file = os.path.abspath(file)
     size = os.path.getsize(file)
 
+    # Parse address
+    if addr.startswith("0x"):
+        addr_int = int(addr, 16)
+    else:
+        addr_int = int(addr)
+
     regions = flash_backend.analyze_firmware(file)
     code_regions = flash_backend.get_code_regions(regions)
     internal_zeros = flash_backend.has_internal_zeros(regions)
 
-    timeout = max(60, int(size / (50 * 1024)) + 30)
-
     click.secho("=== Verifying Flash ===", fg="blue")
     click.echo(f"File: {file}")
     click.echo(f"Size: {size:,} bytes ({size/1024:.1f} KB)")
-    click.echo(f"Address: {addr}")
+    click.echo(f"Address: 0x{addr_int:08x}")
     click.echo(f"Mode: {'smart (code regions only)' if smart else 'full (strict)'}")
 
     if internal_zeros and smart:
         click.secho("Note: File has zeros between code - will verify code regions only", fg="yellow")
     click.echo()
 
-    get_ocd().send("halt")
-    try:
-        if smart and internal_zeros and len(code_regions) > 0:
-            click.secho("Verifying code regions...", fg="yellow")
-            all_passed = True
+    # Use business layer verify_firmware which handles halt/resume internally
+    success = flash_backend.verify_firmware(get_ocd(), file, addr_int, smart)
 
-            for region_start, region_end in code_regions:
-                region_size = region_end - region_start
-                if addr.startswith("0x"):
-                    base_addr = int(addr, 16)
-                else:
-                    base_addr = int(addr)
-
-                flash_addr = base_addr + region_start
-                click.echo(f"  Region 0x{region_start:x}-0x{region_end:x} at 0x{flash_addr:08x}...")
-
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
-                    tmp_path = tmp.name
-
-                read_timeout = max(60, int(region_size / (50 * 1024)) + 30)
-                get_ocd().send(
-                    f"dump_image {tmp_path} 0x{flash_addr:x} {region_size}",
-                    timeout=read_timeout
-                )
-
-                try:
-                    with open(file, "rb") as f:
-                        f.seek(region_start)
-                        file_data = f.read(region_size)
-
-                    with open(tmp_path, "rb") as f:
-                        flash_data = f.read()
-
-                    os.unlink(tmp_path)
-
-                    if file_data == flash_data:
-                        click.secho(f"    Match ({region_size:,} bytes)", fg="green")
-                    else:
-                        click.secho("    Mismatch!", fg="red")
-                        all_passed = False
-                except Exception as e:
-                    click.secho(f"    Error: {e}", fg="red")
-                    all_passed = False
-
+    if success:
+        click.secho("Verification PASSED!", fg="green")
+    else:
+        click.secho("Verification FAILED!", fg="red")
+        if internal_zeros and not smart:
             click.echo()
-            if all_passed:
-                click.secho("Verification PASSED! (code regions verified)", fg="green")
-            else:
-                click.secho("Verification FAILED!", fg="red")
-        else:
-            click.secho("Verifying (this may take a while)...", fg="yellow")
-            result = get_ocd().send(f"verify_image {file} {addr}", timeout=timeout)
-
-            if result:
-                click.echo(result)
-
-            result_lower = result.lower()
-            if "verified" in result_lower and "error" not in result_lower:
-                click.secho("Verification PASSED!", fg="green")
-            elif "error" in result_lower or "mismatch" in result_lower:
-                click.secho("Verification FAILED!", fg="red")
-                if internal_zeros:
-                    click.echo()
-                    click.secho("Hint: File has zeros between code regions.", fg="yellow")
-                    click.echo("Use 'disco flash verify --smart' to skip these areas.")
-            else:
-                click.secho("Verification status unclear - check output above", fg="yellow")
-    finally:
-        get_ocd().send("resume")
+            click.secho("Hint: File has zeros between code regions.", fg="yellow")
+            click.echo("Use 'disco flash verify --smart' to skip these areas.")
 
 
 @flash.command("erase")
@@ -353,12 +300,9 @@ def flash_erase():
     get_ocd().require_running()
     click.secho("WARNING: This will erase all flash memory!", fg="red")
     if click.confirm("Type 'y' to confirm"):
-        get_ocd().send("halt")
-        try:
-            click.echo(get_ocd().send("flash erase_sector 0 0 last"))
+        with cpu_backend.halted(get_ocd()):
+            click.echo(flash_backend.erase_all(get_ocd()))
             click.secho("Flash erased", fg="green")
-        finally:
-            get_ocd().send("resume")
     else:
         click.echo("Aborted")
 
@@ -377,8 +321,8 @@ def flash_program(file: str, addr: str | None, force: bool, verify: bool, reset:
     sections won't overwrite existing flash data (preserves filesystem).
 
     Flash address is auto-detected based on firmware layout:
-      - Initial/full images (with bootloader) → 0x08000000
-      - Upgrade images (main firmware only) → 0x08020000
+      - Initial/full images (with bootloader) -> 0x08000000
+      - Upgrade images (main firmware only) -> 0x08020000
 
     Use --addr to override, requires --force if it conflicts with auto-detect.
 
@@ -430,7 +374,7 @@ def flash_program(file: str, addr: str | None, force: bool, verify: bool, reset:
 
     click.secho("Programming in progress (this may take a while)...", fg="yellow")
 
-    success = flash_backend.program_firmware(_ocd, file, addr_int, verify, reset, timeout)
+    success = flash_backend.program_firmware(get_ocd(), file, addr_int, verify, reset, timeout)
 
     if success:
         click.secho("Programming complete!", fg="green")
@@ -490,7 +434,7 @@ def _print_fingerprint_summary(fingerprint: dict, runtime_results: dict = None):
         click.echo()
         click.echo("Runtime:")
         for key, val in runtime_results.items():
-            icon = click.style("✓", fg="green") if val else click.style("✗", fg="red")
+            icon = click.style("OK", fg="green") if val else click.style("FAIL", fg="red")
             click.echo(f"  {icon} {key}: {val}")
 
 
@@ -508,7 +452,7 @@ def fingerprint_create(file: str, output: str):
       disco flash fingerprint create firmware.bin
     """
     import time
-    from ..openocd import OpenOCD
+    from ..ocd_provider import with_ocd
     from ..serial import SerialDevice
 
     if output is None:
@@ -526,18 +470,17 @@ def fingerprint_create(file: str, output: str):
     flash_addr = int(flash_addr_str, 16)
     click.echo(f"Flash address: {flash_addr_str} (auto-detected)")
 
-    ocd = OpenOCD()
-    ocd.require_running()
-    if not _flash_and_verify(ocd, file, flash_addr):
-        raise SystemExit(1)
+    with with_ocd() as ocd:
+        if not _flash_and_verify(ocd, file, flash_addr):
+            raise SystemExit(1)
 
-    click.echo("Waiting for device to boot...")
-    time.sleep(5.0)  # Wait for boot + USB re-enumeration
+        click.echo("Waiting for device to boot...")
+        time.sleep(5.0)  # Wait for boot + USB re-enumeration
 
-    click.echo("Running runtime tests...")
-    ser = SerialDevice()
-    runtime = flash_backend.test_runtime(ocd, ser)
-    fp["runtime"] = runtime
+        click.echo("Running runtime tests...")
+        ser = SerialDevice()
+        runtime = flash_backend.test_runtime(ocd, ser)
+        fp["runtime"] = runtime
 
     _write_fingerprint(fp, output)
     click.secho(f"\nFingerprint created: {output}", fg="green")
@@ -559,7 +502,7 @@ def fingerprint_update(file: str, output: str):
       disco flash fingerprint update firmware.bin
     """
     import time
-    from ..openocd import OpenOCD
+    from ..ocd_provider import with_ocd
     from ..serial import SerialDevice
 
     if output is None:
@@ -573,18 +516,17 @@ def fingerprint_update(file: str, output: str):
     flash_addr = int(flash_addr_str, 16)
     click.echo(f"Flash address: {flash_addr_str} (auto-detected)")
 
-    ocd = OpenOCD()
-    ocd.require_running()
-    if not _flash_and_verify(ocd, file, flash_addr):
-        raise SystemExit(1)
+    with with_ocd() as ocd:
+        if not _flash_and_verify(ocd, file, flash_addr):
+            raise SystemExit(1)
 
-    click.echo("Waiting for device to boot...")
-    time.sleep(5.0)  # Wait for boot + USB re-enumeration
+        click.echo("Waiting for device to boot...")
+        time.sleep(5.0)  # Wait for boot + USB re-enumeration
 
-    click.echo("Running runtime tests...")
-    ser = SerialDevice()
-    runtime = flash_backend.test_runtime(ocd, ser)
-    fp["runtime"] = runtime
+        click.echo("Running runtime tests...")
+        ser = SerialDevice()
+        runtime = flash_backend.test_runtime(ocd, ser)
+        fp["runtime"] = runtime
 
     action = "updated" if os.path.exists(output) else "created"
     _write_fingerprint(fp, output)
@@ -595,21 +537,23 @@ def fingerprint_update(file: str, output: str):
 
 @fingerprint.command("test")
 @click.argument("fingerprint_file", type=click.Path(exists=True))
-def fingerprint_test(fingerprint_file: str):
+@click.option("--static-only", is_flag=True, help="Only compare file fingerprint (no flash, no hardware)")
+def fingerprint_test(fingerprint_file: str, static_only: bool):
     """Test current state against existing fingerprint.
 
     Flashes firmware, runs tests and compares to expected values.
     Returns non-zero if differs, creates fingerprint_diff_<timestamp>.yaml.
 
+    With --static-only, only compares file fingerprint without hardware.
+
     \b
     Examples:
       disco flash fingerprint test fingerprint.yaml
+      disco flash fingerprint test fingerprint.yaml --static-only
     """
     import time
     import yaml
     from datetime import datetime
-    from ..openocd import OpenOCD
-    from ..serial import SerialDevice
 
     # Validate file type
     if not fingerprint_file.endswith(('.yaml', '.yml')):
@@ -626,6 +570,8 @@ def fingerprint_test(fingerprint_file: str):
 
     click.echo(f"Testing against: {fingerprint_file}")
     click.echo(f"Firmware: {expected.get('filename')}")
+    if static_only:
+        click.echo("Mode: static only (no flash, no hardware)")
 
     if not os.path.exists(firmware_file):
         raise click.ClickException(f"Firmware file not found: {firmware_file}")
@@ -633,38 +579,43 @@ def fingerprint_test(fingerprint_file: str):
     click.echo("Analyzing firmware...")
     current = flash_backend.generate_fingerprint(firmware_file)
 
-    # Get flash address from fingerprint or auto-detect
-    flash_addr_str = expected.get("static", {}).get("flash_address")
-    if flash_addr_str:
-        flash_addr = int(flash_addr_str, 16)
-        click.echo(f"Flash address: {flash_addr_str} (from fingerprint)")
-    else:
-        flash_addr_str = current.get("static", {}).get("flash_address", "0x08020000")
-        flash_addr = int(flash_addr_str, 16)
-        click.echo(f"Flash address: {flash_addr_str} (auto-detected)")
+    runtime = None
+    if not static_only:
+        from ..ocd_provider import with_ocd
+        from ..serial import SerialDevice
 
-    ocd = OpenOCD()
-    ocd.require_running()
-    if not _flash_and_verify(ocd, firmware_file, flash_addr):
-        raise click.ClickException("Flash/verify failed")
+        # Get flash address from fingerprint or auto-detect
+        flash_addr_str = expected.get("static", {}).get("flash_address")
+        if flash_addr_str:
+            flash_addr = int(flash_addr_str, 16)
+            click.echo(f"Flash address: {flash_addr_str} (from fingerprint)")
+        else:
+            flash_addr_str = current.get("static", {}).get("flash_address", "0x08020000")
+            flash_addr = int(flash_addr_str, 16)
+            click.echo(f"Flash address: {flash_addr_str} (auto-detected)")
 
-    click.echo("Waiting for device to boot...")
-    time.sleep(5.0)  # Wait for boot + USB re-enumeration
+        with with_ocd() as ocd:
+            if not _flash_and_verify(ocd, firmware_file, flash_addr):
+                raise click.ClickException("Flash/verify failed")
 
-    click.echo("Running runtime tests...")
-    ser = SerialDevice()
-    runtime = flash_backend.test_runtime(ocd, ser)
-    current["runtime"] = runtime
+            click.echo("Waiting for device to boot...")
+            time.sleep(5.0)  # Wait for boot + USB re-enumeration
+
+            click.echo("Running runtime tests...")
+            ser = SerialDevice()
+            runtime = flash_backend.test_runtime(ocd, ser)
+            current["runtime"] = runtime
 
     # Compare
-    diffs = flash_backend.compare_fingerprints(expected, current)
+    diffs = flash_backend.compare_fingerprints(expected, current, static_only=static_only)
 
     if not diffs:
-        click.secho("\n✓ All tests passed - fingerprint matches", fg="green")
+        msg = "static fingerprint matches" if static_only else "fingerprint matches"
+        click.secho(f"\nAll tests passed - {msg}", fg="green")
         raise SystemExit(0)
 
     # Show differences
-    click.secho(f"\n✗ {len(diffs)} difference(s) found:", fg="red")
+    click.secho(f"\n{len(diffs)} difference(s) found:", fg="red")
     for key, diff in diffs.items():
         click.echo(f"  {key}: expected={diff['expected']}, actual={diff['actual']}")
 
@@ -675,8 +626,9 @@ def fingerprint_test(fingerprint_file: str):
         "expected_file": fingerprint_file,
         "timestamp": timestamp,
         "differences": diffs,
-        "current_runtime": runtime,
     }
+    if runtime:
+        diff_data["current_runtime"] = runtime
     with open(diff_file, "w") as f:
         yaml.dump(diff_data, f, default_flow_style=False, sort_keys=False)
 

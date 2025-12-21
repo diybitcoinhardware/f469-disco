@@ -347,8 +347,17 @@ def verify_firmware(
         ocd.send("resume")
 
 
-def compare_fingerprints(fp1: Dict[str, Any], fp2: Dict[str, Any]) -> Dict[str, Any]:
+def compare_fingerprints(
+    fp1: Dict[str, Any],
+    fp2: Dict[str, Any],
+    static_only: bool = False,
+) -> Dict[str, Any]:
     """Compare two fingerprints and return differences.
+
+    Args:
+        fp1: Expected fingerprint
+        fp2: Actual fingerprint
+        static_only: If True, skip runtime field comparison
 
     Returns dict with keys that differ. Empty dict means identical.
     """
@@ -367,12 +376,60 @@ def compare_fingerprints(fp1: Dict[str, Any], fp2: Dict[str, Any]) -> Dict[str, 
     if len(r1) != len(r2):
         diffs["static.regions_count"] = {"expected": len(r1), "actual": len(r2)}
 
-    # Compare runtime fields
-    for key in ["jtag_works", "cpu_runs", "usb_cdc", "repl_responsive"]:
-        v1 = fp1.get("runtime", {}).get(key)
-        v2 = fp2.get("runtime", {}).get(key)
-        # Only compare if expected value is set (not None)
-        if v1 is not None and v1 != v2:
-            diffs[f"runtime.{key}"] = {"expected": v1, "actual": v2}
+    # Compare runtime fields (unless static_only)
+    if not static_only:
+        for key in ["jtag_works", "cpu_runs", "usb_cdc", "repl_responsive"]:
+            v1 = fp1.get("runtime", {}).get(key)
+            v2 = fp2.get("runtime", {}).get(key)
+            # Only compare if expected value is set (not None)
+            if v1 is not None and v1 != v2:
+                diffs[f"runtime.{key}"] = {"expected": v1, "actual": v2}
 
     return diffs
+
+
+# ============================================================================
+# Low-level flash operations (wrappers around OpenOCD commands)
+# ============================================================================
+
+
+def read_info(ocd: OpenOCD) -> str:
+    """Get flash bank info from OpenOCD.
+
+    Returns the raw OpenOCD 'flash info 0' output.
+    """
+    return ocd.send("flash info 0")
+
+
+def erase_all(ocd: OpenOCD) -> str:
+    """Erase all flash sectors.
+
+    WARNING: This erases ALL flash including bootloader.
+    CPU should be halted before calling.
+
+    Returns the raw OpenOCD output.
+    """
+    return ocd.send("flash erase_sector 0 0 last")
+
+
+def dump_image(
+    ocd: OpenOCD,
+    filepath: str,
+    addr: int,
+    size: int,
+    timeout: float = 60.0,
+) -> str:
+    """Dump flash/memory region to binary file.
+
+    Args:
+        ocd: OpenOCD instance
+        filepath: Output file path
+        addr: Start address
+        size: Number of bytes to dump
+        timeout: Command timeout in seconds
+
+    Returns:
+        Raw OpenOCD output string
+    """
+    filepath = os.path.abspath(filepath)
+    return ocd.send(f"dump_image {filepath} 0x{addr:08x} {size}", timeout=timeout)

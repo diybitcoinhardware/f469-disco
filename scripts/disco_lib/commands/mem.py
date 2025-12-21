@@ -1,10 +1,13 @@
 """Memory inspection commands."""
 
+import os
 import re
 
 import click
 
 from ..ocd_provider import get_ocd
+from .. import cpu as cpu_backend
+from .. import memory
 
 
 @click.group()
@@ -48,12 +51,16 @@ def mem():
 def mem_read(addr: str, count: int):
     """Read memory words from address."""
     get_ocd().require_running()
-    click.secho(f"=== Memory @ {addr} ({count} words) ===", fg="blue")
-    get_ocd().send("halt")
-    try:
-        click.echo(get_ocd().send(f"mdw {addr} {count}"))
-    finally:
-        get_ocd().send("resume")
+
+    # Parse address
+    if addr.startswith("0x"):
+        addr_int = int(addr, 16)
+    else:
+        addr_int = int(addr)
+
+    click.secho(f"=== Memory @ 0x{addr_int:08x} ({count} words) ===", fg="blue")
+    with cpu_backend.halted(get_ocd()):
+        click.echo(memory.read_words(get_ocd(), addr_int, count))
 
 
 @mem.command("vectors")
@@ -61,28 +68,28 @@ def mem_read(addr: str, count: int):
 def mem_vectors(fw: bool):
     """Show vector table (bootloader or firmware)."""
     get_ocd().require_running()
-    get_ocd().send("halt")
-    try:
+    with cpu_backend.halted(get_ocd()):
         if fw:
             click.secho("=== Vector Table @ 0x08020000 (Firmware) ===", fg="blue")
-            click.echo(get_ocd().send("mdw 0x08020000 8"))
+            click.echo(memory.read_words(get_ocd(), 0x08020000, 8))
         else:
             click.secho("=== Vector Table @ 0x08000000 (Bootloader) ===", fg="blue")
-            result = get_ocd().send("mdw 0x08000000 8")
-            click.echo(result)
+            vectors = memory.read_vectors(get_ocd(), 0x08000000)
+            click.echo(vectors["raw"])
             click.echo()
 
-            match = re.search(r":\s*(.+)", result)
-            if match:
-                words = match.group(1).split()
-                labels = [
-                    "Initial SP", "Reset", "NMI", "HardFault",
-                    "MemManage", "BusFault", "UsageFault", "Reserved",
-                ]
-                for label, word in zip(labels, words[:8]):
-                    click.echo(f"  {label}: 0x{word}")
-    finally:
-        get_ocd().send("resume")
+            labels = [
+                "Initial SP", "Reset", "NMI", "HardFault",
+                "MemManage", "BusFault", "UsageFault", "Reserved",
+            ]
+            keys = [
+                "initial_sp", "reset", "nmi", "hardfault",
+                "memmanage", "busfault", "usagefault", "reserved",
+            ]
+            for label, key in zip(labels, keys):
+                val = vectors.get(key)
+                if val is not None:
+                    click.echo(f"  {label}: 0x{val:08x}")
 
 
 @mem.command("dump")
@@ -91,11 +98,8 @@ def mem_dump(count: int):
     """Dump first N words from flash (default 32)."""
     get_ocd().require_running()
     click.secho(f"=== Flash @ 0x08000000 ({count} words) ===", fg="blue")
-    get_ocd().send("halt")
-    try:
-        click.echo(get_ocd().send(f"mdw 0x08000000 {count}"))
-    finally:
-        get_ocd().send("resume")
+    with cpu_backend.halted(get_ocd()):
+        click.echo(memory.read_words(get_ocd(), 0x08000000, count))
 
 
 @mem.command("save")
@@ -117,9 +121,13 @@ def mem_save(file: str, addr: str, size: str):
       disco mem save firmware.bin 0x08020000 0x100000 # Dump firmware area
       disco mem save ram.bin 0x20000000 0x50000       # Dump SRAM
     """
-    import os
-
     get_ocd().require_running()
+
+    # Parse address
+    if addr.startswith("0x"):
+        addr_int = int(addr, 16)
+    else:
+        addr_int = int(addr)
 
     # Parse size (support hex or decimal)
     if size.startswith("0x"):
@@ -129,20 +137,16 @@ def mem_save(file: str, addr: str, size: str):
 
     file = os.path.abspath(file)
     click.secho(f"=== Saving Memory to File ===", fg="blue")
-    click.echo(f"Address: {addr}")
+    click.echo(f"Address: 0x{addr_int:08x}")
     click.echo(f"Size: {byte_count:,} bytes ({byte_count // 1024} KB)")
     click.echo(f"File: {file}")
 
-    get_ocd().send("halt")
-    try:
-        # Use OpenOCD dump_image command
-        result = get_ocd().send(f"dump_image {file} {addr} {byte_count}", timeout=60)
-        click.echo(result)
+    with cpu_backend.halted(get_ocd()):
+        # Use memory module for dump
+        success = memory.dump_to_file(get_ocd(), file, addr_int, byte_count, timeout=60)
 
-        if os.path.exists(file):
+        if success and os.path.exists(file):
             actual_size = os.path.getsize(file)
             click.secho(f"Saved {actual_size:,} bytes to {file}", fg="green")
         else:
             click.secho("Failed to create file", fg="red")
-    finally:
-        get_ocd().send("resume")

@@ -8,6 +8,7 @@ import click
 
 from ..ocd_provider import get_ocd
 from ..serial import SerialDevice
+from .. import cpu as cpu_backend
 
 _ser = SerialDevice()
 
@@ -76,12 +77,9 @@ def cables():
     jtag_ok = False
     ocd_running = get_ocd().is_running()
     if ocd_running:
-        get_ocd().send("halt")
-        try:
-            result = get_ocd().send("reg pc")
-            jtag_ok = "0x" in result
-        finally:
-            get_ocd().send("resume")
+        with cpu_backend.halted(get_ocd()):
+            pc_val = cpu_backend.read_pc(get_ocd())
+            jtag_ok = pc_val is not None
 
     click.echo()
     click.echo("MicroUSB (ST-LINK connector):")
