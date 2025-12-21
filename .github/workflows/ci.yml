@@ -28,3 +28,11 @@ jobs:
 
       - name: Run tests
         run: nix develop -c make test
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            bin/upy-f469disco.bin
+            bin/upy-f469disco-empty.bin
