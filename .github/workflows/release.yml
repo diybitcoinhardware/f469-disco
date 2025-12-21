@@ -4,10 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  create:
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     steps:
       - uses: actions/checkout@v4
         with:
