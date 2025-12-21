@@ -21,6 +21,35 @@ def mpremote_transport(dev: str, baud: int = BAUD_RATE):
         transport.close()
 
 
+def filter_repl_output(text: str, code: str) -> str:
+    """Filter REPL output to extract just the result.
+
+    Removes:
+      - Command echo (the code we sent)
+      - REPL prompts (>>>, ...)
+      - Empty lines
+      - Carriage returns
+    """
+    lines = text.split("\n")
+    output_lines = []
+    for line in lines:
+        line = line.rstrip("\r")
+        # Skip command echo
+        if line.strip() == code.strip():
+            continue
+        # Skip empty prompts
+        if line.strip() in (">>>", "...", ""):
+            continue
+        # Remove leading >>> if present
+        if line.startswith(">>> "):
+            line = line[4:]
+        elif line.startswith("... "):
+            line = line[4:]
+        output_lines.append(line)
+
+    return "\n".join(output_lines).strip()
+
+
 def exec_code(dev: str, code: str, baud: int = BAUD_RATE, timeout: float = 3.0) -> str:
     """Execute Python code on REPL and return output."""
     with pyserial.Serial(dev, baud, timeout=timeout) as ser:
@@ -38,25 +67,7 @@ def exec_code(dev: str, code: str, baud: int = BAUD_RATE, timeout: float = 3.0) 
         data = ser.read(8192)
         text = data.decode("utf-8", errors="replace")
 
-        # Filter output: remove command echo and trailing prompt
-        lines = text.split("\n")
-        output_lines = []
-        for line in lines:
-            line = line.rstrip("\r")
-            # Skip command echo
-            if line.strip() == code.strip():
-                continue
-            # Skip empty prompts
-            if line.strip() in (">>>", "...", ""):
-                continue
-            # Remove leading >>> if present
-            if line.startswith(">>> "):
-                line = line[4:]
-            elif line.startswith("... "):
-                line = line[4:]
-            output_lines.append(line)
-
-        return "\n".join(output_lines).strip()
+        return filter_repl_output(text, code)
 
 
 def soft_reset(dev: str, baud: int = BAUD_RATE, timeout: float = 3.0) -> str:
