@@ -23,9 +23,10 @@ static:
   version_tag: 0100900001
   build_type: debug
   filesystem_preservation: true
+  flash_address: '0x08000000'
 runtime:
   jtag_works: true
   cpu_runs: true
   usb_cdc: true
-  repl_responsive: false
+  repl_responsive: true
 notes: ''
