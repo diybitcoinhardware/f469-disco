@@ -187,6 +187,6 @@ bitcoin-cli -regtest finalizepsbt cHNidP8BAHICAAAAAcAiqnT66whblrAy+sRnAxMqusYBCt
 bitcoin-cli -regtest sendrawtransaction 02000000000101c022aa74faeb085b96b032fac46703132abac6010ade4239bab561d3bb443a940000000000feffffff020020102401000000160014d70b7575fb24efc911d44785e1f3cfce3ea34f0d00e1f5050000000017a91442f332f6526b5df361f94ac07b1ee28fd56c5fe6870247304402201191a65f6fb537533c539e68eb98817cd9afe4cbc78e7a057f6a52874c86be78022048ee39664016a2eb6b1a8887a5f4937d1d912b3757c6603d7f4ea221555636ea01210211dfef7ec7d630948e42752b90ea164698d247a2871796050a66d640ed559cb100000000
 ```
 
-Yey! We did it! Check it out in the [in the simulator](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/3_psbt/main.py).
+Yey! We did it! Check it out in the [in the simulator](https://diybitcoinhardware.github.io/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/3_psbt/main.py).
 
 Let's put everything we learned together in a minimal hardware wallet in the [last part](../4_miniwallet) of the tutorial.
