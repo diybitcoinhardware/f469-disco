@@ -91,20 +91,25 @@ def _parse_reg(output: str) -> int | None:
     return int(match.group(1), 16) if match else None
 
 
-def _parse_mdw(output: str) -> list[int]:
+def _parse_mdw(output: str) -> tuple[list[int], list[str]]:
     """Parse memory words from OpenOCD 'mdw' output.
 
     OpenOCD format: '0xADDRESS: VALUE1 VALUE2 ...'
+
+    Returns:
+        (words, skipped) - parsed hex values and any unparseable tokens
+        (e.g., '????????' for unreadable memory)
     """
     words = []
+    skipped = []
     match = re.search(r"0x[0-9a-fA-F]+:\s*(.+)", output)
     if match:
         for val in match.group(1).split():
             try:
                 words.append(int(val.strip(), 16))
             except ValueError:
-                pass
-    return words
+                skipped.append(val.strip())
+    return words, skipped
 
 
 def _in_range(addr: int, start: int, end: int) -> bool:
@@ -204,17 +209,26 @@ def check_cpu_stuck(ocd: OpenOCD, report: DiagnosticReport):
 def check_faults(ocd: OpenOCD, report: DiagnosticReport):
     """Read and decode fault status registers."""
     result = ocd.send(f"mdw {CFSR:#x}")
-    words = _parse_mdw(result)
+    words, skipped = _parse_mdw(result)
     report.cfsr = words[0] if words else 0
+    if skipped:
+        report.add("MDW_PARSE_ERROR", Level.WARN,
+                   f"Unreadable memory at CFSR: {skipped}", f"raw: {result}")
 
     result = ocd.send(f"mdw {HFSR:#x}")
-    words = _parse_mdw(result)
+    words, skipped = _parse_mdw(result)
     report.hfsr = words[0] if words else 0
+    if skipped:
+        report.add("MDW_PARSE_ERROR", Level.WARN,
+                   f"Unreadable memory at HFSR: {skipped}", f"raw: {result}")
 
     if report.cfsr & CFSR_BFARVALID:
         result = ocd.send(f"mdw {BFAR:#x}")
-        words = _parse_mdw(result)
+        words, skipped = _parse_mdw(result)
         report.bfar = words[0] if words else 0
+        if skipped:
+            report.add("MDW_PARSE_ERROR", Level.WARN,
+                       f"Unreadable memory at BFAR: {skipped}", f"raw: {result}")
 
     if report.cfsr != 0:
         if report.cfsr & CFSR_NOCP:
@@ -237,8 +251,11 @@ def check_faults(ocd: OpenOCD, report: DiagnosticReport):
 def check_fpu(ocd: OpenOCD, report: DiagnosticReport):
     """Check FPU configuration."""
     result = ocd.send(f"mdw {CPACR:#x}")
-    words = _parse_mdw(result)
+    words, skipped = _parse_mdw(result)
     report.cpacr = words[0] if words else 0
+    if skipped:
+        report.add("MDW_PARSE_ERROR", Level.WARN,
+                   f"Unreadable memory at CPACR: {skipped}", f"raw: {result}")
 
     fpu_bits = (report.cpacr >> 20) & 0xF
     if fpu_bits != 0xF:
@@ -250,7 +267,10 @@ def check_fpu(ocd: OpenOCD, report: DiagnosticReport):
 def check_vectors(ocd: OpenOCD, report: DiagnosticReport):
     """Check vector table validity."""
     result = ocd.send(f"mdw {FLASH_START:#x} 2")
-    words = _parse_mdw(result)
+    words, skipped = _parse_mdw(result)
+    if skipped:
+        report.add("MDW_PARSE_ERROR", Level.WARN,
+                   f"Unreadable memory at vector table: {skipped}", f"raw: {result}")
 
     if len(words) >= 2:
         report.vector_sp = words[0]

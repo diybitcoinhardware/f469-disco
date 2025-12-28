@@ -11,7 +11,6 @@ helps with smart verification and user feedback during flashing.
 
 import os
 import tempfile
-import pytest
 
 from disco_lib.flash import (
     analyze_firmware,

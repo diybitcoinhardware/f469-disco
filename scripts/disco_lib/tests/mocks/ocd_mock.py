@@ -1,7 +1,7 @@
 """Mock OpenOCD for testing halt/resume balance."""
 
 from contextlib import contextmanager
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Generator, List
 
 
 class OCDMock:

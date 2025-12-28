@@ -9,7 +9,7 @@ from typing import Generator
 
 import click
 
-from . import OPENOCD_CFG, OPENOCD_PORT
+from . import OPENOCD_CFG, OPENOCD_LOG, OPENOCD_PORT
 
 
 class OpenOCD:
@@ -35,12 +35,13 @@ class OpenOCD:
         """
         try:
             with socket.create_connection(("localhost", self.port), timeout=timeout) as sock:
-                # Receive initial banner
-                sock.settimeout(0.5)
+                # Drain any initial banner (OpenOCD typically sends none)
+                sock.setblocking(False)
                 try:
                     sock.recv(4096)
-                except socket.timeout:
-                    pass
+                except BlockingIOError:
+                    pass  # No data available - expected
+                sock.setblocking(True)
 
                 # Send command + exit
                 # Note: OpenOCD executes commands sequentially, so 'exit' runs after cmd completes
@@ -100,7 +101,7 @@ class OpenOCD:
             return True
 
         click.secho("Starting OpenOCD...", fg="blue")
-        with open("/tmp/openocd.log", "w") as log:
+        with open(OPENOCD_LOG, "w") as log:
             subprocess.Popen(
                 ["openocd", "-f", OPENOCD_CFG],
                 stdout=log,
@@ -119,12 +120,12 @@ class OpenOCD:
                 click.echo(f"Target info:\n{pc}")
                 return True
 
-        click.secho("Failed to connect. Check /tmp/openocd.log", fg="red")
+        click.secho(f"Failed to connect. Check {OPENOCD_LOG}", fg="red")
         try:
-            with open("/tmp/openocd.log") as f:
+            with open(OPENOCD_LOG) as f:
                 click.echo(f.read())
         except FileNotFoundError:
-            pass
+            click.echo(f"(log file {OPENOCD_LOG} not found)")
         return False
 
     def stop(self) -> None:

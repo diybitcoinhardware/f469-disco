@@ -269,7 +269,6 @@ def flash_verify(file: str, addr: str, smart: bool):
         addr_int = int(addr)
 
     regions = flash_backend.analyze_firmware(file)
-    code_regions = flash_backend.get_code_regions(regions)
     internal_zeros = flash_backend.has_internal_zeros(regions)
 
     click.secho("=== Verifying Flash ===", fg="blue")

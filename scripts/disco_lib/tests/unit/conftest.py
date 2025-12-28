@@ -1,7 +1,7 @@
 """Shared fixtures for disco_lib tests."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from disco_lib.ocd_provider import set_ocd, reset_ocd
 from disco_lib.tests.mocks import OCDMock

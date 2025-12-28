@@ -9,8 +9,6 @@ The key testable logic is in filter_repl_output, which must handle
 the messy reality of serial REPL output (echoes, prompts, \r\n, etc).
 """
 
-import pytest
-
 from disco_lib.repl import filter_repl_output
 
 

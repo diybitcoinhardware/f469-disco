@@ -1,6 +1,5 @@
 """Tests for serial.py backend."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 from disco_lib.serial import SerialDevice

@@ -33,12 +33,14 @@ def read_vectors(ocd: OCDProtocol, addr: int = 0x08000000) -> dict[str, Any]:
         addr: Vector table address (default: 0x08000000)
 
     Returns:
-        Dict with vector names and values, plus raw output
+        Dict with vector names and values, plus 'raw' output and 'skipped' list
+        for any unparseable values (e.g., '????????' for unreadable memory)
     """
     result = ocd.send(f"mdw 0x{addr:08x} 8")
 
     vectors = {
         "raw": result,
+        "skipped": [],
         "initial_sp": None,
         "reset": None,
         "nmi": None,
@@ -53,12 +55,12 @@ def read_vectors(ocd: OCDProtocol, addr: int = 0x08000000) -> dict[str, Any]:
     match = re.search(r":\s*(.+)", result)
     if match:
         words = match.group(1).split()
-        names = list(vectors.keys())[1:]  # Skip 'raw'
+        names = list(vectors.keys())[2:]  # Skip 'raw' and 'skipped'
         for name, word in zip(names, words[:8]):
             try:
                 vectors[name] = int(word, 16)
             except ValueError:
-                pass
+                vectors["skipped"].append(word)
 
     return vectors
 

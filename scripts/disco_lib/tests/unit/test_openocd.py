@@ -66,8 +66,8 @@ class TestSend:
         mock_sock.__enter__ = MagicMock(return_value=mock_sock)
         mock_sock.__exit__ = MagicMock(return_value=False)
 
-        # First recv gets banner (timeout), then response, then empty
-        mock_sock.recv.side_effect = [socket.timeout(), response, b""]
+        # First recv drains banner (BlockingIOError = no data), then response, then empty
+        mock_sock.recv.side_effect = [BlockingIOError(), response, b""]
         return mock_sock
 
     def test_sends_command_with_exit(self, mock_socket):

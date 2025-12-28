@@ -1,7 +1,6 @@
 """Memory inspection commands."""
 
 import os
-import re
 
 import click
 
@@ -90,6 +89,9 @@ def mem_vectors(fw: bool):
                 val = vectors.get(key)
                 if val is not None:
                     click.echo(f"  {label}: 0x{val:08x}")
+
+            if vectors.get("skipped"):
+                click.secho(f"  Warning: unreadable values: {vectors['skipped']}", fg="yellow")
 
 
 @mem.command("dump")

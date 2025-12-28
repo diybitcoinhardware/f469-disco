@@ -9,8 +9,6 @@ Key functions:
   - generate_markdown: Format report for logging
 """
 
-import pytest
-
 from disco_lib.diagnostics import (
     _parse_reg,
     _parse_mdw,
@@ -62,36 +60,58 @@ class TestParseMdw:
 
     OpenOCD "mdw" command returns: "0xADDRESS: WORD1 WORD2 WORD3..."
     Used to read vector table, fault registers, etc.
+
+    Returns (words, skipped) tuple for diagnostic reporting.
     """
 
     def test_single_word(self):
         """Reading single 32-bit word."""
-        assert _parse_mdw("0x08000000: 2004fff8") == [0x2004fff8]
+        words, skipped = _parse_mdw("0x08000000: 2004fff8")
+        assert words == [0x2004fff8]
+        assert skipped == []
 
     def test_multiple_words(self):
         """Reading multiple words (e.g., vector table SP + Reset)."""
         output = "0x08000000: 2004fff8 08050e59 08046dfb 08046de9"
-        result = _parse_mdw(output)
-        assert result == [0x2004fff8, 0x08050e59, 0x08046dfb, 0x08046de9]
+        words, skipped = _parse_mdw(output)
+        assert words == [0x2004fff8, 0x08050e59, 0x08046dfb, 0x08046de9]
+        assert skipped == []
 
     def test_vector_table_read(self):
         """Common use case: read initial SP and Reset vector."""
         # Vector table at 0x08000000: [initial_sp, reset_handler, ...]
         output = "0x08000000: 20050000 08020001"
-        result = _parse_mdw(output)
-        assert result[0] == 0x20050000  # SP should be in RAM
-        assert result[1] == 0x08020001  # Reset handler in Flash (thumb bit set)
+        words, skipped = _parse_mdw(output)
+        assert words[0] == 0x20050000  # SP should be in RAM
+        assert words[1] == 0x08020001  # Reset handler in Flash (thumb bit set)
+        assert skipped == []
 
     def test_returns_empty_on_invalid(self):
         """Returns empty list on parse failure - caller checks len()."""
-        assert _parse_mdw("no memory dump here") == []
-        assert _parse_mdw("") == []
-        assert _parse_mdw("Error: cannot read memory") == []
+        assert _parse_mdw("no memory dump here") == ([], [])
+        assert _parse_mdw("") == ([], [])
+        assert _parse_mdw("Error: cannot read memory") == ([], [])
 
     def test_handles_extra_whitespace(self):
         """OpenOCD output may have inconsistent spacing."""
         output = "0x08000000:   2004fff8   08050e59  "
-        assert _parse_mdw(output) == [0x2004fff8, 0x08050e59]
+        words, skipped = _parse_mdw(output)
+        assert words == [0x2004fff8, 0x08050e59]
+        assert skipped == []
+
+    def test_skipped_unreadable_memory(self):
+        """Unreadable memory returns ???????? - should be captured."""
+        output = "0x08000000: 2004fff8 ???????? 08046dfb"
+        words, skipped = _parse_mdw(output)
+        assert words == [0x2004fff8, 0x08046dfb]
+        assert skipped == ["????????"]
+
+    def test_skipped_multiple_bad_values(self):
+        """Multiple bad values all captured."""
+        output = "0x08000000: ???????? XXXXXXXX <error>"
+        words, skipped = _parse_mdw(output)
+        assert words == []
+        assert skipped == ["????????", "XXXXXXXX", "<error>"]
 
 
 class TestInRange:

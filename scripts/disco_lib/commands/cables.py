@@ -20,9 +20,15 @@ MICROPYTHON_VENDOR_ID = "0xf055"
 def _check_usb_devices():
     """Check raw USB devices via system command.
 
-    Returns dict with 'stlink' and 'micropython' booleans.
+    Returns dict with 'stlink' and 'micropython' booleans,
+    plus 'error' (str or None) and 'platform' for diagnostics.
     """
-    result = {"stlink": False, "micropython": False}
+    result = {
+        "stlink": False,
+        "micropython": False,
+        "error": None,
+        "platform": sys.platform,
+    }
 
     if sys.platform == "darwin":
         try:
@@ -34,8 +40,10 @@ def _check_usb_devices():
                 result["stlink"] = True
             if MICROPYTHON_VENDOR_ID in out.stdout:
                 result["micropython"] = True
-        except Exception:
-            pass
+        except FileNotFoundError as e:
+            result["error"] = f"Command not found: {e.filename}"
+        except subprocess.TimeoutExpired:
+            result["error"] = "USB enumeration timed out"
     elif sys.platform == "linux":
         try:
             out = subprocess.run(
@@ -45,8 +53,12 @@ def _check_usb_devices():
                 result["stlink"] = True
             if "f055:" in out.stdout:
                 result["micropython"] = True
-        except Exception:
-            pass
+        except FileNotFoundError as e:
+            result["error"] = f"Command not found: {e.filename}"
+        except subprocess.TimeoutExpired:
+            result["error"] = "USB enumeration timed out"
+    else:
+        result["error"] = f"Unsupported platform: {sys.platform}"
 
     return result
 
@@ -82,6 +94,10 @@ def cables():
             jtag_ok = pc_val is not None
 
     click.echo()
+    if usb["error"]:
+        click.secho(f"USB detection error: {usb['error']}", fg="yellow")
+        click.echo()
+
     click.echo("MicroUSB (ST-LINK connector):")
     if not usb["stlink"]:
         click.secho("  USB: NOT DETECTED - check cable!", fg="red")
