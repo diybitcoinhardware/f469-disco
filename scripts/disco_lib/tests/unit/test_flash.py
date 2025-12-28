@@ -9,8 +9,7 @@ the internal filesystem during OTA updates. Understanding this layout
 helps with smart verification and user feedback during flashing.
 """
 
-import os
-import tempfile
+from pathlib import Path
 
 from disco_lib.flash import (
     analyze_firmware,
@@ -18,14 +17,6 @@ from disco_lib.flash import (
     get_code_regions,
     calculate_code_bytes,
 )
-
-
-def create_test_firmware(data: bytes) -> str:
-    """Create a temporary firmware file with given binary data."""
-    fd, path = tempfile.mkstemp(suffix=".bin")
-    os.write(fd, data)
-    os.close(fd)
-    return path
 
 
 class TestAnalyzeFirmware:
@@ -38,53 +29,45 @@ class TestAnalyzeFirmware:
     Returns list of (start, end, has_data) tuples.
     """
 
-    def test_all_code(self):
+    def test_all_code(self, tmp_path: Path):
         """File with all non-zero data = single code region."""
         # 8KB of 0xFF (like erased flash with data)
-        path = create_test_firmware(b"\xff" * 8192)
-        try:
-            regions = analyze_firmware(path, chunk_size=4096)
-            assert len(regions) == 1
-            assert regions[0] == (0, 8192, True)  # all code
-        finally:
-            os.unlink(path)
+        path = tmp_path / "test.bin"
+        path.write_bytes(b"\xff" * 8192)
+        regions = analyze_firmware(str(path), chunk_size=4096)
+        assert len(regions) == 1
+        assert regions[0] == (0, 8192, True)  # all code
 
-    def test_all_zeros(self):
+    def test_all_zeros(self, tmp_path: Path):
         """File with all zeros = single zero region."""
-        path = create_test_firmware(b"\x00" * 8192)
-        try:
-            regions = analyze_firmware(path, chunk_size=4096)
-            assert len(regions) == 1
-            assert regions[0] == (0, 8192, False)  # all zeros
-        finally:
-            os.unlink(path)
+        path = tmp_path / "test.bin"
+        path.write_bytes(b"\x00" * 8192)
+        regions = analyze_firmware(str(path), chunk_size=4096)
+        assert len(regions) == 1
+        assert regions[0] == (0, 8192, False)  # all zeros
 
-    def test_code_then_zeros(self):
+    def test_code_then_zeros(self, tmp_path: Path):
         """Code followed by zeros (trailing padding)."""
         # 4KB code + 4KB zeros
         data = (b"\xff" * 4096) + (b"\x00" * 4096)
-        path = create_test_firmware(data)
-        try:
-            regions = analyze_firmware(path, chunk_size=4096)
-            assert len(regions) == 2
-            assert regions[0] == (0, 4096, True)      # code
-            assert regions[1] == (4096, 8192, False)  # zeros
-        finally:
-            os.unlink(path)
+        path = tmp_path / "test.bin"
+        path.write_bytes(data)
+        regions = analyze_firmware(str(path), chunk_size=4096)
+        assert len(regions) == 2
+        assert regions[0] == (0, 4096, True)      # code
+        assert regions[1] == (4096, 8192, False)  # zeros
 
-    def test_zeros_then_code(self):
+    def test_zeros_then_code(self, tmp_path: Path):
         """Zeros followed by code (unusual but valid)."""
         data = (b"\x00" * 4096) + (b"\xff" * 4096)
-        path = create_test_firmware(data)
-        try:
-            regions = analyze_firmware(path, chunk_size=4096)
-            assert len(regions) == 2
-            assert regions[0] == (0, 4096, False)     # zeros
-            assert regions[1] == (4096, 8192, True)   # code
-        finally:
-            os.unlink(path)
+        path = tmp_path / "test.bin"
+        path.write_bytes(data)
+        regions = analyze_firmware(str(path), chunk_size=4096)
+        assert len(regions) == 2
+        assert regions[0] == (0, 4096, False)     # zeros
+        assert regions[1] == (4096, 8192, True)   # code
 
-    def test_code_zeros_code_pattern(self):
+    def test_code_zeros_code_pattern(self, tmp_path: Path):
         """Code-zeros-code = filesystem preservation pattern.
 
         This is the key pattern for MicroPython firmware updates:
@@ -92,53 +75,45 @@ class TestAnalyzeFirmware:
         """
         # 4KB code + 8KB zeros + 4KB code
         data = (b"\xff" * 4096) + (b"\x00" * 8192) + (b"\xff" * 4096)
-        path = create_test_firmware(data)
-        try:
-            regions = analyze_firmware(path, chunk_size=4096)
-            assert len(regions) == 3
-            assert regions[0] == (0, 4096, True)       # bootloader
-            assert regions[1] == (4096, 12288, False)  # preserved area
-            assert regions[2] == (12288, 16384, True)  # main firmware
-        finally:
-            os.unlink(path)
+        path = tmp_path / "test.bin"
+        path.write_bytes(data)
+        regions = analyze_firmware(str(path), chunk_size=4096)
+        assert len(regions) == 3
+        assert regions[0] == (0, 4096, True)       # bootloader
+        assert regions[1] == (4096, 12288, False)  # preserved area
+        assert regions[2] == (12288, 16384, True)  # main firmware
 
-    def test_single_nonzero_byte_counts_as_code(self):
+    def test_single_nonzero_byte_counts_as_code(self, tmp_path: Path):
         """Chunk with even one non-zero byte is classified as code."""
         # 4KB zeros except last byte
         data = (b"\x00" * 4095) + b"\x01"
-        path = create_test_firmware(data)
-        try:
-            regions = analyze_firmware(path, chunk_size=4096)
-            assert len(regions) == 1
-            assert regions[0][2] is True  # has_data
-        finally:
-            os.unlink(path)
+        path = tmp_path / "test.bin"
+        path.write_bytes(data)
+        regions = analyze_firmware(str(path), chunk_size=4096)
+        assert len(regions) == 1
+        assert regions[0][2] is True  # has_data
 
-    def test_small_chunk_size(self):
+    def test_small_chunk_size(self, tmp_path: Path):
         """Smaller chunk size gives finer granularity."""
         # 2 bytes code + 2 bytes zeros
         data = b"\xff\xff\x00\x00"
-        path = create_test_firmware(data)
-        try:
-            regions = analyze_firmware(path, chunk_size=2)
-            assert len(regions) == 2
-            assert regions[0] == (0, 2, True)   # code
-            assert regions[1] == (2, 4, False)  # zeros
-        finally:
-            os.unlink(path)
+        path = tmp_path / "test.bin"
+        path.write_bytes(data)
+        regions = analyze_firmware(str(path), chunk_size=2)
+        assert len(regions) == 2
+        assert regions[0] == (0, 2, True)   # code
+        assert regions[1] == (2, 4, False)  # zeros
 
-    def test_file_not_aligned_to_chunk(self):
+    def test_file_not_aligned_to_chunk(self, tmp_path: Path):
         """Handles files not evenly divisible by chunk size."""
         # 5000 bytes (not divisible by 4096)
         data = b"\xff" * 5000
-        path = create_test_firmware(data)
-        try:
-            regions = analyze_firmware(path, chunk_size=4096)
-            # Should still cover full file
-            total = sum(end - start for start, end, _ in regions)
-            assert total == 5000
-        finally:
-            os.unlink(path)
+        path = tmp_path / "test.bin"
+        path.write_bytes(data)
+        regions = analyze_firmware(str(path), chunk_size=4096)
+        # Should still cover full file
+        total = sum(end - start for start, end, _ in regions)
+        assert total == 5000
 
 
 class TestHasInternalZeros:

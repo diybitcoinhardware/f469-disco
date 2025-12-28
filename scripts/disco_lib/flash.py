@@ -11,7 +11,13 @@ from .serial import SerialDevice
 
 
 def _is_blank_chunk(chunk: bytes) -> bool:
-    """Check if chunk is blank (all 0x00)."""
+    """Check if chunk is blank (all 0x00).
+
+    Note: We check for 0x00 (zeros) rather than 0xFF (erased flash) because
+    MicroPython firmware uses zeros as padding between code regions to preserve
+    the internal filesystem. When flashed, zero bytes don't overwrite existing
+    flash content in smart programming modes, while 0xFF would.
+    """
     if not chunk:
         return True
     return all(b == 0x00 for b in chunk)

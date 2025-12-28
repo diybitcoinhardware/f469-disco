@@ -1,6 +1,8 @@
 """Board diagnostics logic."""
 
+import platform
 import re
+import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -8,6 +10,7 @@ from enum import Enum
 from pathlib import Path
 
 import click
+import serial
 
 from .openocd import OpenOCD
 from .serial import SerialDevice
@@ -148,16 +151,17 @@ def check_target(ocd: OpenOCD, report: DiagnosticReport) -> bool:
 
         report.target_responding = True
         return True
-    except Exception:
+    except (OSError, click.ClickException) as e:
         report.add("TARGET_NOT_RESPONDING", Level.ERROR,
-                   "JTAG connected but MCU not responding")
+                   "JTAG connected but MCU not responding",
+                   details=str(e))
         return False
     finally:
         # Resume if we halted it
         if we_halted:
             try:
                 ocd.send("resume")
-            except Exception:
+            except (OSError, click.ClickException):
                 pass  # Best effort
 
 
@@ -170,7 +174,7 @@ def capture_cpu_state(ocd: OpenOCD, report: DiagnosticReport) -> bool:
         result = ocd.send("reg pc")
         pc2 = _parse_reg(result)
         report.was_halted = (pc1 == pc2)
-    except Exception:
+    except (OSError, click.ClickException):
         report.was_halted = True
 
     ocd.send("halt")
@@ -291,14 +295,23 @@ def check_vectors(ocd: OpenOCD, report: DiagnosticReport):
 def check_usb(ser: SerialDevice, report: DiagnosticReport):
     """Check USB CDC and REPL."""
     devices = ser.list_devices()
+    system = platform.system()
+
     for path, blacklisted in devices:
         if blacklisted:
             continue
-        # Match usbmodem devices - STM32 CDC typically has 5+ char suffix
-        match = re.search(r'usbmodem(\w+)', path)
-        if match and len(match.group(1)) >= 5:
-            report.usb_cdc_present = True
-            break
+        # Platform-specific USB CDC detection:
+        # - macOS: usbmodem* (STM32 CDC typically has 5+ char suffix)
+        # - Linux: ttyACM* (CDC ACM class devices)
+        if system == "Darwin":
+            match = re.search(r'usbmodem(\w+)', path)
+            if match and len(match.group(1)) >= 5:
+                report.usb_cdc_present = True
+                break
+        elif system == "Linux":
+            if re.search(r'ttyACM\d+', path):
+                report.usb_cdc_present = True
+                break
 
     if not report.usb_cdc_present:
         report.add("USB_OTG_MISSING", Level.WARN,
@@ -314,9 +327,10 @@ def check_usb(ser: SerialDevice, report: DiagnosticReport):
             else:
                 report.add("REPL_UNRESPONSIVE", Level.WARN,
                            "CDC present but no REPL response")
-        except Exception:
+        except (OSError, serial.SerialException) as e:
             report.add("REPL_UNRESPONSIVE", Level.WARN,
-                       "CDC present but no REPL response")
+                       "CDC present but no REPL response",
+                       details=str(e))
 
 
 def generate_markdown(report: DiagnosticReport) -> str:
@@ -405,7 +419,7 @@ def generate_markdown(report: DiagnosticReport) -> str:
 
 def save_log(report: DiagnosticReport, content: str) -> Path:
     """Save report to log file."""
-    log_dir = Path("/tmp/disco_log")
+    log_dir = Path(tempfile.gettempdir()) / "disco_log"
     log_dir.mkdir(exist_ok=True)
 
     filename = report.start_time.strftime("%Y-%m-%d_%H-%M-%S.md")
