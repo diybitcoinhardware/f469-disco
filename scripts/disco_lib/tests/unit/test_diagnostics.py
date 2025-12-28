@@ -9,6 +9,9 @@ Key functions:
   - generate_markdown: Format report for logging
 """
 
+import tempfile
+from pathlib import Path
+
 from disco_lib.diagnostics import (
     _parse_reg,
     _parse_mdw,
@@ -16,6 +19,10 @@ from disco_lib.diagnostics import (
     DiagnosticReport,
     Level,
     generate_markdown,
+    save_log,
+    check_target,
+    capture_cpu_state,
+    check_cpu_stuck,
     FLASH_START,
     FLASH_END,
     RAM_START,
@@ -320,3 +327,207 @@ class TestGenerateMarkdown:
 
         md = generate_markdown(report)
         assert "Primary issue: CPU_STUCK" in md
+
+
+class TestSaveLog:
+    """Tests for save_log() - writes report to log file."""
+
+    def test_creates_log_file(self):
+        """Should create log file in temp directory."""
+        report = DiagnosticReport()
+        content = "# Test Report\nTest content"
+
+        log_path = save_log(report, content)
+
+        assert log_path.exists()
+        assert log_path.read_text() == content
+        # Cleanup
+        log_path.unlink()
+
+    def test_log_filename_format(self):
+        """Log filename should contain timestamp."""
+        report = DiagnosticReport()
+        content = "# Test"
+
+        log_path = save_log(report, content)
+
+        # Format: YYYY-MM-DD_HH-MM-SS.md
+        assert log_path.suffix == ".md"
+        assert "_" in log_path.stem
+        # Cleanup
+        log_path.unlink()
+
+    def test_creates_log_directory(self):
+        """Should create disco_log directory if missing."""
+        report = DiagnosticReport()
+        content = "# Test"
+
+        log_path = save_log(report, content)
+
+        # disco_log directory should exist
+        assert log_path.parent.name == "disco_log"
+        assert log_path.parent.exists()
+        # Cleanup
+        log_path.unlink()
+
+
+class TestCheckTarget:
+    """Tests for check_target() - verifies target is responding."""
+
+    def test_returns_true_when_target_responds(self, ocd_mock_raw):
+        """Should return True when PC can be read."""
+        ocd_mock_raw.set_response("reg pc", "pc (/32): 0x08020000")
+        report = DiagnosticReport()
+
+        result = check_target(ocd_mock_raw, report)
+
+        assert result is True
+        assert report.target_responding is True
+        assert report.pc == 0x08020000
+
+    def test_returns_false_when_no_response(self, ocd_mock_raw):
+        """Should return False when target doesn't respond."""
+        ocd_mock_raw.set_response("reg pc", "Error: target not responding")
+        ocd_mock_raw.set_response("halt", "")
+        report = DiagnosticReport()
+
+        result = check_target(ocd_mock_raw, report)
+
+        assert result is False
+        assert report.target_responding is False
+
+    def test_halts_if_first_read_fails(self, ocd_mock_raw):
+        """Should try halt if initial PC read fails."""
+        # First read fails, then halt, then read succeeds
+        responses = iter([
+            "Error: no response",  # First reg pc
+            "",                     # halt
+            "pc (/32): 0x08020000"  # Second reg pc
+        ])
+        ocd_mock_raw.set_response("reg pc", "")  # Will be overridden
+
+        def mock_send(cmd, timeout=2.0):
+            ocd_mock_raw._commands.append(cmd)
+            if cmd == "halt":
+                ocd_mock_raw._halted = True
+                return ""
+            if cmd == "resume":
+                ocd_mock_raw._halted = False
+                return ""
+            return next(responses, "pc (/32): 0x08020000")
+
+        ocd_mock_raw.send = mock_send
+        report = DiagnosticReport()
+
+        result = check_target(ocd_mock_raw, report)
+
+        # Should have halted and resumed
+        assert "halt" in ocd_mock_raw._commands
+        assert "resume" in ocd_mock_raw._commands
+
+    def test_adds_error_diagnostic_on_failure(self, ocd_mock_raw):
+        """Should add TARGET_NOT_RESPONDING diagnostic on failure."""
+        ocd_mock_raw.set_response("reg pc", "")
+        ocd_mock_raw.set_response("halt", "")
+        report = DiagnosticReport()
+
+        check_target(ocd_mock_raw, report)
+
+        assert report.errors >= 1
+        codes = [d.code for d in report.diagnostics]
+        assert "TARGET_NOT_RESPONDING" in codes
+
+
+class TestCaptureCpuState:
+    """Tests for capture_cpu_state() - captures PC, SP, LR."""
+
+    def test_captures_all_registers(self, ocd_mock_raw):
+        """Should capture PC, SP, and LR."""
+        ocd_mock_raw.set_response("reg pc", "pc (/32): 0x08020000")
+        ocd_mock_raw.set_response("reg sp", "sp (/32): 0x20050000")
+        ocd_mock_raw.set_response("reg lr", "lr (/32): 0x08020100")
+        report = DiagnosticReport()
+
+        capture_cpu_state(ocd_mock_raw, report)
+
+        assert report.pc == 0x08020000
+        assert report.sp == 0x20050000
+        assert report.lr == 0x08020100
+
+    def test_handles_parse_failures(self, ocd_mock_raw):
+        """Should handle failed register reads gracefully."""
+        ocd_mock_raw.set_response("reg pc", "Error: cannot read")
+        ocd_mock_raw.set_response("reg sp", "Error: cannot read")
+        ocd_mock_raw.set_response("reg lr", "Error: cannot read")
+        report = DiagnosticReport()
+
+        # Should not raise
+        capture_cpu_state(ocd_mock_raw, report)
+
+        # Should be 0 (default) when parse fails
+        assert report.pc == 0
+        assert report.sp == 0
+        assert report.lr == 0
+
+    def test_detects_halted_state(self, ocd_mock_raw):
+        """Should detect if CPU was already halted."""
+        # If PC doesn't change between reads, CPU is halted
+        ocd_mock_raw.set_response("reg pc", "pc (/32): 0x08020000")
+        ocd_mock_raw.set_response("reg sp", "sp (/32): 0x20050000")
+        ocd_mock_raw.set_response("reg lr", "lr (/32): 0x08020100")
+        report = DiagnosticReport()
+
+        capture_cpu_state(ocd_mock_raw, report)
+
+        # was_halted should be set based on PC comparison
+        # (both reads return same PC = was halted)
+        assert report.was_halted is True
+
+
+class TestCheckCpuStuck:
+    """Tests for check_cpu_stuck() - detects infinite loops."""
+
+    def test_detects_stuck_cpu(self, ocd_mock_raw):
+        """Should detect when PC doesn't change after step."""
+        # All PC reads return same value
+        ocd_mock_raw.set_response("reg pc", "pc (/32): 0x08020000")
+        report = DiagnosticReport()
+        report.pc = 0x08020000
+
+        check_cpu_stuck(ocd_mock_raw, report)
+
+        assert report.cpu_stuck is True
+        codes = [d.code for d in report.diagnostics]
+        assert "CPU_STUCK" in codes
+
+    def test_not_stuck_when_pc_changes(self, ocd_mock_raw):
+        """Should not flag stuck when PC changes after step."""
+        # PC changes after each step
+        pc_values = iter([0x08020004, 0x08020008])
+
+        def mock_send(cmd, timeout=2.0):
+            ocd_mock_raw._commands.append(cmd)
+            if cmd == "reg pc":
+                return f"pc (/32): 0x{next(pc_values, 0x08020000):08x}"
+            return ""
+
+        ocd_mock_raw.send = mock_send
+        report = DiagnosticReport()
+        report.pc = 0x08020000
+
+        check_cpu_stuck(ocd_mock_raw, report)
+
+        assert report.cpu_stuck is False
+
+    def test_adds_error_diagnostic_when_stuck(self, ocd_mock_raw):
+        """Should add CPU_STUCK diagnostic with PC value."""
+        ocd_mock_raw.set_response("reg pc", "pc (/32): 0xDEADBEEF")
+        report = DiagnosticReport()
+        report.pc = 0xDEADBEEF
+
+        check_cpu_stuck(ocd_mock_raw, report)
+
+        # Should have error diagnostic with PC in details
+        errors = [d for d in report.diagnostics if d.level == Level.ERROR]
+        assert len(errors) >= 1
+        assert "DEADBEEF" in errors[0].details.upper()

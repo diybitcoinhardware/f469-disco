@@ -11,11 +11,16 @@ helps with smart verification and user feedback during flashing.
 
 from pathlib import Path
 
+import pytest
+
 from disco_lib.flash import (
     analyze_firmware,
     has_internal_zeros,
     get_code_regions,
     calculate_code_bytes,
+    extract_version_tag,
+    get_build_type,
+    detect_flash_address,
 )
 
 
@@ -233,3 +238,186 @@ class TestCalculateCodeBytes:
         ]
         expected = 128 * 1024 + 1024 * 1024  # 128KB + 1MB
         assert calculate_code_bytes(regions) == expected
+
+
+class TestAnalyzeFirmwareErrors:
+    """Error path tests for analyze_firmware()."""
+
+    def test_empty_file(self, tmp_path: Path):
+        """Empty file should return empty regions list."""
+        path = tmp_path / "empty.bin"
+        path.write_bytes(b"")
+        regions = analyze_firmware(str(path))
+        assert regions == []
+
+    def test_file_not_found(self):
+        """Non-existent file should raise FileNotFoundError."""
+        with pytest.raises(FileNotFoundError):
+            analyze_firmware("/nonexistent/path/firmware.bin")
+
+    def test_tiny_file(self, tmp_path: Path):
+        """Single byte file should still work."""
+        path = tmp_path / "tiny.bin"
+        path.write_bytes(b"\xff")
+        regions = analyze_firmware(str(path))
+        assert len(regions) == 1
+        assert regions[0] == (0, 1, True)
+
+    def test_single_zero_byte(self, tmp_path: Path):
+        """Single zero byte should be classified as blank."""
+        path = tmp_path / "zero.bin"
+        path.write_bytes(b"\x00")
+        regions = analyze_firmware(str(path))
+        assert len(regions) == 1
+        assert regions[0] == (0, 1, False)
+
+
+class TestExtractVersionTag:
+    """Tests for extract_version_tag() - parses version from firmware.
+
+    Version tags are embedded in firmware like:
+        <version:tag10>0100900099</version:tag10>
+    """
+
+    def test_extracts_production_tag(self):
+        """Should extract production version tag."""
+        data = b"prefix<version:tag10>0100900099</version:tag10>suffix"
+        assert extract_version_tag(data) == "0100900099"
+
+    def test_extracts_debug_tag(self):
+        """Should extract debug version tag."""
+        data = b"<version:tag10>0100900001</version:tag10>"
+        assert extract_version_tag(data) == "0100900001"
+
+    def test_returns_none_when_no_tag(self):
+        """Should return None when no version tag present."""
+        data = b"firmware data without version tag"
+        assert extract_version_tag(data) is None
+
+    def test_returns_none_on_empty_data(self):
+        """Should return None on empty input."""
+        assert extract_version_tag(b"") is None
+
+    def test_malformed_tag_no_closing(self):
+        """Malformed tag (no closing) should return None."""
+        data = b"<version:tag10>0100900099"  # no closing tag
+        assert extract_version_tag(data) is None
+
+    def test_malformed_tag_wrong_name(self):
+        """Wrong tag name should return None."""
+        data = b"<version:tag11>0100900099</version:tag11>"
+        assert extract_version_tag(data) is None
+
+    def test_empty_tag_value(self):
+        """Empty tag value should return empty string."""
+        data = b"<version:tag10></version:tag10>"
+        assert extract_version_tag(data) == ""
+
+    def test_binary_in_tag_value(self):
+        """Binary data in tag should be decoded with replacement."""
+        data = b"<version:tag10>\xff\xfe\x00</version:tag10>"
+        result = extract_version_tag(data)
+        # Should not crash, uses errors="replace"
+        assert result is not None
+        assert "\ufffd" in result  # Replacement character
+
+    def test_tag_in_large_firmware(self):
+        """Should find tag even in large firmware."""
+        # 1MB of zeros with tag in the middle
+        prefix = b"\x00" * 500_000
+        tag = b"<version:tag10>0100900099</version:tag10>"
+        suffix = b"\x00" * 500_000
+        data = prefix + tag + suffix
+        assert extract_version_tag(data) == "0100900099"
+
+    def test_first_tag_wins(self):
+        """If multiple tags, first one should be returned."""
+        data = b"<version:tag10>first</version:tag10><version:tag10>second</version:tag10>"
+        assert extract_version_tag(data) == "first"
+
+
+class TestGetBuildType:
+    """Tests for get_build_type() - maps version tag to build type."""
+
+    def test_production_tag(self):
+        """Production version tag."""
+        assert get_build_type("0100900099") == "production"
+
+    def test_debug_tag(self):
+        """Debug version tag."""
+        assert get_build_type("0100900001") == "debug"
+
+    def test_unknown_tag(self):
+        """Unknown version tag."""
+        assert get_build_type("9999999999") == "unknown"
+
+    def test_none_tag(self):
+        """None version tag."""
+        assert get_build_type(None) == "unknown"
+
+    def test_empty_string(self):
+        """Empty string version tag."""
+        assert get_build_type("") == "unknown"
+
+    def test_similar_but_different_tag(self):
+        """Similar but not exact match should be unknown."""
+        assert get_build_type("0100900098") == "unknown"
+        assert get_build_type("0100900002") == "unknown"
+
+
+class TestDetectFlashAddress:
+    """Tests for detect_flash_address() - determines correct flash address.
+
+    Returns:
+        0x08000000 for initial/full images (with bootloader)
+        0x08020000 for upgrade images (main firmware only)
+    """
+
+    def test_single_code_region_no_fs(self):
+        """Single code region without fs preservation = upgrade (0x08020000)."""
+        regions = [(0, 1024 * 1024, True)]  # 1MB code
+        assert detect_flash_address(regions, fs_preservation=False) == 0x08020000
+
+    def test_fs_preservation_pattern(self):
+        """Filesystem preservation pattern = initial (0x08000000)."""
+        regions = [
+            (0, 0x20000, True),           # Bootloader
+            (0x20000, 0x100000, False),   # FS area
+            (0x100000, 0x200000, True),   # Main firmware
+        ]
+        assert detect_flash_address(regions, fs_preservation=True) == 0x08000000
+
+    def test_small_bootloader_region(self):
+        """Small code region at start = initial (0x08000000)."""
+        regions = [
+            (0, 0x8000, True),            # 32KB bootloader
+            (0x8000, 0x100000, True),     # Main code
+        ]
+        # Has small region at start < 0x20000 and <= 0x10000 in size
+        assert detect_flash_address(regions, fs_preservation=False) == 0x08000000
+
+    def test_no_code_regions(self):
+        """No code regions (all zeros) = default 0x08020000."""
+        regions = [(0, 0x100000, False)]  # All zeros
+        assert detect_flash_address(regions, fs_preservation=False) == 0x08020000
+
+    def test_empty_regions_list(self):
+        """Empty regions list = default 0x08020000."""
+        regions = []
+        assert detect_flash_address(regions, fs_preservation=False) == 0x08020000
+
+    def test_large_single_region_at_start(self):
+        """Large code region at start (> 64KB) = upgrade firmware."""
+        regions = [(0, 0x100000, True)]  # 1MB, starts at 0, but too large for bootloader
+        # This doesn't match bootloader pattern (size > 0x10000)
+        # And no fs_preservation, so should be upgrade
+        assert detect_flash_address(regions, fs_preservation=False) == 0x08020000
+
+    def test_multiple_regions_without_fs(self):
+        """Multiple code regions but no fs preservation."""
+        regions = [
+            (0, 0x8000, True),      # Small first region
+            (0x8000, 0x10000, True),  # Another code region
+        ]
+        # Small first region < 0x20000 and <= 0x10000 = initial
+        assert detect_flash_address(regions, fs_preservation=False) == 0x08000000

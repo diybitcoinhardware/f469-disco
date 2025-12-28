@@ -55,8 +55,6 @@ class TestFlashCommandsResumesCPU:
         # This will fail because dump_image creates a file we can't read,
         # but we're testing halt/resume behavior
         runner.invoke(flash_identify)
-        # Currently FAILS - no resume after halt
-        # Test will fail at fixture teardown due to assert_resumed()
 
     def test_flash_read_resumes(self, ocd_mock):
         """flash read should resume CPU after reading."""
@@ -66,7 +64,6 @@ class TestFlashCommandsResumesCPU:
         try:
             runner = CliRunner()
             runner.invoke(flash_read, [tmp_path, "--size", "0x100"])
-            # Currently FAILS - no resume after halt
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
@@ -81,7 +78,6 @@ class TestFlashCommandsResumesCPU:
             ocd_mock.set_response("verify_image", "verified OK")
             runner = CliRunner()
             runner.invoke(flash_verify, [tmp_path, "--full"])
-            # Currently FAILS - no resume after halt
         finally:
             os.unlink(tmp_path)
 
@@ -90,7 +86,6 @@ class TestFlashCommandsResumesCPU:
         runner = CliRunner()
         # Simulate 'y' confirmation
         runner.invoke(flash_erase, input="y\n")
-        # Currently FAILS - no resume after halt
 
 
 class TestMemCommandsResumesCPU:
@@ -101,21 +96,18 @@ class TestMemCommandsResumesCPU:
         ocd_mock.set_response("mdw 0x08000000 8", "0x08000000: 2004fff8 08050e59")
         runner = CliRunner()
         runner.invoke(mem_read, ["0x08000000", "8"])
-        # Currently FAILS - no resume after halt
 
     def test_mem_vectors_resumes(self, ocd_mock):
         """mem vectors should resume CPU after reading vectors."""
         ocd_mock.set_response("mdw 0x08000000 8", "0x08000000: 2004fff8 08050e59 08046dfb 08046de9 08046df1 08046df5 08046df9 00000000")
         runner = CliRunner()
         runner.invoke(mem_vectors)
-        # Currently FAILS - no resume after halt
 
     def test_mem_dump_resumes(self, ocd_mock):
         """mem dump should resume CPU after dumping memory."""
         ocd_mock.set_response("mdw 0x08000000 32", "0x08000000: 2004fff8 08050e59")
         runner = CliRunner()
         runner.invoke(mem_dump, ["32"])
-        # Currently FAILS - no resume after halt
 
     def test_mem_save_resumes(self, ocd_mock):
         """mem save should resume CPU after saving memory to file."""
@@ -125,7 +117,6 @@ class TestMemCommandsResumesCPU:
         try:
             runner = CliRunner()
             runner.invoke(mem_save, [tmp_path, "0x08000000", "0x100"])
-            # Currently FAILS - no resume after halt
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
@@ -162,7 +153,6 @@ class TestCpuCommandsHaltResume:
         ocd_mock.set_response("reg", "r0: 0x00000000\nr1: 0x00000001")
         runner = CliRunner()
         runner.invoke(cpu_regs)
-        # Currently FAILS - no resume after halt
 
     def test_cpu_pc_resumes(self, ocd_mock):
         """cpu pc should resume CPU after showing PC."""
@@ -170,7 +160,6 @@ class TestCpuCommandsHaltResume:
         ocd_mock.set_response("mdw 0x0801fff0 16", "0x0801fff0: 00000000")
         runner = CliRunner()
         runner.invoke(cpu_pc)
-        # Currently FAILS - no resume after halt
 
     def test_cpu_stack_resumes(self, ocd_mock):
         """cpu stack should resume CPU after showing stack."""
@@ -178,7 +167,6 @@ class TestCpuCommandsHaltResume:
         ocd_mock.set_response("mdw 0x20050000 16", "0x20050000: 00000000")
         runner = CliRunner()
         runner.invoke(cpu_stack, ["16"])
-        # Currently FAILS - no resume after halt
 
 
 class TestCheckCommandResumes:
@@ -202,7 +190,6 @@ class TestCheckCommandResumes:
         ocd_mock.set_error_on("mdw 0x08020000", Exception("read failed"))
         runner = CliRunner()
         runner.invoke(check)
-        # Currently FAILS - no try/finally, so error skips resume
 
 
 class TestCablesCommandResumes:
@@ -220,12 +207,7 @@ class TestCablesCommandResumes:
         """cables should resume even if reg pc fails."""
         ocd_mock.set_error_on("reg pc", Exception("target not responding"))
         runner = CliRunner()
-        # Should still resume after error
-        try:
-            runner.invoke(cables)
-        except Exception:
-            pass  # Expected - testing resume behavior on error
-        # Currently FAILS - no try/finally
+        runner.invoke(cables)
 
 
 class TestOCDMockBehavior:
