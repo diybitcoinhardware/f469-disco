@@ -307,6 +307,155 @@ def flash_erase():
         click.echo("Aborted")
 
 
+@flash.command("rdp")
+def flash_rdp():
+    """Show current read protection (RDP) level.
+
+    \b
+    RDP Levels:
+      0 = No protection (default)
+      1 = Flash protected, debug restricted (recoverable via mass erase)
+      2 = PERMANENT - debug disabled forever (device bricked for debugging)
+    """
+    get_ocd().require_running()
+
+    click.secho("=== Read Protection Status ===", fg="blue")
+    output = flash_backend.read_option_bytes(get_ocd())
+    level = flash_backend.parse_rdp_level(output)
+
+    if level is None:
+        click.echo(f"Raw output: {output}")
+        click.secho("Could not parse RDP level", fg="red")
+        return
+
+    if level == 0:
+        click.secho("RDP Level 0 - No protection", fg="green")
+        click.echo("  Flash readable via debug interface")
+    elif level == 1:
+        click.secho("RDP Level 1 - Protected", fg="yellow")
+        click.echo("  Flash protected from debug read")
+        click.echo("  Use 'disco flash unlock' to remove (causes mass erase)")
+    elif level == 2:
+        click.secho("RDP Level 2 - PERMANENTLY LOCKED", fg="red")
+        click.echo("  Debug interface permanently disabled")
+        click.echo("  CANNOT be unlocked - device is bricked for debugging")
+
+
+@flash.command("unlock")
+def flash_unlock():
+    """Remove flash read protection (RDP Level 1 -> 0).
+
+    WARNING: This causes a MASS ERASE of all flash memory!
+
+    Use this to recover a device with RDP Level 1 enabled.
+    After unlocking, you must power cycle the board.
+
+    \b
+    RDP Level 2 cannot be unlocked - it is permanent.
+    """
+    get_ocd().require_running()
+
+    click.secho("=== Flash Unlock (Remove RDP) ===", fg="blue")
+
+    # Check current RDP level
+    output = flash_backend.read_option_bytes(get_ocd())
+    level = flash_backend.parse_rdp_level(output)
+
+    if level is None:
+        click.echo(f"Raw output: {output}")
+        raise click.ClickException("Could not determine current RDP level")
+
+    if level == 0:
+        click.secho("Device is already unlocked (RDP Level 0)", fg="green")
+        return
+
+    if level == 2:
+        click.secho("RDP Level 2 - PERMANENTLY LOCKED", fg="red")
+        raise click.ClickException(
+            "Cannot unlock RDP Level 2 - device is permanently locked.\n"
+            "Debug interface is disabled forever."
+        )
+
+    # Level 1 - can unlock but requires mass erase
+    click.secho("Current: RDP Level 1 (protected)", fg="yellow")
+    click.echo()
+    click.secho("WARNING: Unlocking will cause MASS ERASE!", fg="red", bold=True)
+    click.echo("  - All flash memory will be erased")
+    click.echo("  - Bootloader, firmware, filesystem - ALL GONE")
+    click.echo("  - You will need to reflash everything")
+    click.echo()
+
+    if not click.confirm("Proceed with unlock and mass erase?"):
+        click.echo("Aborted")
+        return
+
+    click.secho("Unlocking...", fg="yellow")
+    result = flash_backend.unlock_rdp(get_ocd())
+    click.echo(result)
+
+    click.echo()
+    click.secho("Unlock command sent.", fg="green")
+    click.secho("IMPORTANT: Power cycle the board now!", fg="yellow", bold=True)
+    click.echo("  Unplug USB and power, then reconnect.")
+
+
+@flash.command("lock")
+def flash_lock():
+    """Enable flash read protection (RDP Level 0 -> 1).
+
+    WARNING: After locking, flash cannot be read via debug interface.
+    Unlocking requires mass erase (all data lost).
+
+    Use this for production devices to protect firmware.
+    After locking, you must power cycle the board.
+
+    \b
+    Note: This sets RDP Level 1, NOT Level 2.
+    Level 2 (permanent lock) is intentionally not supported.
+    """
+    get_ocd().require_running()
+
+    click.secho("=== Flash Lock (Enable RDP) ===", fg="blue")
+
+    # Check current RDP level
+    output = flash_backend.read_option_bytes(get_ocd())
+    level = flash_backend.parse_rdp_level(output)
+
+    if level is None:
+        click.echo(f"Raw output: {output}")
+        raise click.ClickException("Could not determine current RDP level")
+
+    if level == 1:
+        click.secho("Device is already locked (RDP Level 1)", fg="yellow")
+        return
+
+    if level == 2:
+        click.secho("Device is permanently locked (RDP Level 2)", fg="red")
+        return
+
+    # Level 0 - can lock
+    click.secho("Current: RDP Level 0 (no protection)", fg="green")
+    click.echo()
+    click.secho("WARNING: After locking:", fg="yellow")
+    click.echo("  - Flash cannot be read via debug interface")
+    click.echo("  - Unlocking requires MASS ERASE (all data lost)")
+    click.echo("  - This sets RDP Level 1 (recoverable)")
+    click.echo()
+
+    if not click.confirm("Proceed with locking?"):
+        click.echo("Aborted")
+        return
+
+    click.secho("Locking...", fg="yellow")
+    result = flash_backend.lock_rdp(get_ocd())
+    click.echo(result)
+
+    click.echo()
+    click.secho("Lock command sent.", fg="green")
+    click.secho("IMPORTANT: Power cycle the board now!", fg="yellow", bold=True)
+    click.echo("  Unplug USB and power, then reconnect.")
+
+
 # Register fingerprint subgroup
 flash.add_command(fingerprint)
 

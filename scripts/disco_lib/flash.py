@@ -439,3 +439,69 @@ def dump_image(
     """
     filepath = os.path.abspath(filepath)
     return ocd.send(f"dump_image {filepath} 0x{addr:08x} {size}", timeout=timeout)
+
+
+# ============================================================================
+# Read-out Protection (RDP) operations
+# ============================================================================
+
+
+def read_option_bytes(ocd: OpenOCD) -> str:
+    """Read STM32F4 option bytes including RDP status.
+
+    Returns raw OpenOCD 'stm32f4x options_read 0' output.
+    """
+    return ocd.send("stm32f4x options_read 0", timeout=5.0)
+
+
+def parse_rdp_level(options_output: str) -> int | None:
+    """Parse RDP level from options_read output.
+
+    STM32F4 RDP levels:
+      0 (0xAA): No protection
+      1 (other): Flash protected, debug restricted
+      2 (0xCC): Permanent - debug disabled forever
+
+    Returns 0, 1, 2 or None if parse fails.
+    """
+    # OpenOCD output format: "Option bytes: RDP 0xAA ..."
+    # or newer: "read protection: 0"
+    match = re.search(r'RDP\s+0x([0-9A-Fa-f]{2})', options_output)
+    if match:
+        rdp_byte = int(match.group(1), 16)
+        if rdp_byte == 0xAA:
+            return 0
+        elif rdp_byte == 0xCC:
+            return 2
+        else:
+            return 1
+
+    # Try alternate format: "read protection: N"
+    match = re.search(r'read protection:\s*(\d)', options_output, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+
+    return None
+
+
+def unlock_rdp(ocd: OpenOCD) -> str:
+    """Remove RDP Level 1 protection (RDP1 -> RDP0).
+
+    WARNING: This causes a MASS ERASE of all flash memory!
+    The board must be power cycled after this operation.
+
+    Returns raw OpenOCD output.
+    """
+    return ocd.send("stm32f4x unlock 0", timeout=30.0)
+
+
+def lock_rdp(ocd: OpenOCD) -> str:
+    """Enable RDP Level 1 protection (RDP0 -> RDP1).
+
+    After locking, flash cannot be read via debug interface.
+    Unlocking requires mass erase (all data lost).
+    The board must be power cycled after this operation.
+
+    Returns raw OpenOCD output.
+    """
+    return ocd.send("stm32f4x lock 0", timeout=10.0)

@@ -21,6 +21,10 @@ from disco_lib.flash import (
     extract_version_tag,
     get_build_type,
     detect_flash_address,
+    parse_rdp_level,
+    read_option_bytes,
+    unlock_rdp,
+    lock_rdp,
 )
 
 
@@ -421,3 +425,124 @@ class TestDetectFlashAddress:
         ]
         # Small first region < 0x20000 and <= 0x10000 = initial
         assert detect_flash_address(regions, fs_preservation=False) == 0x08000000
+
+
+class TestParseRdpLevel:
+    """Tests for parse_rdp_level() - parses RDP level from options_read output.
+
+    STM32F4 RDP levels:
+      0 (0xAA): No protection
+      1 (other): Flash protected
+      2 (0xCC): Permanent lock
+    """
+
+    def test_rdp_level_0_from_byte(self):
+        """RDP byte 0xAA = Level 0 (no protection)."""
+        output = "Option bytes: RDP 0xAA nWRP 0x0FFF"
+        assert parse_rdp_level(output) == 0
+
+    def test_rdp_level_1_from_byte(self):
+        """Any byte except 0xAA/0xCC = Level 1."""
+        output = "Option bytes: RDP 0x00 nWRP 0x0FFF"
+        assert parse_rdp_level(output) == 1
+
+    def test_rdp_level_1_from_0xff(self):
+        """RDP byte 0xFF = Level 1."""
+        output = "Option bytes: RDP 0xFF nWRP 0x0FFF"
+        assert parse_rdp_level(output) == 1
+
+    def test_rdp_level_2_from_byte(self):
+        """RDP byte 0xCC = Level 2 (permanent)."""
+        output = "Option bytes: RDP 0xCC nWRP 0x0FFF"
+        assert parse_rdp_level(output) == 2
+
+    def test_alternate_format_level_0(self):
+        """Alternate OpenOCD format: 'read protection: 0'."""
+        output = "read protection: 0"
+        assert parse_rdp_level(output) == 0
+
+    def test_alternate_format_level_1(self):
+        """Alternate OpenOCD format: 'read protection: 1'."""
+        output = "Read Protection: 1"  # Case insensitive
+        assert parse_rdp_level(output) == 1
+
+    def test_alternate_format_level_2(self):
+        """Alternate OpenOCD format: 'read protection: 2'."""
+        output = "READ PROTECTION: 2"
+        assert parse_rdp_level(output) == 2
+
+    def test_returns_none_on_empty(self):
+        """Empty string returns None."""
+        assert parse_rdp_level("") is None
+
+    def test_returns_none_on_error(self):
+        """Error message returns None."""
+        assert parse_rdp_level("Error: target not responding") is None
+
+    def test_returns_none_on_garbage(self):
+        """Garbage output returns None."""
+        assert parse_rdp_level("some random text") is None
+
+    def test_lowercase_rdp_byte(self):
+        """Should handle lowercase hex."""
+        output = "Option bytes: RDP 0xaa nWRP 0x0FFF"
+        assert parse_rdp_level(output) == 0
+
+    def test_mixed_case_rdp_byte(self):
+        """Should handle mixed case hex."""
+        output = "Option bytes: RDP 0xAa nWRP 0x0FFF"
+        assert parse_rdp_level(output) == 0
+
+
+class TestReadOptionBytes:
+    """Tests for read_option_bytes() - sends options_read command."""
+
+    def test_sends_correct_command(self, ocd_mock_raw):
+        """Should send 'stm32f4x options_read 0'."""
+        read_option_bytes(ocd_mock_raw)
+        assert "stm32f4x options_read 0" in ocd_mock_raw.commands
+
+    def test_returns_raw_output(self, ocd_mock_raw):
+        """Should return raw OpenOCD output."""
+        ocd_mock_raw.set_response(
+            "stm32f4x options_read 0",
+            "Option bytes: RDP 0xAA nWRP 0x0FFF"
+        )
+        result = read_option_bytes(ocd_mock_raw)
+        assert "RDP 0xAA" in result
+
+
+class TestUnlockRdp:
+    """Tests for unlock_rdp() - sends unlock command."""
+
+    def test_sends_correct_command(self, ocd_mock_raw):
+        """Should send 'stm32f4x unlock 0'."""
+        unlock_rdp(ocd_mock_raw)
+        assert "stm32f4x unlock 0" in ocd_mock_raw.commands
+
+    def test_returns_raw_output(self, ocd_mock_raw):
+        """Should return raw OpenOCD output."""
+        ocd_mock_raw.set_response(
+            "stm32f4x unlock 0",
+            "stm32f4x unlock succeeded"
+        )
+        result = unlock_rdp(ocd_mock_raw)
+        assert "unlock succeeded" in result
+
+
+class TestLockRdp:
+    """Tests for lock_rdp() - sends lock command."""
+
+    def test_sends_correct_command(self, ocd_mock_raw):
+        """Should send 'stm32f4x lock 0'."""
+        lock_rdp(ocd_mock_raw)
+        assert "stm32f4x lock 0" in ocd_mock_raw.commands
+
+    def test_returns_raw_output(self, ocd_mock_raw):
+        """Should return raw OpenOCD output."""
+        ocd_mock_raw.set_response(
+            "stm32f4x lock 0",
+            "stm32f4x lock succeeded"
+        )
+        result = lock_rdp(ocd_mock_raw)
+        assert "lock succeeded" in result
