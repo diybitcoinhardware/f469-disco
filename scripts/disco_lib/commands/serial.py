@@ -17,9 +17,16 @@ def _check_usb_otg_connected() -> bool:
     for path, blacklisted in _ser.list_devices():
         if blacklisted:
             continue
+        # MacOS
         match = re.search(r'usbmodem(\w+)', path)
         if match and len(match.group(1)) > 6:
             return True
+        # Linux
+        match = re.search(r'serial/by-id/(.+)', path)
+        if match:
+            dev_name = match.group(1).lower()
+            if "MicroPython".lower() in dev_name:
+                return True
     return False
 
 

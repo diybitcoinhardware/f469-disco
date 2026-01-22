@@ -309,9 +309,12 @@ def check_usb(ser: SerialDevice, report: DiagnosticReport):
                 report.usb_cdc_present = True
                 break
         elif system == "Linux":
-            if re.search(r'ttyACM\d+', path):
-                report.usb_cdc_present = True
-                break
+            match = re.search(r'serial/by-id/(.+)', path)
+            if match:
+                dev_name = match.group(1).lower()
+                if "MicroPython".lower() in dev_name:
+                    report.usb_cdc_present = True
+                    break
 
     if not report.usb_cdc_present:
         report.add("USB_OTG_MISSING", Level.WARN,

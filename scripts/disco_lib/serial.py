@@ -28,7 +28,12 @@ class SerialDevice:
         callout/modems and can have carrier-detect issues.
         """
         devices = []
+        # Add for MacOS
         for path in glob.glob("/dev/tty.usbmodem*"):
+            devices.append((path, self.is_blacklisted(path)))
+
+        # Add for Linux
+        for path in glob.glob("/dev/serial/by-id/*"):
             devices.append((path, self.is_blacklisted(path)))
 
         # Sort by path length descending - longer IDs (like 335D375F33382)

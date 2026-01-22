@@ -12,7 +12,7 @@ def cpu():
     """CPU control commands.
 
     Control the ARM Cortex-M4 CPU via JTAG/SWD through OpenOCD.
-    These commands require OpenOCD to be running (disco ocd connect).
+    These commands require OpenOCD to be running (disco ocd start).
 
     \b
     WARNING: Halting the CPU disconnects USB CDC (REPL).
@@ -20,7 +20,7 @@ def cpu():
 
     \b
     Typical debug workflow:
-      1. disco ocd connect     # Start OpenOCD
+      1. disco ocd start       # Start OpenOCD
       2. disco cpu halt        # Stop execution (USB disconnects!)
       3. disco cpu pc          # See where we are
       4. disco cpu regs        # Check register state

@@ -168,6 +168,6 @@ class OpenOCD:
                     raise click.ClickException("Failed to start OpenOCD")
             else:
                 raise click.ClickException(
-                    "OpenOCD not running. Run 'disco ocd connect' first."
+                    "OpenOCD not running. Run 'disco ocd start' first."
                 )
         yield self

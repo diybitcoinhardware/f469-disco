@@ -78,12 +78,22 @@ def cables():
     for path, blacklisted in devices:
         if blacklisted:
             continue
+        # MacOS check
         match = re.search(r'usbmodem(\w+)', path)
         if match:
             port_id = match.group(1)
             if len(port_id) <= 6:
                 stlink_serial = True
             else:
+                usb_otg_serial = True
+
+        # Linux check
+        match = re.search(r'serial/by-id/(.+)', path)
+        if match:
+            dev_name = match.group(1).lower()
+            if "STLink".lower() in dev_name:
+                stlink_serial = True
+            elif "MicroPython".lower() in dev_name:
                 usb_otg_serial = True
 
     jtag_ok = False
@@ -107,7 +117,7 @@ def cables():
         click.secho("  JTAG: OpenOCD running but target not responding", fg="yellow")
     else:
         click.secho("  USB: detected", fg="green")
-        click.secho("  JTAG: OpenOCD not running (use 'disco ocd connect')", fg="yellow")
+        click.secho("  JTAG: OpenOCD not running (use 'disco ocd start')", fg="yellow")
     if stlink_serial:
         click.secho("  Serial (VCP): available", fg="green")
     elif usb["stlink"]:
@@ -120,7 +130,7 @@ def cables():
     elif usb_otg_serial:
         click.secho("  Serial (CDC): available - REPL should work", fg="green")
     else:
-        click.secho("  USB: detected but no CDC - firmware issue?", fg="yellow")
+        click.secho("  USB: detected, but CDC interface is missing. This may indicate a firmware issue or incorrect USB detection logic", fg="yellow")
 
     click.echo()
     if not usb["stlink"] and not usb["micropython"]:
