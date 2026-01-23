@@ -43,21 +43,30 @@ class TestListDevices:
         devices = ser.list_devices()
         assert devices == []
 
-    def test_only_tty_devices(self, mock_glob):
-        """Should only glob tty.*, not cu.*"""
+    def test_globs_macos_and_linux_paths(self, mock_glob):
+        """Should glob both macOS tty.* and Linux /dev/serial/by-id/*"""
         mock_glob.return_value = []
         ser = SerialDevice()
         ser.list_devices()
 
-        # Should only call glob once with tty pattern
-        mock_glob.assert_called_once_with("/dev/tty.usbmodem*")
+        # Should call glob twice - once for macOS, once for Linux
+        assert mock_glob.call_count == 2
+        calls = [call[0][0] for call in mock_glob.call_args_list]
+        assert "/dev/tty.usbmodem*" in calls
+        assert "/dev/serial/by-id/*" in calls
 
     def test_filters_blacklist(self, mock_glob):
-        mock_glob.return_value = [
-            "/dev/tty.usbmodem335D375F33382",
-            "/dev/tty.usbmodem004NTKF4H9492",
-            "/dev/tty.usbmodem21403",
-        ]
+        # Return devices only for macOS path, empty for Linux
+        def glob_side_effect(pattern):
+            if "tty.usbmodem" in pattern:
+                return [
+                    "/dev/tty.usbmodem335D375F33382",
+                    "/dev/tty.usbmodem004NTKF4H9492",
+                    "/dev/tty.usbmodem21403",
+                ]
+            return []
+
+        mock_glob.side_effect = glob_side_effect
         ser = SerialDevice(blacklist=["004NTKF"])
         devices = ser.list_devices()
 
@@ -69,10 +78,16 @@ class TestListDevices:
 
     def test_sorted_by_length_descending(self, mock_glob):
         """Longer IDs (USB OTG) should come first."""
-        mock_glob.return_value = [
-            "/dev/tty.usbmodem21403",  # Short (ST-LINK)
-            "/dev/tty.usbmodem335D375F33382",  # Long (USB OTG)
-        ]
+        # Return devices only for macOS path, empty for Linux
+        def glob_side_effect(pattern):
+            if "tty.usbmodem" in pattern:
+                return [
+                    "/dev/tty.usbmodem21403",  # Short (ST-LINK)
+                    "/dev/tty.usbmodem335D375F33382",  # Long (USB OTG)
+                ]
+            return []
+
+        mock_glob.side_effect = glob_side_effect
         ser = SerialDevice(blacklist=[])
         devices = ser.list_devices()
 
