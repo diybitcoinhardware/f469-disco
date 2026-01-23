@@ -51,8 +51,7 @@ pip install -r requirements.txt
 # Check board connection
 scripts/disco cables
 
-# Start OpenOCD and run diagnostics
-scripts/disco ocd start
+# Run diagnostics (auto-connects to OpenOCD)
 scripts/disco check
 
 # REPL interaction
@@ -81,6 +80,8 @@ scripts/disco mem read 0x08000000 8  # Read memory
 
 Run `scripts/disco --help` for full command list.
 
+> **Note**: Commands auto-connect to OpenOCD when needed. If OpenOCD wasn't running, it will be stopped after the command completes. Use `disco ocd start` to keep OpenOCD running persistently.
+
 > **Note**: Halting the CPU disconnects USB CDC (REPL). Use `disco cpu resume` to restore.
 
 ---
@@ -103,7 +104,7 @@ Logs are saved to: `/tmp/disco_log/YYYY-MM-DD_HH-MM-SS.md`
 
 | Code | Level | Meaning |
 |------|-------|---------|
-| OPENOCD_NOT_RUNNING | error | OpenOCD server not started |
+| OPENOCD_START_FAILED | error | Failed to auto-start OpenOCD server |
 | TARGET_NOT_RESPONDING | error | JTAG connected but MCU not responding |
 | CPU_STUCK | error | PC doesn't change (infinite loop/fault) |
 | USAGEFAULT_NOCP | error | FPU instruction with FPU disabled |
@@ -249,7 +250,25 @@ The `flake.nix` includes:
 
 ## Using OpenOCD
 
-### Start OpenOCD
+### Auto-Connect Behavior
+
+The `disco` tool **automatically starts OpenOCD** when needed. If OpenOCD wasn't already running, it will be stopped after the command completes. This means most commands "just work" without manual setup:
+
+```bash
+scripts/disco flash program firmware.bin   # Auto-starts OpenOCD, programs, stops
+scripts/disco cpu pc                       # Auto-starts, shows PC, stops
+scripts/disco check                        # Auto-starts, runs diagnostics, stops
+```
+
+To keep OpenOCD running persistently (useful for repeated commands or GDB):
+
+```bash
+scripts/disco ocd start    # Start and keep running
+scripts/disco cpu pc       # Uses existing connection (no restart)
+scripts/disco ocd stop     # Manually stop when done
+```
+
+### Manual OpenOCD (Advanced)
 
 **In one terminal:**
 
@@ -993,7 +1012,7 @@ while (!(QUADSPI->SR & QUADSPI_SR_FTF)) {  // STUCK HERE
 
 ---
 
-**Last Updated:** 2025-12-21
+**Last Updated:** 2026-01-23
 **Verified With:**
 - OpenOCD 0.12.0
 - GDB 16.3

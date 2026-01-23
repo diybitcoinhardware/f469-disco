@@ -16,30 +16,30 @@ def check(no_resume: bool):
     By default, resumes CPU after check to keep USB CDC working.
     Use --no-resume to keep halted for further debugging.
     """
-    get_ocd().require_running()
-    click.secho("=== Board Diagnostic Check ===", fg="blue")
+    with get_ocd().ensure_running():
+        click.secho("=== Board Diagnostic Check ===", fg="blue")
 
-    cpu_backend.halt(get_ocd())
-    try:
-        click.secho("\n1. CPU State", fg="yellow")
-        click.echo(cpu_backend.read_reg(get_ocd(), "pc"))
-        click.echo(cpu_backend.read_reg(get_ocd(), "sp"))
-        click.echo(cpu_backend.read_reg(get_ocd(), "lr"))
+        cpu_backend.halt(get_ocd())
+        try:
+            click.secho("\n1. CPU State", fg="yellow")
+            click.echo(cpu_backend.read_reg(get_ocd(), "pc"))
+            click.echo(cpu_backend.read_reg(get_ocd(), "sp"))
+            click.echo(cpu_backend.read_reg(get_ocd(), "lr"))
 
-        click.secho("\n2. Vector Table (0x08000000)", fg="yellow")
-        click.echo(memory.read_words(get_ocd(), 0x08000000, 4))
+            click.secho("\n2. Vector Table (0x08000000)", fg="yellow")
+            click.echo(memory.read_words(get_ocd(), 0x08000000, 4))
 
-        click.secho("\n3. Firmware Area (0x08020000)", fg="yellow")
-        click.echo(memory.read_words(get_ocd(), 0x08020000, 4))
+            click.secho("\n3. Firmware Area (0x08020000)", fg="yellow")
+            click.echo(memory.read_words(get_ocd(), 0x08020000, 4))
 
-        click.secho("\n4. RAM Check (0x20000000)", fg="yellow")
-        click.echo(memory.read_words(get_ocd(), 0x20000000, 4))
+            click.secho("\n4. RAM Check (0x20000000)", fg="yellow")
+            click.echo(memory.read_words(get_ocd(), 0x20000000, 4))
 
-        click.secho("\n5. Flash Info", fg="yellow")
-        click.echo(flash_backend.read_info(get_ocd()))
-    finally:
-        if no_resume:
-            click.secho("\nCPU left halted (--no-resume). USB CDC disconnected.", fg="yellow")
-        else:
-            cpu_backend.resume(get_ocd())
-            click.secho("\nCPU resumed. USB CDC should reconnect.", fg="green")
+            click.secho("\n5. Flash Info", fg="yellow")
+            click.echo(flash_backend.read_info(get_ocd()))
+        finally:
+            if no_resume:
+                click.secho("\nCPU left halted (--no-resume). USB CDC disconnected.", fg="yellow")
+            else:
+                cpu_backend.resume(get_ocd())
+                click.secho("\nCPU resumed. USB CDC should reconnect.", fg="green")

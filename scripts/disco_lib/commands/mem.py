@@ -49,25 +49,23 @@ def mem():
 @click.argument("count", default=8, type=int)
 def mem_read(addr: str, count: int):
     """Read memory words from address."""
-    get_ocd().require_running()
-
     # Parse address
     if addr.startswith("0x"):
         addr_int = int(addr, 16)
     else:
         addr_int = int(addr)
 
-    click.secho(f"=== Memory @ 0x{addr_int:08x} ({count} words) ===", fg="blue")
-    with cpu_backend.halted(get_ocd()):
-        click.echo(memory.read_words(get_ocd(), addr_int, count))
+    with get_ocd().ensure_running():
+        click.secho(f"=== Memory @ 0x{addr_int:08x} ({count} words) ===", fg="blue")
+        with cpu_backend.halted(get_ocd()):
+            click.echo(memory.read_words(get_ocd(), addr_int, count))
 
 
 @mem.command("vectors")
 @click.option("--fw", is_flag=True, help="Show firmware vectors at 0x08020000 instead")
 def mem_vectors(fw: bool):
     """Show vector table (bootloader or firmware)."""
-    get_ocd().require_running()
-    with cpu_backend.halted(get_ocd()):
+    with get_ocd().ensure_running(), cpu_backend.halted(get_ocd()):
         if fw:
             click.secho("=== Vector Table @ 0x08020000 (Firmware) ===", fg="blue")
             click.echo(memory.read_words(get_ocd(), 0x08020000, 8))
@@ -98,10 +96,10 @@ def mem_vectors(fw: bool):
 @click.argument("count", default=32, type=int)
 def mem_dump(count: int):
     """Dump first N words from flash (default 32)."""
-    get_ocd().require_running()
-    click.secho(f"=== Flash @ 0x08000000 ({count} words) ===", fg="blue")
-    with cpu_backend.halted(get_ocd()):
-        click.echo(memory.read_words(get_ocd(), 0x08000000, count))
+    with get_ocd().ensure_running():
+        click.secho(f"=== Flash @ 0x08000000 ({count} words) ===", fg="blue")
+        with cpu_backend.halted(get_ocd()):
+            click.echo(memory.read_words(get_ocd(), 0x08000000, count))
 
 
 @mem.command("save")
@@ -123,8 +121,6 @@ def mem_save(file: str, addr: str, size: str):
       disco mem save firmware.bin 0x08020000 0x100000 # Dump firmware area
       disco mem save ram.bin 0x20000000 0x50000       # Dump SRAM
     """
-    get_ocd().require_running()
-
     # Parse address
     if addr.startswith("0x"):
         addr_int = int(addr, 16)
@@ -143,7 +139,7 @@ def mem_save(file: str, addr: str, size: str):
     click.echo(f"Size: {byte_count:,} bytes ({byte_count // 1024} KB)")
     click.echo(f"File: {file}")
 
-    with cpu_backend.halted(get_ocd()):
+    with get_ocd().ensure_running(), cpu_backend.halted(get_ocd()):
         # Use memory module for dump
         success = memory.dump_to_file(get_ocd(), file, addr_int, byte_count, timeout=60)
 

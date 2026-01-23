@@ -124,12 +124,13 @@ def serial_boot(timeout: int):
     """Reset board and capture boot output (default 5s)."""
     click.secho(f"=== Boot Capture ({timeout}s timeout) ===", fg="blue")
     dev = _ser.require_device()
-    get_ocd().require_running()
 
     click.echo(f"Device: {dev}")
     click.echo("Resetting board and capturing output...")
 
-    cpu_backend.reset_run(get_ocd())
+    with get_ocd().ensure_running():
+        cpu_backend.reset_run(get_ocd())
+
     time.sleep(0.3)
     output = _ser.read_timeout(dev, timeout)
 

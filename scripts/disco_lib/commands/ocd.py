@@ -14,11 +14,14 @@ def ocd():
     STM32F469 via the ST-LINK interface on the MicroUSB connector.
 
     \b
-    The OpenOCD server must be running for most disco commands to work:
-      - All 'cpu' commands (halt, resume, reset, step, etc.)
-      - All 'mem' commands (read, vectors, dump)
-      - All 'flash' commands (program, erase, info)
-      - The 'check' diagnostic command
+    Most commands auto-connect to OpenOCD when needed. If OpenOCD wasn't
+    running, it will be stopped after the command completes.
+
+    \b
+    Use 'disco ocd start' to keep OpenOCD running persistently:
+      - Faster repeated commands (no startup delay)
+      - Required for GDB debugging sessions
+      - Use 'disco ocd stop' when done
 
     \b
     Connection details:
@@ -71,11 +74,11 @@ def ocd_cmd(command):
       disco ocd cmd flash probe 0
       disco ocd cmd targets
     """
-    get_ocd().require_running()
     cmd_str = " ".join(command)
-    click.secho(f"> {cmd_str}", fg="cyan")
-    result = get_ocd().send(cmd_str)
-    if result:
-        click.echo(result)
-    else:
-        click.secho("(no output)", fg="yellow")
+    with get_ocd().ensure_running():
+        click.secho(f"> {cmd_str}", fg="cyan")
+        result = get_ocd().send(cmd_str)
+        if result:
+            click.echo(result)
+        else:
+            click.secho("(no output)", fg="yellow")

@@ -60,9 +60,9 @@ def flash():
 @flash.command("info")
 def flash_info():
     """Show flash bank info."""
-    get_ocd().require_running()
-    click.secho("=== Flash Bank Info ===", fg="blue")
-    click.echo(flash_backend.read_info(get_ocd()))
+    with get_ocd().ensure_running():
+        click.secho("=== Flash Bank Info ===", fg="blue")
+        click.echo(flash_backend.read_info(get_ocd()))
 
 
 @flash.command("identify")
@@ -92,19 +92,19 @@ def flash_identify(file: str):
         with open(filepath, "rb") as f:
             data = f.read()
     else:
-        get_ocd().require_running()
-        click.secho("=== Identifying Flashed Firmware ===", fg="blue")
-        click.echo("Reading from flash...")
+        with get_ocd().ensure_running():
+            click.secho("=== Identifying Flashed Firmware ===", fg="blue")
+            click.echo("Reading from flash...")
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
-            tmp_path = tmp.name
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
+                tmp_path = tmp.name
 
-        with cpu_backend.halted(get_ocd()):
-            flash_backend.dump_image(get_ocd(), tmp_path, 0x08000000, 0x180000, timeout=60)
+            with cpu_backend.halted(get_ocd()):
+                flash_backend.dump_image(get_ocd(), tmp_path, 0x08000000, 0x180000, timeout=60)
 
-            with open(tmp_path, "rb") as f:
-                data = f.read()
-            os.unlink(tmp_path)
+                with open(tmp_path, "rb") as f:
+                    data = f.read()
+                os.unlink(tmp_path)
 
     match = re.search(version_pattern, data)
     click.echo()
@@ -200,8 +200,6 @@ def flash_read(file: str, addr: str, size: str):
       disco flash read backup.bin                        # Full 2MB flash
       disco flash read firmware.bin --addr 0x08020000 --size 0x100000
     """
-    get_ocd().require_running()
-
     file = os.path.abspath(file)
 
     # Parse address
@@ -224,21 +222,22 @@ def flash_read(file: str, addr: str, size: str):
     click.echo(f"Timeout: {timeout}s")
     click.echo()
 
-    with cpu_backend.halted(get_ocd()):
-        click.secho("Reading flash (this may take a while)...", fg="yellow")
-        result = flash_backend.dump_image(get_ocd(), file, addr_int, byte_count, timeout=timeout)
+    with get_ocd().ensure_running():
+        with cpu_backend.halted(get_ocd()):
+            click.secho("Reading flash (this may take a while)...", fg="yellow")
+            result = flash_backend.dump_image(get_ocd(), file, addr_int, byte_count, timeout=timeout)
 
-        if result:
-            click.echo(result)
+            if result:
+                click.echo(result)
 
-        if os.path.exists(file):
-            actual_size = os.path.getsize(file)
-            if actual_size == byte_count:
-                click.secho(f"Read {actual_size:,} bytes to {file}", fg="green")
+            if os.path.exists(file):
+                actual_size = os.path.getsize(file)
+                if actual_size == byte_count:
+                    click.secho(f"Read {actual_size:,} bytes to {file}", fg="green")
+                else:
+                    click.secho(f"Warning: Read {actual_size:,} bytes (expected {byte_count:,})", fg="yellow")
             else:
-                click.secho(f"Warning: Read {actual_size:,} bytes (expected {byte_count:,})", fg="yellow")
-        else:
-            click.secho("Failed to create output file", fg="red")
+                click.secho("Failed to create output file", fg="red")
 
 
 @flash.command("verify")
@@ -257,8 +256,6 @@ def flash_verify(file: str, addr: str, smart: bool):
       disco flash verify firmware.bin --full    # Strict verify
       disco flash verify bootloader.bin --addr 0x08000000
     """
-    get_ocd().require_running()
-
     file = os.path.abspath(file)
     size = os.path.getsize(file)
 
@@ -281,8 +278,9 @@ def flash_verify(file: str, addr: str, smart: bool):
         click.secho("Note: File has zeros between code - will verify code regions only", fg="yellow")
     click.echo()
 
-    # Use business layer verify_firmware which handles halt/resume internally
-    success = flash_backend.verify_firmware(get_ocd(), file, addr_int, smart)
+    with get_ocd().ensure_running():
+        # Use business layer verify_firmware which handles halt/resume internally
+        success = flash_backend.verify_firmware(get_ocd(), file, addr_int, smart)
 
     if success:
         click.secho("Verification PASSED!", fg="green")
@@ -297,14 +295,15 @@ def flash_verify(file: str, addr: str, smart: bool):
 @flash.command("erase")
 def flash_erase():
     """Mass erase flash (DANGEROUS)."""
-    get_ocd().require_running()
     click.secho("WARNING: This will erase all flash memory!", fg="red")
-    if click.confirm("Type 'y' to confirm"):
+    if not click.confirm("Type 'y' to confirm"):
+        click.echo("Aborted")
+        return
+
+    with get_ocd().ensure_running():
         with cpu_backend.halted(get_ocd()):
             click.echo(flash_backend.erase_all(get_ocd()))
             click.secho("Flash erased", fg="green")
-    else:
-        click.echo("Aborted")
 
 
 @flash.command("rdp")
@@ -317,11 +316,10 @@ def flash_rdp():
       1 = Flash protected, debug restricted (recoverable via mass erase)
       2 = PERMANENT - debug disabled forever (device bricked for debugging)
     """
-    get_ocd().require_running()
-
-    click.secho("=== Read Protection Status ===", fg="blue")
-    output = flash_backend.read_option_bytes(get_ocd())
-    level = flash_backend.parse_rdp_level(output)
+    with get_ocd().ensure_running():
+        click.secho("=== Read Protection Status ===", fg="blue")
+        output = flash_backend.read_option_bytes(get_ocd())
+        level = flash_backend.parse_rdp_level(output)
 
     if level is None:
         click.echo(f"Raw output: {output}")
@@ -353,45 +351,44 @@ def flash_unlock():
     \b
     RDP Level 2 cannot be unlocked - it is permanent.
     """
-    get_ocd().require_running()
+    with get_ocd().ensure_running():
+        click.secho("=== Flash Unlock (Remove RDP) ===", fg="blue")
 
-    click.secho("=== Flash Unlock (Remove RDP) ===", fg="blue")
+        # Check current RDP level
+        output = flash_backend.read_option_bytes(get_ocd())
+        level = flash_backend.parse_rdp_level(output)
 
-    # Check current RDP level
-    output = flash_backend.read_option_bytes(get_ocd())
-    level = flash_backend.parse_rdp_level(output)
+        if level is None:
+            click.echo(f"Raw output: {output}")
+            raise click.ClickException("Could not determine current RDP level")
 
-    if level is None:
-        click.echo(f"Raw output: {output}")
-        raise click.ClickException("Could not determine current RDP level")
+        if level == 0:
+            click.secho("Device is already unlocked (RDP Level 0)", fg="green")
+            return
 
-    if level == 0:
-        click.secho("Device is already unlocked (RDP Level 0)", fg="green")
-        return
+        if level == 2:
+            click.secho("RDP Level 2 - PERMANENTLY LOCKED", fg="red")
+            raise click.ClickException(
+                "Cannot unlock RDP Level 2 - device is permanently locked.\n"
+                "Debug interface is disabled forever."
+            )
 
-    if level == 2:
-        click.secho("RDP Level 2 - PERMANENTLY LOCKED", fg="red")
-        raise click.ClickException(
-            "Cannot unlock RDP Level 2 - device is permanently locked.\n"
-            "Debug interface is disabled forever."
-        )
+        # Level 1 - can unlock but requires mass erase
+        click.secho("Current: RDP Level 1 (protected)", fg="yellow")
+        click.echo()
+        click.secho("WARNING: Unlocking will cause MASS ERASE!", fg="red", bold=True)
+        click.echo("  - All flash memory will be erased")
+        click.echo("  - Bootloader, firmware, filesystem - ALL GONE")
+        click.echo("  - You will need to reflash everything")
+        click.echo()
 
-    # Level 1 - can unlock but requires mass erase
-    click.secho("Current: RDP Level 1 (protected)", fg="yellow")
-    click.echo()
-    click.secho("WARNING: Unlocking will cause MASS ERASE!", fg="red", bold=True)
-    click.echo("  - All flash memory will be erased")
-    click.echo("  - Bootloader, firmware, filesystem - ALL GONE")
-    click.echo("  - You will need to reflash everything")
-    click.echo()
+        if not click.confirm("Proceed with unlock and mass erase?"):
+            click.echo("Aborted")
+            return
 
-    if not click.confirm("Proceed with unlock and mass erase?"):
-        click.echo("Aborted")
-        return
-
-    click.secho("Unlocking...", fg="yellow")
-    result = flash_backend.unlock_rdp(get_ocd())
-    click.echo(result)
+        click.secho("Unlocking...", fg="yellow")
+        result = flash_backend.unlock_rdp(get_ocd())
+        click.echo(result)
 
     click.echo()
     click.secho("Unlock command sent.", fg="green")
@@ -413,42 +410,41 @@ def flash_lock():
     Note: This sets RDP Level 1, NOT Level 2.
     Level 2 (permanent lock) is intentionally not supported.
     """
-    get_ocd().require_running()
+    with get_ocd().ensure_running():
+        click.secho("=== Flash Lock (Enable RDP) ===", fg="blue")
 
-    click.secho("=== Flash Lock (Enable RDP) ===", fg="blue")
+        # Check current RDP level
+        output = flash_backend.read_option_bytes(get_ocd())
+        level = flash_backend.parse_rdp_level(output)
 
-    # Check current RDP level
-    output = flash_backend.read_option_bytes(get_ocd())
-    level = flash_backend.parse_rdp_level(output)
+        if level is None:
+            click.echo(f"Raw output: {output}")
+            raise click.ClickException("Could not determine current RDP level")
 
-    if level is None:
-        click.echo(f"Raw output: {output}")
-        raise click.ClickException("Could not determine current RDP level")
+        if level == 1:
+            click.secho("Device is already locked (RDP Level 1)", fg="yellow")
+            return
 
-    if level == 1:
-        click.secho("Device is already locked (RDP Level 1)", fg="yellow")
-        return
+        if level == 2:
+            click.secho("Device is permanently locked (RDP Level 2)", fg="red")
+            return
 
-    if level == 2:
-        click.secho("Device is permanently locked (RDP Level 2)", fg="red")
-        return
+        # Level 0 - can lock
+        click.secho("Current: RDP Level 0 (no protection)", fg="green")
+        click.echo()
+        click.secho("WARNING: After locking:", fg="yellow")
+        click.echo("  - Flash cannot be read via debug interface")
+        click.echo("  - Unlocking requires MASS ERASE (all data lost)")
+        click.echo("  - This sets RDP Level 1 (recoverable)")
+        click.echo()
 
-    # Level 0 - can lock
-    click.secho("Current: RDP Level 0 (no protection)", fg="green")
-    click.echo()
-    click.secho("WARNING: After locking:", fg="yellow")
-    click.echo("  - Flash cannot be read via debug interface")
-    click.echo("  - Unlocking requires MASS ERASE (all data lost)")
-    click.echo("  - This sets RDP Level 1 (recoverable)")
-    click.echo()
+        if not click.confirm("Proceed with locking?"):
+            click.echo("Aborted")
+            return
 
-    if not click.confirm("Proceed with locking?"):
-        click.echo("Aborted")
-        return
-
-    click.secho("Locking...", fg="yellow")
-    result = flash_backend.lock_rdp(get_ocd())
-    click.echo(result)
+        click.secho("Locking...", fg="yellow")
+        result = flash_backend.lock_rdp(get_ocd())
+        click.echo(result)
 
     click.echo()
     click.secho("Lock command sent.", fg="green")
@@ -485,8 +481,6 @@ def flash_program(file: str, addr: str | None, force: bool, verify: bool, reset:
       files with zeros between code. After programming, use
       'disco flash verify --smart' for accurate verification.
     """
-    get_ocd().require_running()
-
     file = os.path.abspath(file)
     size = os.path.getsize(file)
 
@@ -527,7 +521,8 @@ def flash_program(file: str, addr: str | None, force: bool, verify: bool, reset:
 
     click.secho("Programming in progress (this may take a while)...", fg="yellow")
 
-    success = flash_backend.program_firmware(get_ocd(), file, addr_int, verify, reset, timeout)
+    with get_ocd().ensure_running():
+        success = flash_backend.program_firmware(get_ocd(), file, addr_int, verify, reset, timeout)
 
     if success:
         click.secho("Programming complete!", fg="green")

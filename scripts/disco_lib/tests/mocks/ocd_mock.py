@@ -74,10 +74,6 @@ class OCDMock:
         """Always returns True for mock."""
         return True
 
-    def require_running(self) -> None:
-        """No-op for mock."""
-        pass
-
     def start(self) -> bool:
         """Mock start - tracks halt like real implementation."""
         # Real OpenOCD.start() does halt at line 115
@@ -90,8 +86,8 @@ class OCDMock:
         pass
 
     @contextmanager
-    def running(self, auto_start: bool = True) -> Generator["OCDMock", None, None]:
-        """Mock running context manager - always succeeds."""
+    def ensure_running(self) -> Generator["OCDMock", None, None]:
+        """Mock ensure_running context manager - always succeeds."""
         yield self
 
     # Configuration methods (chainable)

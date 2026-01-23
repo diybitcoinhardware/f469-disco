@@ -136,38 +136,23 @@ class OpenOCD:
         else:
             click.secho("OpenOCD not running", fg="yellow")
 
-    def require_running(self) -> None:
-        """Raise exception if OpenOCD is not running."""
-        if not self.is_running():
-            raise click.ClickException(
-                "OpenOCD not running. Run 'disco connect' first."
-            )
-
     @contextmanager
-    def running(self, auto_start: bool = True) -> Generator["OpenOCD", None, None]:
+    def ensure_running(self) -> Generator["OpenOCD", None, None]:
         """Context manager ensuring OpenOCD is running.
 
-        Starts OpenOCD if not running (when auto_start=True).
-        Keeps it running after context exits (user usually wants this).
+        If OpenOCD wasn't running, starts it and stops it on exit.
+        If OpenOCD was already running, leaves it running.
 
         Usage:
-            ocd = OpenOCD()
-            with ocd.running():
+            with ocd.ensure_running():
                 result = ocd.send("reg pc")
-
-        Args:
-            auto_start: If True, start OpenOCD if not running. If False, raise error.
-
-        Raises:
-            click.ClickException: If OpenOCD not running and auto_start=False,
-                                  or if start fails.
         """
-        if not self.is_running():
-            if auto_start:
-                if not self.start():
-                    raise click.ClickException("Failed to start OpenOCD")
-            else:
-                raise click.ClickException(
-                    "OpenOCD not running. Run 'disco ocd start' first."
-                )
-        yield self
+        was_running = self.is_running()
+        if not was_running:
+            if not self.start():
+                raise click.ClickException("Failed to start OpenOCD")
+        try:
+            yield self
+        finally:
+            if not was_running:
+                self.stop()

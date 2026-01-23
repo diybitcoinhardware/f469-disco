@@ -27,18 +27,15 @@ class MockOCD:
 
     def __init__(self):
         self.started = False
-        self.running_entered = False
-        self.running_exited = False
+        self.ensure_running_entered = False
+        self.ensure_running_exited = False
+        self._was_running_before = False
 
     def send(self, cmd: str, timeout: float = 2.0) -> str:
         return f"mock response for: {cmd}"
 
     def is_running(self) -> bool:
         return self.started
-
-    def require_running(self) -> None:
-        if not self.started:
-            raise RuntimeError("Not running")
 
     def start(self) -> bool:
         self.started = True
@@ -48,14 +45,17 @@ class MockOCD:
         self.started = False
 
     @contextmanager
-    def running(self, auto_start: bool = True) -> Generator["MockOCD", None, None]:
-        self.running_entered = True
-        if auto_start and not self.started:
+    def ensure_running(self) -> Generator["MockOCD", None, None]:
+        self.ensure_running_entered = True
+        self._was_running_before = self.started
+        if not self.started:
             self.start()
         try:
             yield self
         finally:
-            self.running_exited = True
+            self.ensure_running_exited = True
+            if not self._was_running_before:
+                self.stop()
 
 
 @pytest.fixture(autouse=True)
@@ -196,35 +196,48 @@ class TestWithOcd:
         with with_ocd() as ocd:
             assert ocd is mock
 
-    def test_calls_running_context_manager(self):
-        """Should call ocd.running() context manager."""
+    def test_calls_ensure_running_context_manager(self):
+        """Should call ocd.ensure_running() context manager."""
         mock = MockOCD()
         set_ocd(mock)
 
         with with_ocd():
-            assert mock.running_entered
+            assert mock.ensure_running_entered
 
-        assert mock.running_exited
+        assert mock.ensure_running_exited
 
-    def test_passes_auto_start_true_by_default(self):
-        """auto_start should default to True."""
+    def test_auto_starts_if_not_running(self):
+        """Should auto-start OpenOCD if not running."""
         mock = MockOCD()
         mock.started = False
         set_ocd(mock)
 
         with with_ocd():
-            # Mock's running() with auto_start=True should start it
             assert mock.started
 
-    def test_passes_auto_start_false(self):
-        """auto_start=False should be passed to running()."""
+    def test_stops_if_we_started_it(self):
+        """Should stop OpenOCD on exit if we started it."""
         mock = MockOCD()
         mock.started = False
         set_ocd(mock)
 
-        with with_ocd(auto_start=False):
-            # Mock's running() with auto_start=False should NOT start it
-            assert not mock.started
+        with with_ocd():
+            assert mock.started
+
+        # Should have stopped since we started it
+        assert not mock.started
+
+    def test_keeps_running_if_already_started(self):
+        """Should not stop OpenOCD if it was already running."""
+        mock = MockOCD()
+        mock.started = True
+        set_ocd(mock)
+
+        with with_ocd():
+            assert mock.started
+
+        # Should still be running since it was already started
+        assert mock.started
 
     def test_can_send_commands_inside_context(self):
         """Should be able to use ocd.send() inside context."""
@@ -236,7 +249,7 @@ class TestWithOcd:
             assert "test command" in result
 
     def test_cleans_up_on_exception(self):
-        """running() exit should be called even on exception."""
+        """ensure_running() exit should be called even on exception."""
         mock = MockOCD()
         set_ocd(mock)
 
@@ -244,5 +257,5 @@ class TestWithOcd:
             with with_ocd():
                 raise ValueError("test error")
 
-        # running() should still have exited
-        assert mock.running_exited
+        # ensure_running() should still have exited
+        assert mock.ensure_running_exited

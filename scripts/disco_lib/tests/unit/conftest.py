@@ -71,5 +71,12 @@ def mock_serial():
 @pytest.fixture
 def mock_subprocess():
     """Mock subprocess for OpenOCD start/stop."""
-    with patch("disco_lib.openocd.subprocess.Popen") as mock:
-        yield mock
+    with patch("disco_lib.openocd.subprocess.Popen") as popen_mock, \
+         patch("disco_lib.openocd.subprocess.run") as run_mock:
+        # Mock subprocess.run to return a result-like object
+        run_mock.return_value.returncode = 0
+        # Create a namespace-like object that has both mocks
+        class SubprocessMocks:
+            Popen = popen_mock
+            run = run_mock
+        yield SubprocessMocks
