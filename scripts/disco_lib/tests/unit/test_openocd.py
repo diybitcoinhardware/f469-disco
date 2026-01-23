@@ -159,27 +159,54 @@ class TestSend:
         assert "0x20050000" in result
 
 
-class TestRequireRunning:
-    """Tests for require_running check."""
+class TestEnsureRunning:
+    """Tests for ensure_running context manager."""
 
-    def test_raises_when_not_running(self, mock_socket):
-        """Should raise ClickException when not running."""
-        mock_socket.side_effect = ConnectionRefusedError()
-
-        ocd = OpenOCD()
-        with pytest.raises(click.ClickException) as exc_info:
-            ocd.require_running()
-
-        assert "not running" in str(exc_info.value).lower()
-
-    def test_passes_when_running(self, mock_socket):
-        """Should not raise when OpenOCD is running."""
+    def test_yields_ocd_when_running(self, mock_socket):
+        """Should yield self when OpenOCD is already running."""
         mock_socket.return_value.__enter__ = MagicMock()
         mock_socket.return_value.__exit__ = MagicMock(return_value=False)
 
         ocd = OpenOCD()
-        # Should not raise
-        ocd.require_running()
+        with ocd.ensure_running() as yielded:
+            assert yielded is ocd
+
+    def test_auto_starts_when_not_running(self, mock_socket, mock_subprocess):
+        """Should auto-start OpenOCD when not running."""
+        call_count = [0]
+
+        def mock_connect(*args, **kwargs):
+            call_count[0] += 1
+            # First 2 calls fail (ensure_running check + start's check)
+            if call_count[0] <= 2:
+                raise ConnectionRefusedError()
+            # Subsequent calls - running (after Popen started)
+            mock_conn = MagicMock()
+            mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+            mock_conn.__exit__ = MagicMock(return_value=False)
+            mock_conn.recv.return_value = b""
+            return mock_conn
+
+        mock_socket.side_effect = mock_connect
+
+        ocd = OpenOCD()
+        with patch("disco_lib.openocd.time.sleep"):
+            with patch("builtins.open", MagicMock()):
+                with ocd.ensure_running():
+                    # Should have called start() which calls Popen
+                    assert mock_subprocess.Popen.called
+
+    def test_raises_when_start_fails(self, mock_socket, mock_subprocess):
+        """Should raise ClickException when start fails."""
+        # Always return connection refused (start fails)
+        mock_socket.side_effect = ConnectionRefusedError()
+
+        ocd = OpenOCD()
+        with pytest.raises(click.ClickException) as exc_info:
+            with ocd.ensure_running():
+                pass
+
+        assert "failed" in str(exc_info.value).lower()
 
 
 class TestStartStop:
@@ -209,8 +236,8 @@ class TestStartStop:
                     ocd = OpenOCD()
                     ocd.start()
 
-        mock_subprocess.assert_called_once()
-        call_args = mock_subprocess.call_args
+        mock_subprocess.Popen.assert_called_once()
+        call_args = mock_subprocess.Popen.call_args
         assert "openocd" in call_args[0][0]
 
     def test_stop_kills_openocd(self):

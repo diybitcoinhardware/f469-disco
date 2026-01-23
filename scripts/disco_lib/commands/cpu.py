@@ -12,7 +12,7 @@ def cpu():
     """CPU control commands.
 
     Control the ARM Cortex-M4 CPU via JTAG/SWD through OpenOCD.
-    These commands require OpenOCD to be running (disco ocd start).
+    Commands auto-connect to OpenOCD when needed.
 
     \b
     WARNING: Halting the CPU disconnects USB CDC (REPL).
@@ -20,12 +20,14 @@ def cpu():
 
     \b
     Typical debug workflow:
-      1. disco ocd start       # Start OpenOCD
-      2. disco cpu halt        # Stop execution (USB disconnects!)
-      3. disco cpu pc          # See where we are
-      4. disco cpu regs        # Check register state
-      5. disco cpu step        # Single-step through code
-      6. disco cpu resume      # Continue running (USB reconnects)
+      1. disco cpu halt        # Stop execution (USB disconnects!)
+      2. disco cpu pc          # See where we are
+      3. disco cpu regs        # Check register state
+      4. disco cpu step        # Single-step through code
+      5. disco cpu resume      # Continue running (USB reconnects)
+
+    \b
+    Note: Use 'disco ocd start' to keep OpenOCD running persistently.
     """
     pass
 
@@ -36,77 +38,77 @@ def cpu_halt():
 
     WARNING: This disconnects USB CDC - REPL will be unavailable until resumed.
     """
-    get_ocd().require_running()
-    cpu_backend.halt(get_ocd())
-    click.secho("CPU halted", fg="green")
-    click.secho("Note: USB CDC (REPL) disconnected while halted", fg="yellow")
-    click.echo(cpu_backend.read_pc_sp(get_ocd()))
+    with get_ocd().ensure_running():
+        cpu_backend.halt(get_ocd())
+        click.secho("CPU halted", fg="green")
+        click.secho("Note: USB CDC (REPL) disconnected while halted", fg="yellow")
+        click.echo(cpu_backend.read_pc_sp(get_ocd()))
 
 
 @cpu.command("resume")
 def cpu_resume():
     """Resume execution."""
-    get_ocd().require_running()
-    cpu_backend.resume(get_ocd())
-    click.secho("CPU resumed", fg="green")
+    with get_ocd().ensure_running():
+        cpu_backend.resume(get_ocd())
+        click.secho("CPU resumed", fg="green")
 
 
 @cpu.command("reset")
 def cpu_reset():
     """Reset and halt."""
-    get_ocd().require_running()
-    cpu_backend.reset_halt(get_ocd())
-    click.secho("CPU reset and halted", fg="green")
-    click.echo(cpu_backend.read_pc_sp(get_ocd()))
+    with get_ocd().ensure_running():
+        cpu_backend.reset_halt(get_ocd())
+        click.secho("CPU reset and halted", fg="green")
+        click.echo(cpu_backend.read_pc_sp(get_ocd()))
 
 
 @cpu.command("step")
 def cpu_step():
     """Single step."""
-    get_ocd().require_running()
-    cpu_backend.step(get_ocd())
-    click.echo(cpu_backend.read_reg(get_ocd(), "pc"))
+    with get_ocd().ensure_running():
+        cpu_backend.step(get_ocd())
+        click.echo(cpu_backend.read_reg(get_ocd(), "pc"))
 
 
 @cpu.command("regs")
 def cpu_regs():
     """Show all CPU registers."""
-    get_ocd().require_running()
-    click.secho("=== CPU Registers ===", fg="blue")
-    with cpu_backend.halted(get_ocd()):
-        click.echo(cpu_backend.read_regs(get_ocd()))
+    with get_ocd().ensure_running():
+        click.secho("=== CPU Registers ===", fg="blue")
+        with cpu_backend.halted(get_ocd()):
+            click.echo(cpu_backend.read_regs(get_ocd()))
 
 
 @cpu.command("pc")
 def cpu_pc():
     """Show current PC and memory around it."""
-    get_ocd().require_running()
-    click.secho("=== Current PC ===", fg="blue")
-    with cpu_backend.halted(get_ocd()):
-        pc_val = cpu_backend.read_pc(get_ocd())
-        if pc_val is not None:
-            click.echo(f"PC: 0x{pc_val:08x}")
-            click.echo()
-            click.echo("Memory around PC:")
-            pc_aligned = (pc_val & ~0xF) - 0x10
-            click.echo(memory.read_words(get_ocd(), pc_aligned, 16))
-        else:
-            click.echo(cpu_backend.read_reg(get_ocd(), "pc"))
+    with get_ocd().ensure_running():
+        click.secho("=== Current PC ===", fg="blue")
+        with cpu_backend.halted(get_ocd()):
+            pc_val = cpu_backend.read_pc(get_ocd())
+            if pc_val is not None:
+                click.echo(f"PC: 0x{pc_val:08x}")
+                click.echo()
+                click.echo("Memory around PC:")
+                pc_aligned = (pc_val & ~0xF) - 0x10
+                click.echo(memory.read_words(get_ocd(), pc_aligned, 16))
+            else:
+                click.echo(cpu_backend.read_reg(get_ocd(), "pc"))
 
 
 @cpu.command("stack")
 @click.argument("count", default=16, type=int)
 def cpu_stack(count: int):
     """Show stack (N words, default 16)."""
-    get_ocd().require_running()
-    click.secho(f"=== Stack ({count} words) ===", fg="blue")
-    with cpu_backend.halted(get_ocd()):
-        sp_val = cpu_backend.read_sp(get_ocd())
-        if sp_val is not None:
-            click.echo(f"SP: 0x{sp_val:08x}")
-            click.echo(memory.read_words(get_ocd(), sp_val, count))
-        else:
-            click.echo(cpu_backend.read_reg(get_ocd(), "sp"))
+    with get_ocd().ensure_running():
+        click.secho(f"=== Stack ({count} words) ===", fg="blue")
+        with cpu_backend.halted(get_ocd()):
+            sp_val = cpu_backend.read_sp(get_ocd())
+            if sp_val is not None:
+                click.echo(f"SP: 0x{sp_val:08x}")
+                click.echo(memory.read_words(get_ocd(), sp_val, count))
+            else:
+                click.echo(cpu_backend.read_reg(get_ocd(), "sp"))
 
 
 @cpu.command("gdb")
@@ -141,7 +143,10 @@ def cpu_gdb(elf: str, run: bool):
     import os
     import shutil
 
-    get_ocd().require_running()
+    # GDB connects to OpenOCD separately, so we just verify it's running
+    # (don't auto-start/stop - that would break GDB's connection)
+    if not get_ocd().is_running():
+        raise click.ClickException("OpenOCD not running. Run 'disco ocd start' first.")
 
     # Find GDB
     gdb_names = ["arm-none-eabi-gdb", "gdb-multiarch", "gdb"]

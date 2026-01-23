@@ -75,19 +75,18 @@ disco
 ## Quick Start
 
 1. Connect: microUSB (ST-LINK) + miniUSB (USB OTG)
-2. `disco ocd start` - Start OpenOCD
-3. `disco cables` - Verify connections
-4. `disco doctor` - Run full diagnostics
+2. `disco cables` - Verify connections
+3. `disco doctor` - Run full diagnostics (auto-connects to OpenOCD)
 
 ## Common Workflows
 
 **First thing when board misbehaves:**
 ```
-disco ocd start
 disco doctor          # Automated fault analysis with logging
 ```
 Doctor checks: OpenOCD, JTAG, fault registers, FPU, vectors, USB/REPL.
 Logs saved to `/tmp/disco_log/`.
+Note: Commands auto-connect to OpenOCD; use `disco ocd start` to keep it running.
 
 **Debug crash manually:**
 ```

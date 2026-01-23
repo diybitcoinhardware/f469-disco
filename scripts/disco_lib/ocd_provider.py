@@ -10,10 +10,9 @@ class OCDProtocol(Protocol):
 
     def send(self, cmd: str, timeout: float = 2.0) -> str: ...
     def is_running(self) -> bool: ...
-    def require_running(self) -> None: ...
+    def ensure_running(self) -> Generator["OCDProtocol", None, None]: ...
     def start(self) -> bool: ...
     def stop(self) -> None: ...
-    def running(self, auto_start: bool = True) -> Generator["OCDProtocol", None, None]: ...
 
 
 _instance: Optional[OCDProtocol] = None
@@ -41,11 +40,11 @@ def reset_ocd() -> None:
 
 
 @contextmanager
-def with_ocd(auto_start: bool = True) -> Generator[OCDProtocol, None, None]:
+def with_ocd() -> Generator[OCDProtocol, None, None]:
     """Get OCD instance, ensuring it's running.
 
-    Convenience function combining get_ocd() with running() context manager.
-    Auto-starts OpenOCD if not running (when auto_start=True).
+    Convenience function combining get_ocd() with ensure_running() context manager.
+    Auto-starts OpenOCD if not running, stops it on exit if we started it.
 
     Usage:
         from disco_lib.ocd_provider import with_ocd
@@ -53,12 +52,9 @@ def with_ocd(auto_start: bool = True) -> Generator[OCDProtocol, None, None]:
         with with_ocd() as ocd:
             result = ocd.send("reg pc")
 
-    Args:
-        auto_start: If True, start OpenOCD if not running.
-
     Yields:
         OCDProtocol instance ready to use.
     """
     ocd = get_ocd()
-    with ocd.running(auto_start):
+    with ocd.ensure_running():
         yield ocd
