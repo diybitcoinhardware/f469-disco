@@ -2,6 +2,8 @@
 
 import platform
 import re
+import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -14,6 +16,7 @@ import serial
 
 from .openocd import OpenOCD
 from .serial import SerialDevice
+from .ykush import Ykush, YkushNotFoundError, YkushNoDevicesError, YkushError
 
 # Memory regions (STM32F469)
 FLASH_START = 0x08000000
@@ -41,6 +44,16 @@ class Level(Enum):
     ERROR = "error"
     WARN = "warn"
     OK = "ok"
+
+
+def is_rdp_enabled(flash_info: str) -> bool:
+    """Check if flash info indicates RDP (Device Security Bit) is set."""
+    return "Device Security Bit Set" in flash_info
+
+
+def is_rdp_enabled(flash_info: str) -> bool:
+    """Check if flash info indicates RDP (Device Security Bit) is set."""
+    return "Device Security Bit Set" in flash_info
 
 
 @dataclass
@@ -75,6 +88,13 @@ class DiagnosticReport:
     # Vectors
     vector_sp: int = 0
     vector_reset: int = 0
+    # Flash protection
+    rdp_enabled: bool | None = None  # None = not checked
+    # YKUSH power control
+    ykush_available: bool = False
+    ykush_devices: list[str] = field(default_factory=list)
+    # USB subsystem health
+    usb_subsystem_errors: bool = False
 
     def add(self, code: str, level: Level, message: str, details: str = ""):
         self.diagnostics.append(Diagnostic(code, level, message, details))
@@ -292,6 +312,15 @@ def check_vectors(ocd: OpenOCD, report: DiagnosticReport):
                        f"Reset={report.vector_reset:#010x}")
 
 
+def check_rdp(ocd: OpenOCD, report: DiagnosticReport):
+    """Check for Read Protection (Device Security Bit)."""
+    try:
+        result = ocd.send("flash info 0")
+        report.rdp_enabled = is_rdp_enabled(result)
+    except (OSError, click.ClickException):
+        report.rdp_enabled = None  # Could not check
+
+
 def check_usb(ser: SerialDevice, report: DiagnosticReport):
     """Check USB CDC and REPL."""
     devices = ser.list_devices()
@@ -317,8 +346,17 @@ def check_usb(ser: SerialDevice, report: DiagnosticReport):
                     break
 
     if not report.usb_cdc_present:
-        report.add("USB_OTG_MISSING", Level.WARN,
-                   "No USB CDC device (check cable)")
+        if report.usb_subsystem_errors:
+            report.add("USB_OTG_MISSING", Level.WARN,
+                       "No USB CDC device - USB subsystem errors detected",
+                       details="dmesg shows USB enumeration failures. "
+                               "Try resetting USB bus: "
+                               "echo 0 | sudo tee /sys/bus/usb/devices/usb1/authorized && "
+                               "sleep 2 && "
+                               "echo 1 | sudo tee /sys/bus/usb/devices/usb1/authorized")
+        else:
+            report.add("USB_OTG_MISSING", Level.WARN,
+                       "No USB CDC device (check cable)")
         return
 
     dev = ser.auto_detect()
@@ -329,11 +367,55 @@ def check_usb(ser: SerialDevice, report: DiagnosticReport):
                 report.repl_responsive = True
             else:
                 report.add("REPL_UNRESPONSIVE", Level.WARN,
-                           "CDC present but no REPL response")
+                           "CDC present but no REPL response",
+                           details="In rare cases, rebooting the host can fix USB subsystem issues")
         except (OSError, serial.SerialException) as e:
             report.add("REPL_UNRESPONSIVE", Level.WARN,
                        "CDC present but no REPL response",
-                       details=str(e))
+                       details=f"{e}. In rare cases, rebooting the host can fix USB subsystem issues")
+
+
+def check_ykush(report: DiagnosticReport):
+    """Check YKUSH USB power hub availability."""
+    try:
+        report.ykush_available = Ykush.is_available()
+        if report.ykush_available:
+            ykush = Ykush()
+            report.ykush_devices = ykush.list_devices()
+    except (YkushNotFoundError, YkushNoDevicesError):
+        pass
+    except YkushError:
+        pass
+
+
+def check_usb_subsystem(report: DiagnosticReport):
+    """Check for USB subsystem errors in dmesg (Linux only)."""
+    if sys.platform != "linux":
+        return
+
+    try:
+        result = subprocess.run(
+            ["dmesg"], capture_output=True, text=True, timeout=5
+        )
+        output = result.stdout
+
+        # Patterns indicating USB enumeration failures
+        error_patterns = [
+            r"device descriptor read.*error -110",  # timeout
+            r"Device not responding to setup address",
+            r"device not accepting address.*error",
+            r"unable to enumerate USB device",
+        ]
+
+        # Check last 200 lines for recent errors
+        recent_lines = output.split('\n')[-200:]
+        for line in recent_lines:
+            for pattern in error_patterns:
+                if re.search(pattern, line, re.IGNORECASE):
+                    report.usb_subsystem_errors = True
+                    return
+    except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
+        pass  # dmesg may not be available or may require permissions
 
 
 def generate_markdown(report: DiagnosticReport) -> str:
@@ -359,6 +441,12 @@ def generate_markdown(report: DiagnosticReport) -> str:
     elif report.openocd_running:
         lines.append("- ✗ Target not responding")
 
+    if report.rdp_enabled is not None:
+        if report.rdp_enabled:
+            lines.append("- ⚠ RDP enabled (flash locked)")
+        else:
+            lines.append("- ✓ RDP disabled")
+
     if report.usb_cdc_present:
         if report.repl_responsive:
             lines.append("- ✓ USB CDC + REPL working")
@@ -366,6 +454,16 @@ def generate_markdown(report: DiagnosticReport) -> str:
             lines.append("- ⚠ USB CDC present, REPL unresponsive")
     else:
         lines.append("- ✗ USB OTG not detected")
+
+    if report.ykush_available:
+        if report.ykush_devices:
+            lines.append(f"- ✓ YKUSH available ({len(report.ykush_devices)} device(s))")
+        else:
+            lines.append("- ⚠ YKUSH available, no devices found")
+    else:
+        lines.append("- ✗ YKUSH not available (ykushcmd not installed)")
+    if report.usb_subsystem_errors:
+        lines.append("- ⚠ USB subsystem errors detected in dmesg (reset USB bus or reboot host)")
 
     if report.target_responding:
         lines.extend(["", "## CPU State"])
@@ -447,9 +545,23 @@ def print_summary(report: DiagnosticReport, verbose: bool):
     click.echo(f"  {status_icon(report.openocd_running)} OpenOCD")
     if report.openocd_running:
         click.echo(f"  {status_icon(report.target_responding)} Target")
+        if report.rdp_enabled is not None:
+            if report.rdp_enabled:
+                click.echo(f"  {click.style('⚠', fg='yellow')} RDP enabled (flash locked)")
+            else:
+                click.echo(f"  {status_icon(True)} RDP disabled")
     click.echo(f"  {status_icon(report.usb_cdc_present, not report.usb_cdc_present)} USB CDC")
     if report.usb_cdc_present:
         click.echo(f"  {status_icon(report.repl_responsive, not report.repl_responsive)} REPL")
+    if report.ykush_available:
+        if report.ykush_devices:
+            click.echo(f"  {status_icon(True)} YKUSH ({len(report.ykush_devices)} device(s))")
+        else:
+            click.echo(f"  {status_icon(False, warn=True)} YKUSH (no devices)")
+    else:
+        click.echo(f"  {click.style('-', fg='cyan')} YKUSH (not installed)")
+    if report.usb_subsystem_errors:
+        click.echo(f"  {status_icon(False, warn=True)} USB subsystem errors in dmesg (reset USB bus or reboot)")
 
     if report.target_responding:
         click.echo()
@@ -492,6 +604,10 @@ def run_diagnostics(ocd: OpenOCD, ser: SerialDevice, verbose: bool, no_log: bool
     report = DiagnosticReport()
     needs_resume = False
 
+    # Check YKUSH availability early (doesn't require OpenOCD)
+    check_ykush(report)
+    check_usb_subsystem(report)
+
     if not check_openocd(ocd, report):
         check_usb(ser, report)
         print_summary(report, verbose)
@@ -513,6 +629,7 @@ def run_diagnostics(ocd: OpenOCD, ser: SerialDevice, verbose: bool, no_log: bool
     check_faults(ocd, report)
     check_fpu(ocd, report)
     check_vectors(ocd, report)
+    check_rdp(ocd, report)
 
     if needs_resume and not report.cpu_stuck:
         ocd.send("resume")

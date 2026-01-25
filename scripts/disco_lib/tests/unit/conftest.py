@@ -4,7 +4,8 @@ import pytest
 from unittest.mock import patch
 
 from disco_lib.ocd_provider import set_ocd, reset_ocd
-from disco_lib.tests.mocks import OCDMock
+from disco_lib.ykush_provider import set_ykush, reset_ykush
+from disco_lib.tests.mocks import OCDMock, YkushMock
 
 
 @pytest.fixture
@@ -80,3 +81,28 @@ def mock_subprocess():
             Popen = popen_mock
             run = run_mock
         yield SubprocessMocks
+
+
+@pytest.fixture
+def ykush_mock():
+    """YKUSH mock with auto cleanup at teardown.
+
+    Use this for commands that use YKUSH power control.
+    """
+    mock = YkushMock()
+    mock.add_device("YK12345")  # Add default device
+    set_ykush(mock)
+    yield mock
+    reset_ykush()
+
+
+@pytest.fixture
+def ykush_mock_raw():
+    """YKUSH mock without any default devices.
+
+    Use when you need full control over device configuration.
+    """
+    mock = YkushMock()
+    set_ykush(mock)
+    yield mock
+    reset_ykush()
