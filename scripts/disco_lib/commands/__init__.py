@@ -11,8 +11,9 @@ from .quickstart import quickstart
 from .cables import cables
 from .check import check
 from .power import power
+from .ui import ui
 
 __all__ = [
     "ocd", "cpu", "mem", "flash", "serial", "repl",
-    "doctor", "quickstart", "cables", "check", "power",
+    "doctor", "quickstart", "cables", "check", "power", "ui",
 ]

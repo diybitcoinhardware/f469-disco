@@ -19,6 +19,7 @@ from disco_lib.commands.mem import mem_read, mem_vectors, mem_dump, mem_save
 from disco_lib.commands.cpu import cpu_halt, cpu_resume, cpu_reset, cpu_regs, cpu_pc, cpu_stack
 from disco_lib.commands.check import check
 from disco_lib.commands.cables import cables
+from disco_lib.commands.ui import ui_screenshot
 
 
 class TestFlashCommandsResumesCPU:
@@ -259,3 +260,37 @@ class TestOCDMockBehavior:
         ocd_mock_raw.send("reg pc")
         ocd_mock_raw.send("resume")
         assert ocd_mock_raw.commands == ["halt", "reg pc", "resume"]
+
+
+class TestUICommandsResumesCPU:
+    """UI commands that halt CPU should resume it."""
+
+    def test_screenshot_resumes(self, ocd_mock):
+        """ui screenshot should resume CPU after dumping framebuffer."""
+        from unittest.mock import patch
+
+        def _fake_dump(ocd, filepath, addr, size, timeout=60):
+            with open(filepath, "wb") as f:
+                f.write(b"\x00" * size)
+            return True
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            tmp_path = f.name
+
+        try:
+            with patch("disco_lib.commands.ui.memory.dump_to_file",
+                       side_effect=_fake_dump):
+                runner = CliRunner()
+                runner.invoke(ui_screenshot, [tmp_path])
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_screenshot_resumes_on_error(self, ocd_mock):
+        """ui screenshot should resume CPU even when dump fails."""
+        from unittest.mock import patch
+
+        with patch("disco_lib.commands.ui.memory.dump_to_file",
+                   return_value=False):
+            runner = CliRunner()
+            runner.invoke(ui_screenshot, ["/tmp/_halt_test.png"])
