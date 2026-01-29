@@ -634,6 +634,12 @@ def run_diagnostics(ocd: OpenOCD, ser: SerialDevice, verbose: bool, no_log: bool
     if needs_resume and not report.cpu_stuck:
         ocd.send("resume")
 
+    # On Linux, OpenOCD holds the USB endpoint and blocks CDC serial access.
+    # Stop OpenOCD before testing REPL to release the USB interface.
+    if sys.platform == "linux" and ocd.is_running():
+        ocd.stop()
+        time.sleep(1.0)  # Let USB settle after OpenOCD releases it
+
     check_usb(ser, report)
     print_summary(report, verbose)
 
