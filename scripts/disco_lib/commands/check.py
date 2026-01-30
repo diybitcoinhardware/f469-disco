@@ -6,6 +6,7 @@ from ..ocd_provider import get_ocd
 from .. import cpu as cpu_backend
 from .. import memory
 from .. import flash as flash_backend
+from ..diagnostics import is_rdp_enabled
 
 
 @click.command()
@@ -36,7 +37,12 @@ def check(no_resume: bool):
             click.echo(memory.read_words(get_ocd(), 0x20000000, 4))
 
             click.secho("\n5. Flash Info", fg="yellow")
-            click.echo(flash_backend.read_info(get_ocd()))
+            flash_info = flash_backend.read_info(get_ocd())
+            if is_rdp_enabled(flash_info):
+                click.secho("RDP: enabled (flash locked)", fg="yellow")
+            else:
+                click.secho("RDP: disabled", fg="green")
+            click.echo(flash_info)
         finally:
             if no_resume:
                 click.secho("\nCPU left halted (--no-resume). USB CDC disconnected.", fg="yellow")

@@ -16,6 +16,37 @@ _ser = SerialDevice()
 STLINK_VENDOR_ID = "0x0483"
 MICROPYTHON_VENDOR_ID = "0xf055"
 
+# USB subsystem error patterns (from dmesg)
+USB_ERROR_PATTERNS = [
+    r"device descriptor read.*error -110",
+    r"Device not responding to setup address",
+    r"device not accepting address.*error",
+    r"unable to enumerate USB device",
+]
+
+
+def _check_usb_subsystem_errors():
+    """Check dmesg for USB subsystem errors (Linux only).
+
+    Returns True if USB enumeration errors are found in recent dmesg output.
+    """
+    if sys.platform != "linux":
+        return False
+
+    try:
+        result = subprocess.run(
+            ["dmesg"], capture_output=True, text=True, timeout=5
+        )
+        # Check last 200 lines for recent errors
+        recent_lines = result.stdout.split('\n')[-200:]
+        for line in recent_lines:
+            for pattern in USB_ERROR_PATTERNS:
+                if re.search(pattern, line, re.IGNORECASE):
+                    return True
+    except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
+        pass
+    return False
+
 
 def _check_usb_devices():
     """Check raw USB devices via system command.
@@ -70,6 +101,7 @@ def cables():
 
     # Check raw USB hardware
     usb = _check_usb_devices()
+    usb_subsystem_errors = _check_usb_subsystem_errors()
 
     stlink_serial = False
     usb_otg_serial = False
@@ -110,7 +142,10 @@ def cables():
 
     click.echo("MicroUSB (ST-LINK connector):")
     if not usb["stlink"]:
-        click.secho("  USB: NOT DETECTED - check cable!", fg="red")
+        if usb_subsystem_errors:
+            click.secho("  USB: NOT DETECTED - USB subsystem errors (see below)", fg="red")
+        else:
+            click.secho("  USB: NOT DETECTED - check cable!", fg="red")
     elif jtag_ok:
         click.secho("  JTAG: connected", fg="green")
     elif ocd_running:
@@ -126,14 +161,27 @@ def cables():
     click.echo()
     click.echo("MiniUSB (USB OTG connector):")
     if not usb["micropython"]:
-        click.secho("  USB: NOT DETECTED - check cable!", fg="red")
+        if usb_subsystem_errors:
+            click.secho("  USB: NOT DETECTED - USB subsystem errors (see below)", fg="red")
+        else:
+            click.secho("  USB: NOT DETECTED - check cable!", fg="red")
     elif usb_otg_serial:
         click.secho("  Serial (CDC): available - REPL should work", fg="green")
     else:
         click.secho("  USB: detected, but CDC interface is missing. This may indicate a firmware issue or incorrect USB detection logic", fg="yellow")
 
     click.echo()
-    if not usb["stlink"] and not usb["micropython"]:
+    if usb_subsystem_errors and (not usb["stlink"] or not usb["micropython"]):
+        click.secho("USB subsystem errors detected in dmesg!", fg="red")
+        click.echo("This is likely a host issue, not a cable problem.")
+        click.echo()
+        click.echo("To reset the USB bus (may fix without reboot):")
+        click.secho("  echo 0 | sudo tee /sys/bus/usb/devices/usb1/authorized", fg="cyan")
+        click.secho("  sleep 2", fg="cyan")
+        click.secho("  echo 1 | sudo tee /sys/bus/usb/devices/usb1/authorized", fg="cyan")
+        click.echo()
+        click.echo("If that doesn't work, reboot the host.")
+    elif not usb["stlink"] and not usb["micropython"]:
         click.secho("No USB devices detected - check both cables!", fg="red")
     elif not usb["stlink"]:
         click.secho("Tip: ST-LINK cable not connected or bad cable", fg="yellow")

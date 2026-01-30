@@ -4,7 +4,7 @@ import click
 
 from .commands import (
     ocd, cpu, mem, flash, serial, repl,
-    doctor, quickstart, cables, check,
+    doctor, quickstart, cables, check, power, ui,
 )
 
 
@@ -21,6 +21,8 @@ def cli():
       flash   - Flash programming
       serial  - Serial device detection
       repl    - MicroPython REPL interaction
+      power   - USB power control via YKUSH hub
+      ui      - LVGL remote control
 
     Top-level commands:
 
@@ -39,6 +41,8 @@ cli.add_command(mem)
 cli.add_command(flash)
 cli.add_command(serial)
 cli.add_command(repl)
+cli.add_command(power)
+cli.add_command(ui)
 
 # Register top-level commands
 cli.add_command(doctor)

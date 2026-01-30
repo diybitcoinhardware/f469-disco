@@ -9,11 +9,11 @@ from . import BAUD_RATE
 
 
 @contextmanager
-def mpremote_transport(dev: str, baud: int = BAUD_RATE):
+def mpremote_transport(dev: str, baud: int = BAUD_RATE, soft_reset: bool = True):
     """Context manager for mpremote SerialTransport."""
     from mpremote.transport_serial import SerialTransport
     transport = SerialTransport(dev, baud)
-    transport.enter_raw_repl()
+    transport.enter_raw_repl(soft_reset=soft_reset)
     try:
         yield transport
     finally:
@@ -48,6 +48,22 @@ def filter_repl_output(text: str, code: str) -> str:
         output_lines.append(line)
 
     return "\n".join(output_lines).strip()
+
+
+def exec_raw(dev: str, code: str, baud: int = BAUD_RATE, timeout: float = 5.0) -> str:
+    """Execute multi-line Python via mpremote raw REPL.
+
+    Unlike exec_code() which uses the friendly REPL (single-line only),
+    this uses mpremote's raw REPL protocol to send multi-line scripts.
+    """
+    with mpremote_transport(dev, baud, soft_reset=False) as transport:
+        transport.exec_raw_no_follow(code)
+        stdout, stderr = transport.follow(timeout=timeout)
+        stdout = stdout.decode("utf-8", errors="replace") if isinstance(stdout, bytes) else stdout
+        stderr = stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else stderr
+        if stderr:
+            raise RuntimeError(f"MicroPython error:\n{stderr}")
+        return stdout.strip()
 
 
 def exec_code(dev: str, code: str, baud: int = BAUD_RATE, timeout: float = 3.0) -> str:

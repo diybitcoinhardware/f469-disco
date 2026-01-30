@@ -113,8 +113,9 @@ Logs are saved to: `/tmp/disco_log/YYYY-MM-DD_HH-MM-SS.md`
 | FPU_DISABLED | warn | CPACR doesn't enable FPU |
 | INVALID_INITIAL_SP | error | Vector table SP not in RAM |
 | INVALID_RESET_VECTOR | error | Reset handler not in Flash |
-| USB_OTG_MISSING | warn | No USB CDC device (check cable) |
+| USB_OTG_MISSING | warn | No USB CDC device (check cable or USB subsystem) |
 | REPL_UNRESPONSIVE | warn | CDC present but no REPL response |
+| USB_SUBSYSTEM_ERROR | warn | USB enumeration errors in dmesg (host issue) |
 
 ### Fault Registers (Cortex-M4 SCB)
 
@@ -1012,7 +1013,49 @@ while (!(QUADSPI->SR & QUADSPI_SR_FTF)) {  // STUCK HERE
 
 ---
 
-**Last Updated:** 2026-01-23
+### USB Subsystem Errors on Raspberry Pi
+
+**Symptoms:**
+- `disco cables` shows "USB: NOT DETECTED" for one or both cables
+- `disco doctor` shows "USB subsystem errors in dmesg"
+- `dmesg` shows USB enumeration errors:
+  ```
+  usb 1-1.1.1: device descriptor read/64, error -110
+  usb 1-1.1.1: Device not responding to setup address
+  usb 1-1.1.1: device not accepting address X, error -71
+  usb 1-1.1-port1: unable to enumerate USB device
+  ```
+- ST-LINK may work while USB OTG (MicroPython) fails, or vice versa
+
+**Root Cause:**
+The Raspberry Pi's xHCI USB controller can get into a stuck state where it cannot enumerate devices on specific ports. This is a **host issue**, not a cable or board problem.
+
+**Solution 1: Reset USB Bus (no reboot)**
+
+```bash
+echo 0 | sudo tee /sys/bus/usb/devices/usb1/authorized
+sleep 2
+echo 1 | sudo tee /sys/bus/usb/devices/usb1/authorized
+```
+
+This deauthorizes and reauthorizes the USB bus, forcing re-enumeration.
+
+**Solution 2: Reboot (guaranteed fix)**
+
+```bash
+sudo reboot
+```
+
+**What makes it worse:**
+- Repeated YKUSH power cycles can stress the USB subsystem
+- Rapid USB connect/disconnect operations
+- OpenOCD halting CPU while USB is active
+
+**Key insight:** If `disco cables` says "check cable!" but cables were working before, check `disco doctor` for USB subsystem errors first.
+
+---
+
+**Last Updated:** 2025-01-25
 **Verified With:**
 - OpenOCD 0.12.0
 - GDB 16.3
