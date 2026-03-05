@@ -53,7 +53,7 @@ def _walk(obj, depth, idx, out, as_dict):
         for i in range(cc):
             _walk(obj.get_child(i), depth + 1, i, out, False)
 
-scr = lv.screen_active()
+scr = $ROOT
 cc = scr.get_child_count()
 AS_JSON = $AS_JSON
 if AS_JSON:
@@ -90,7 +90,7 @@ def _clickable(w):
         p = p.get_parent()
     return w
 
-scr = lv.screen_active()
+scr = $ROOT
 w = _find_by_text(scr, $TEXT)
 if w is None:
     print('NOT_FOUND')
@@ -108,7 +108,7 @@ else:
 # MicroPython script: click widget by tree index path (runs on device)
 _CLICK_INDEX_SCRIPT = """\
 import lvgl as lv
-scr = lv.screen_active()
+scr = $ROOT
 path = $PATH
 w = scr
 for i in path:
@@ -156,6 +156,17 @@ else:
 """
 
 
+def _root_expr(layer: str) -> str:
+    """Return the MicroPython expression for the root widget of *layer*.
+
+    ``screen`` (default) → ``lv.screen_active()``
+    ``top``              → ``lv.display_get_default().get_layer_top()``
+    """
+    if layer == "top":
+        return "lv.display_get_default().get_layer_top()"
+    return "lv.screen_active()"
+
+
 def _check_lvgl_version(dev, baud):
     """Verify LVGL 9+ is available on the board."""
     try:
@@ -187,21 +198,30 @@ def ui():
 
 @ui.command("screen")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON tree")
+@click.option("--layer", "layer", default="screen",
+              type=click.Choice(["screen", "top"]),
+              help="Root layer: 'screen' (default) or 'top' (layer_top overlay)")
 @click.option("--timeout", "-t", default=10, type=int, help="Response timeout in seconds")
-def ui_screen(as_json: bool, timeout: int):
+def ui_screen(as_json: bool, layer: str, timeout: int):
     """Dump the LVGL widget tree.
 
     Shows each widget's index, type, child count, and text (for labels).
+    Use --layer top to inspect overlay widgets (e.g. modal dialogs, tour).
 
     \b
     Examples:
       disco ui screen
       disco ui screen --json
+      disco ui screen --layer top --json
     """
     dev = _ser.require_device()
     _check_lvgl_version(dev, _ser.baud)
 
-    script = _TREE_SCRIPT.replace("$AS_JSON", "True" if as_json else "False")
+    script = (
+        _TREE_SCRIPT
+        .replace("$ROOT", _root_expr(layer))
+        .replace("$AS_JSON", "True" if as_json else "False")
+    )
     try:
         output = repl_backend.exec_raw(dev, script, _ser.baud, timeout)
     except RuntimeError as e:
@@ -220,18 +240,24 @@ def ui_screen(as_json: bool, timeout: int):
 @ui.command("click")
 @click.argument("text", required=False, default=None)
 @click.option("--index", "-i", default=None, help="Dot-separated tree path (e.g. 1.0.1.5.2)")
+@click.option("--layer", "layer", default="screen",
+              type=click.Choice(["screen", "top"]),
+              help="Root layer: 'screen' (default) or 'top' (layer_top overlay)")
 @click.option("--timeout", "-t", default=10, type=int, help="Response timeout in seconds")
-def ui_click(text: str, index: str, timeout: int):
+def ui_click(text: str, index: str, layer: str, timeout: int):
     """Click a widget by its label text or tree position.
 
     By default, searches depth-first for a widget whose label text matches.
     With --index, navigates the tree by child indices (dot-separated).
+    Use --layer top to target overlay widgets (e.g. modal dialogs, tour).
 
     \b
     Examples:
       disco ui click "1"               # click by label text
       disco ui click "OK"
       disco ui click -i 1.0.1.5.2      # click by tree path
+      disco ui click --layer top "Skip"  # click button in overlay
+      disco ui click --layer top -i 0.2  # click overlay button by index
     """
     if text is None and index is None:
         raise click.ClickException("Provide TEXT or --index")
@@ -247,10 +273,18 @@ def ui_click(text: str, index: str, timeout: int):
         except ValueError:
             raise click.ClickException(
                 f"Invalid index path: {index!r} (expected dot-separated integers)")
-        script = _CLICK_INDEX_SCRIPT.replace("$PATH", repr(path))
+        script = (
+            _CLICK_INDEX_SCRIPT
+            .replace("$ROOT", _root_expr(layer))
+            .replace("$PATH", repr(path))
+        )
         label = f"index {index}"
     else:
-        script = _CLICK_SCRIPT.replace("$TEXT", repr(text))
+        script = (
+            _CLICK_SCRIPT
+            .replace("$ROOT", _root_expr(layer))
+            .replace("$TEXT", repr(text))
+        )
         label = f"text \"{text}\""
 
     try:
