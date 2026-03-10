@@ -364,8 +364,46 @@ bool scard_tx_write(scard_handle_t handle, const uint8_t* buf, size_t nbytes) {
   size_t bytes_written = uart_tx_data(handle->uart_obj, buf, nbytes, &errcode);
 
   return (errcode == 0 && bytes_written == nbytes);
-}
 
+/**
+ * Reconfigures USART for T=1 protocol after ATR reception.
+ * Switches stop bits from 1.5 to 1 and reduces guard time to 1 ETU.
+ * Must be called after ATR is received and before first T=1 block is sent.
+ * @param handle  smart card interface handle
+ */
+void scard_configure_t1(scard_handle_t handle) {
+#if defined(STM32F4)
+  USART_TypeDef* usart = handle->sc_handle.Instance;
+  uint32_t irq_state = disable_irq();
+  
+  // Disable USART before modifying registers
+  __HAL_SMARTCARD_DISABLE(&handle->sc_handle);
+  
+  // T=1: switch stop bits from 1.5 to 1.
+  // T=1 uses 1 ETU guard time (no NACK mechanism), vs T=0's 2 ETU.
+  // CR2 bits 13:12: 00 = 1 stop bit. HAL only defines 0.5/1.5 for smartcard,
+  // so we manipulate registers directly.
+  // See ccid-reader/src/smartcard.rs:524-529
+  usart->CR2 &= ~USART_CR2_STOP;  // Clear bits 13:12 -> 1 stop bit
+  
+  // T=1: reduce guard time from 16 to 1 ETU.
+  // GT=1 is minimum for T=1 (just the stop bit).
+  // GTPR[15:8] = GT value, GTPR[7:0] = PSC (prescaler, keep unchanged)
+  // See ccid-reader/src/smartcard.rs:530-534
+  uint32_t psc = usart->GTPR & 0xFFU;  // Preserve prescaler
+  usart->GTPR = (1U << 8) | psc;        // GT=1, keep PSC
+  
+  // Re-enable USART
+  __HAL_SMARTCARD_ENABLE(&handle->sc_handle);
+  
+  enable_irq(irq_state);
+  
+  if(scard_module_debug) {
+    printf("\r\nT=1: STOP=1bit, GT=1, CR2=0x%08lX, GTPR=0x%04lX",
+           (unsigned long)usart->CR2, (unsigned long)usart->GTPR);
+  }
+#endif // STM32F4
+}
 void scard_interface_deinit(scard_handle_t handle) {
   scard_inst_t* self = (scard_inst_t*)handle;
 
