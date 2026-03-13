@@ -364,6 +364,7 @@ bool scard_tx_write(scard_handle_t handle, const uint8_t* buf, size_t nbytes) {
   size_t bytes_written = uart_tx_data(handle->uart_obj, buf, nbytes, &errcode);
 
   return (errcode == 0 && bytes_written == nbytes);
+}
 
 /**
  * Reconfigures USART for T=1 protocol after ATR reception.
