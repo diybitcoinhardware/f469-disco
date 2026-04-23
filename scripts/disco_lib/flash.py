@@ -98,7 +98,24 @@ def get_build_type(version_tag: str | None) -> str:
     return "unknown"
 
 
-def detect_flash_address(regions: List[Tuple[int, int, bool]], fs_preservation: bool) -> int:
+def read_reset_vector(filepath: str) -> int | None:
+    """Read the Cortex-M reset vector from offset 0x4 of the firmware file.
+
+    Returns the address with the Thumb bit masked off, or None if the file
+    is too short.
+    """
+    with open(filepath, "rb") as f:
+        head = f.read(8)
+    if len(head) < 8:
+        return None
+    return int.from_bytes(head[4:8], "little") & ~1
+
+
+def detect_flash_address(
+    regions: List[Tuple[int, int, bool]],
+    fs_preservation: bool,
+    reset_vector: int | None = None,
+) -> int:
     """Auto-detect correct flash address based on firmware layout.
 
     Returns:
@@ -107,8 +124,13 @@ def detect_flash_address(regions: List[Tuple[int, int, bool]], fs_preservation: 
     """
     code_regions = [(s, e) for s, e, has_data in regions if has_data]
 
-    # Single code region without fs preservation = upgrade firmware
+    # Single code region without fs preservation: usually upgrade firmware,
+    # but v1.4.0+ initial firmwares are also a single contiguous code region
+    # (bootloader + main with no zero gap). Disambiguate via the reset vector:
+    # initial firmwares point into the bootloader area (< 0x08020000).
     if len(code_regions) == 1 and not fs_preservation:
+        if reset_vector is not None and 0x08000000 <= reset_vector < 0x08020000:
+            return 0x08000000
         return 0x08020000
 
     # Multiple regions with gaps = initial firmware
@@ -138,7 +160,7 @@ def generate_fingerprint(filepath: str) -> Dict[str, Any]:
     version_tag = extract_version_tag(data)
     build_type = get_build_type(version_tag)
     fs_preservation = has_internal_zeros(regions)
-    flash_addr = detect_flash_address(regions, fs_preservation)
+    flash_addr = detect_flash_address(regions, fs_preservation, read_reset_vector(filepath))
 
     # Label regions with smarter logic
     code_regions = [(s, e, e - s) for s, e, has_data in regions if has_data]

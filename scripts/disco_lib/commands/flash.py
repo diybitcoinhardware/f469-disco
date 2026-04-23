@@ -490,7 +490,9 @@ def flash_program(file: str, addr: str | None, force: bool, verify: bool, reset:
     code_bytes = flash_backend.calculate_code_bytes(regions)
 
     # Auto-detect flash address
-    detected_addr = flash_backend.detect_flash_address(regions, internal_zeros)
+    detected_addr = flash_backend.detect_flash_address(
+        regions, internal_zeros, flash_backend.read_reset_vector(file)
+    )
 
     # Handle user-provided address
     if addr is not None:

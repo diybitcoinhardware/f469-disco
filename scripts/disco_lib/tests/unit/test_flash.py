@@ -426,6 +426,27 @@ class TestDetectFlashAddress:
         # Small first region < 0x20000 and <= 0x10000 = initial
         assert detect_flash_address(regions, fs_preservation=False) == 0x08000000
 
+    def test_single_region_reset_vector_in_bootloader(self):
+        """Single contiguous region with reset vector in bootloader area = initial.
+
+        v1.4.0+ initial_firmware.bin has bootloader + main packed with no zero
+        gap, so it looks like an upgrade by structure. The reset vector at
+        offset 0x4 disambiguates: points into 0x08000000-0x0801FFFF for initial.
+        """
+        regions = [(0, 0x1E0000, True)]  # 1.9MB contiguous
+        assert (
+            detect_flash_address(regions, fs_preservation=False, reset_vector=0x0800063C)
+            == 0x08000000
+        )
+
+    def test_single_region_reset_vector_in_main(self):
+        """Single region with reset vector in main area = upgrade (0x08020000)."""
+        regions = [(0, 0x140000, True)]
+        assert (
+            detect_flash_address(regions, fs_preservation=False, reset_vector=0x08050E58)
+            == 0x08020000
+        )
+
 
 class TestParseRdpLevel:
     """Tests for parse_rdp_level() - parses RDP level from options_read output.
