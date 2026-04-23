@@ -503,18 +503,32 @@ def parse_rdp_level(options_output: str) -> int | None:
     if match:
         return int(match.group(1))
 
+    # OpenOCD 0.12 stm32f2x driver prints "Device Security Bit Set" when
+    # RDP is not Level 0. Absence of the message on a successful probe
+    # implies Level 0.
+    if re.search(r'Device Security Bit Set', options_output):
+        return 1
+    if re.search(r'stm32f2x user_options', options_output):
+        return 0
+
     return None
 
 
 def unlock_rdp(ocd: OpenOCD) -> str:
     """Remove RDP Level 1 protection (RDP1 -> RDP0).
 
-    WARNING: This causes a MASS ERASE of all flash memory!
-    The board must be power cycled after this operation.
+    Clears sector write protection first (WRP persists across RDP unlock
+    and would otherwise block the subsequent mass erase / reprogramming),
+    then clears the RDP byte. The board must be power cycled after this
+    operation.
 
-    Returns raw OpenOCD output.
+    Returns concatenated OpenOCD output.
     """
-    return ocd.send("stm32f4x unlock 0", timeout=30.0)
+    out = []
+    out.append(ocd.send("halt", timeout=5.0))
+    out.append(ocd.send("flash protect 0 0 last off", timeout=10.0))
+    out.append(ocd.send("stm32f4x unlock 0", timeout=30.0))
+    return "\n".join(out)
 
 
 def lock_rdp(ocd: OpenOCD) -> str:

@@ -47,16 +47,24 @@ This gives you the full command reference for:
 - MicroPython REPL
 - Diagnostics
 
-## Beads Workflow
+## Useful Resources
 
-Use `bd` for issue tracking. See `bd quickstart` for commands.
+Before diving in, skim the docs that fit what you're doing:
 
-When discovering useful board interactions or debug techniques:
-```
-bd create "disco: <brief description>"
-# ... work ...
-bd close
-```
+**Board & debugging**
+- [docs/debugging.md](docs/debugging.md) — JTAG/SWD via ST-LINK, OpenOCD, GDB, LED patterns, known issues (QSPI shadow dirs, SPI flash hang)
+- [docs/architecture/firmware_layouts.md](docs/architecture/firmware_layouts.md) — memory map, initial vs upgrade vs dev firmwares, RDP/PCROP hazards (v1.4.0+ initial firmware locks the device)
+- [tests/fwbox/README.md](tests/fwbox/README.md) — catalog of test firmwares (debug/main/vanilla) with fingerprints
+- `./scripts/disco quickstart` — full disco-tool command reference
+
+**Build & release**
+- [docs/build.md](docs/build.md) — build commands and toolchain notes
+- [docs/release.md](docs/release.md) — release process
+
+**API**
+- [docs/readme.md](docs/readme.md) — entry point to tutorial + API docs
+- [docs/api/](docs/api/) — `bitcoin`, `secp256k1`, `hashlib`, `display` modules
+- [docs/tutorial/](docs/tutorial/) — step-by-step hardware-wallet tutorial
 
 ## Landing the Plane (Session Completion)
 
@@ -64,19 +72,16 @@ bd close
 
 **MANDATORY WORKFLOW:**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. **Run quality gates** (if code changed) - Tests, linters, builds
+2. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+3. **Clean up** - Clear stashes, prune remote branches
+4. **Verify** - All changes committed AND pushed
+5. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
 - Work is NOT complete until `git push` succeeds

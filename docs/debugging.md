@@ -1013,6 +1013,83 @@ while (!(QUADSPI->SR & QUADSPI_SR_FTF)) {  // STUCK HERE
 
 ---
 
+### PCROP Lockdown After Flashing Initial Firmware
+
+**Symptoms:**
+- `stm32f2x mass_erase 0` and `disco flash program` fail with `stm32x device protected`
+- `FLASH_SR` has bit 4 (WRPERR) set after erase attempts
+- Flash at `0x08000000` reads as `0x00` (not `0xFF`) — PCROP is masking real contents
+- Option bytes show `SPRMOD=1` and `nWRP0..nWRP23=1` (all sectors PCROP-protected)
+- `BFB2=1` so the CPU boots into ST ROM bootloader (PC in `0x1FFF0000`–`0x1FFF77FF` range)
+- STM32CubeProgrammer's `-rdu` (RDP regression) does NOT clear PCROP — only flips the RDP byte
+
+**Root Cause:**
+Specter DIY v1.4.0+ `initial_firmware.bin` intentionally enables PCROP on all sectors as a bootloader-integrity feature. On STM32F469 **Rev A** silicon this can leave the chip in a state where:
+1. PCROP blocks mass erase
+2. Mass erase is the only way to clear PCROP
+3. RDP Level 1 → Level 0 regression *should* trigger a mass erase that clears PCROP, but doesn't when all sectors are PCROP-protected — creating an unrecoverable catch-22
+
+**Diagnosis (CubeProgrammer):**
+```bash
+STM32_Programmer_CLI -c port=SWD -ob displ | grep -E "RDP|SPRMOD|nWRP0 "
+#   RDP    : 0xAA (Level 0)
+#   SPRMOD : 0x1  (PCROP enabled)         <-- the trap
+#   nWRP0  : 0x1  (PCROP protection active on sector i)
+```
+
+**Recovery (try in order):**
+1. Set RDP to Level 1, **power-cycle** (critical — Level 1 must actually engage), then regress:
+   ```bash
+   STM32_Programmer_CLI -c port=SWD -ob rdp=0xBB   # set Level 1
+   # >>> physically unplug/replug MicroUSB <<<
+   STM32_Programmer_CLI -c port=SWD -rdu           # regress → mass erase (if not bricked)
+   STM32_Programmer_CLI -c port=SWD -ob displ      # verify SPRMOD=0
+   ```
+2. If SPRMOD is still `1` after the regression (chip is in the unrecoverable state), the device is effectively bricked for flash reprogramming. The ROM bootloader's erase commands are also gated by PCROP so BOOT0 + USB DFU won't help.
+
+**Note:**
+Flashing `initial_firmware.bin` works reliably in the normal case — this lockdown is rare and appears triggered by unusual state, e.g. a prior flash at the wrong address followed by multiple RDP unlock / reflash cycles and raw option-byte writes before the chip settled. If you do hit it on a Rev A board, the recovery above is the only documented path; if that fails the device is effectively bricked for flash reprogramming. Prefer a clean sequence on first flash (halt → `flash protect 0 0 last off` → program), and avoid repeated manual OPTCR writes if things go sideways.
+
+---
+
+### Write Protection Survives RDP Unlock
+
+**Symptoms:**
+- After `disco flash unlock` + power cycle, `disco flash program` fails with `stm32x device protected`
+- `mdw 0x40023C14 1` shows OPTCR `nWRP` bits (27:16) are NOT all `0xFFF`
+- Specifically, sector 0 is often write-protected by leftover bootloader option bytes
+
+**Root Cause:**
+`stm32f4x unlock 0` (what OpenOCD and older `disco flash unlock` run) only rewrites the RDP byte. Write-protection (WRP) bits in the option bytes are independent and survive the RDP regression — so the subsequent erase/program operation hits a write-protected sector and fails.
+
+**Fix:**
+Clear WRP **before** the erase/program by sending `flash protect 0 0 last off` over OpenOCD telnet while the CPU is halted. The `disco` tool now does this automatically inside `unlock_rdp` and before `program` — if you're driving OpenOCD directly, include it in your sequence:
+```
+> halt
+> flash protect 0 0 last off
+> stm32f4x unlock 0            # if RDP also needs clearing
+```
+
+**Parsing Tip:** OpenOCD 0.12's `stm32f2x options_read` output doesn't print a numeric RDP level — instead it prints `Device Security Bit Set` when RDP ≠ 0. Absence of that line on a successful probe = Level 0.
+
+---
+
+### Wrong Flash Address Auto-Detected for Initial Firmware
+
+**Symptoms:**
+- `disco flash program initial_firmware.bin` auto-detects `0x08020000` and the chip HardFaults on reset (`PC=0xfffffffe`)
+- Flash verify of `0x08000000` shows erased sectors
+
+**Root Cause:**
+The detector used to classify any single-region, no-fs-preservation image as an "upgrade" and map it to `0x08020000`. But v1.4.0+ `initial_firmware.bin` packs bootloader + main firmware into a single contiguous region with no zero gap, so it looks like an upgrade by structure despite being an initial (full) image.
+
+**Fix:**
+The detector now reads the Cortex-M reset vector at file offset `0x4`. If it points into the bootloader region (< `0x08020000`) the image is classified as initial and flashed at `0x08000000`. See `scripts/disco_lib/flash.py:detect_flash_address` and the regression tests in `test_flash.py`.
+
+If you need to override, use `--addr 0x08000000 --force`.
+
+---
+
 ### USB Subsystem Errors on Raspberry Pi
 
 **Symptoms:**
@@ -1055,11 +1132,12 @@ sudo reboot
 
 ---
 
-**Last Updated:** 2025-01-25
+**Last Updated:** 2026-04-23
 **Verified With:**
 - OpenOCD 0.12.0
 - GDB 16.3
-- STM32F469 Discovery board
+- STM32CubeProgrammer v2.19.0
+- STM32F469 Discovery board (Rev A silicon)
 - ST-Link/V2-1 firmware
 
 ---

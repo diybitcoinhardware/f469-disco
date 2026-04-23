@@ -509,6 +509,27 @@ class TestParseRdpLevel:
         output = "Option bytes: RDP 0xaa nWRP 0x0FFF"
         assert parse_rdp_level(output) == 0
 
+    def test_openocd_012_security_bit_set_is_level_1(self):
+        """OpenOCD 0.12 stm32f2x driver: 'Device Security Bit Set' = Level 1."""
+        output = (
+            "device id = 0x10006434\n"
+            "flash size = 2048 KiB\n"
+            "Dual Bank 2048 kiB STM32F42x/43x/469/479 found\n"
+            "Device Security Bit Set\n"
+            "stm32f2x user_options 0x0EC"
+        )
+        assert parse_rdp_level(output) == 1
+
+    def test_openocd_012_no_security_bit_is_level_0(self):
+        """OpenOCD 0.12: no 'Device Security Bit Set' on a probe = Level 0."""
+        output = (
+            "device id = 0x10006434\n"
+            "flash size = 2048 KiB\n"
+            "Dual Bank 2048 kiB STM32F42x/43x/469/479 found\n"
+            "stm32f2x user_options 0x0EC"
+        )
+        assert parse_rdp_level(output) == 0
+
     def test_mixed_case_rdp_byte(self):
         """Should handle mixed case hex."""
         output = "Option bytes: RDP 0xAa nWRP 0x0FFF"
@@ -534,12 +555,17 @@ class TestReadOptionBytes:
 
 
 class TestUnlockRdp:
-    """Tests for unlock_rdp() - sends unlock command."""
+    """Tests for unlock_rdp() - halts, clears WRP, then unlocks RDP."""
 
-    def test_sends_correct_command(self, ocd_mock_raw):
-        """Should send 'stm32f4x unlock 0'."""
+    def test_sends_halt_then_wrp_clear_then_unlock(self, ocd_mock_raw):
+        """WRP must be cleared before RDP unlock or subsequent erase fails."""
         unlock_rdp(ocd_mock_raw)
-        assert "stm32f4x unlock 0" in ocd_mock_raw.commands
+        cmds = ocd_mock_raw.commands
+        assert "halt" in cmds
+        assert "flash protect 0 0 last off" in cmds
+        assert "stm32f4x unlock 0" in cmds
+        assert cmds.index("halt") < cmds.index("flash protect 0 0 last off")
+        assert cmds.index("flash protect 0 0 last off") < cmds.index("stm32f4x unlock 0")
 
     def test_returns_raw_output(self, ocd_mock_raw):
         """Should return raw OpenOCD output."""
