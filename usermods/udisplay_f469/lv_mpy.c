@@ -31,7 +31,7 @@
  */
 
 #include "lvgl/lvgl.h"
-#include "lvgl/src/lvgl_private.h"
+#include "lvgl/lvgl_private.h"
 
 
 #define LV_OBJ_T lv_obj_t
@@ -25176,6 +25176,18 @@ static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_light_color_mpobj, 2, mp_
 
 static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_version_range_mpobj, 3, mp_lv_obj_set_pos, lv_qrcode_set_version_range);
     
+/* Reusing lv_obj_get_index for lv_qrcode_get_selected_version */
+
+static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_get_selected_version_mpobj, 1, mp_lv_obj_get_index, lv_qrcode_get_selected_version);
+    
+/* Reusing lv_image_set_antialias for lv_qrcode_set_fixed_size */
+
+static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_set_fixed_size_mpobj, 2, mp_lv_image_set_antialias, lv_qrcode_set_fixed_size);
+    
+/* Reusing lv_obj_is_layout_positioned for lv_qrcode_get_fixed_size */
+
+static MP_DEFINE_CONST_LV_FUN_OBJ_VAR(mp_lv_qrcode_get_fixed_size_mpobj, 1, mp_lv_obj_is_layout_positioned, lv_qrcode_get_fixed_size);
+    
 
 /*
  * lvgl extension definition for:
@@ -25268,6 +25280,9 @@ static const mp_rom_map_elem_t qrcode_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_set_dark_color), MP_ROM_PTR(&mp_lv_qrcode_set_dark_color_mpobj) },
     { MP_ROM_QSTR(MP_QSTR_set_light_color), MP_ROM_PTR(&mp_lv_qrcode_set_light_color_mpobj) },
     { MP_ROM_QSTR(MP_QSTR_set_version_range), MP_ROM_PTR(&mp_lv_qrcode_set_version_range_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_get_selected_version), MP_ROM_PTR(&mp_lv_qrcode_get_selected_version_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_set_fixed_size), MP_ROM_PTR(&mp_lv_qrcode_set_fixed_size_mpobj) },
+    { MP_ROM_QSTR(MP_QSTR_get_fixed_size), MP_ROM_PTR(&mp_lv_qrcode_get_fixed_size_mpobj) },
     { MP_ROM_QSTR(MP_QSTR_set_mode), MP_ROM_PTR(&mp_lv_qrcode_set_mode_mpobj) },
     { MP_ROM_QSTR(MP_QSTR_set_mask), MP_ROM_PTR(&mp_lv_qrcode_set_mask_mpobj) },
     { MP_ROM_QSTR(MP_QSTR_set_ecc), MP_ROM_PTR(&mp_lv_qrcode_set_ecc_mpobj) },
