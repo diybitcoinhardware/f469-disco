@@ -14,7 +14,7 @@
 #include "py/mperrno.h"
 #include "py/mphal.h"
 #include "py/smallint.h"
-#include "modmachine.h"
+#include "extmod/modmachine.h"
 #include "protocols.h"
 #include "scard.h"
 #include "connection.h"
@@ -331,6 +331,9 @@ static void proto_cb_handle_event(mp_obj_t self_in, proto_ev_code_t ev_code,
         raise_SmartcardException(prm.error);
       }
       break;
+
+    default:
+      break; // Ignore unknown event
   }
 }
 
@@ -469,7 +472,8 @@ static mp_obj_t create_timer(connection_obj_t* self, mp_int_t timer_id) {
     MP_OBJ_NEW_QSTR(MP_QSTR_callback), self,
     MP_OBJ_NEW_QSTR(MP_QSTR_period), MP_OBJ_NEW_SMALL_INT(TIMER_PERIOD_MS)
   };
-  return machine_timer_type.make_new(&machine_timer_type, 1, 2, args);
+  return MP_OBJ_TYPE_GET_SLOT(&machine_timer_type, make_new)(
+    &machine_timer_type, 1, 2, args);
 }
 
 /**
@@ -510,12 +514,12 @@ static void connection_init(connection_obj_t* self,
 
   // Save system ticks and initialize timer
   self->prev_ticks_ms = mp_hal_ticks_ms();
-  if(mp_obj_is_type(params->timer_id, &mp_type_NoneType)) {
+  if(params->timer_id == mp_const_none) {
     self->timer = MP_OBJ_NULL;
   } else if(mp_obj_is_int(params->timer_id)) {
     self->timer = create_timer(self, mp_obj_get_int(params->timer_id));
   } else {
-    mp_raise_TypeError("timer_id must be integer or None");
+    mp_raise_TypeError(MP_ERROR_TEXT("timer_id must be integer or None"));
   }
 
   // Make connection alive
@@ -568,13 +572,19 @@ STATIC mp_obj_t connection_make_new(const mp_obj_type_t* type, size_t n_args,
     (const scard_conn_params_t*)args[ARG_connParams].u_obj;
 
   if(scard_module_debug) {
-    printf("\r\nNew smart card connection");
+    mp_printf(MICROPY_DEBUG_PRINTER, "\r\nNew smart card connection");
   }
 
   // Create a new connection object
-  connection_obj_t* self = m_new_obj_with_finaliser(connection_obj_t);
-  memset(self, 0U, sizeof(connection_obj_t));
-  self->base.type = &scard_CardConnection_type;
+  connection_obj_t* self =
+    mp_obj_malloc_with_finaliser(connection_obj_t,
+                                 &scard_CardConnection_type);
+
+  // Initialize all fields to 0 except for the base type
+  memset((uint8_t*)self + offsetof(connection_obj_t, reader), 0,
+          sizeof(connection_obj_t) - offsetof(connection_obj_t, reader));
+
+  // Initialize connection object
   self->reader = args[ARG_reader].u_obj;
   self->state = state_closed;
   self->timer = MP_OBJ_NULL;
@@ -763,7 +773,7 @@ STATIC mp_obj_t connection_setBlocking(mp_obj_t self_in, mp_obj_t blocking_in) {
   bool blocking  = mp_obj_is_true(blocking_in);
 
   if(!blocking && MP_OBJ_NULL == self->timer) {
-    mp_raise_ValueError("no timer for non-blocking operation");
+    mp_raise_ValueError(MP_ERROR_TEXT("no timer for non-blocking operation"));
   }
   self->blocking = blocking;
   return mp_const_none;
@@ -810,9 +820,9 @@ STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
   // Parse and check arguments
   enum { ARG_atrTimeout = 0, ARG_responseTimeout, ARG_maxTimeout };
   static const mp_arg_t allowed_args[] = {
-    { MP_QSTR_atrTimeout,      MP_ARG_OBJ, {.u_obj = mp_const_none} },
-    { MP_QSTR_responseTimeout, MP_ARG_OBJ, {.u_obj = mp_const_none} },
-    { MP_QSTR_maxTimeout,      MP_ARG_OBJ, {.u_obj = mp_const_none} }
+    { MP_QSTR_atrTimeout,      MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
+    { MP_QSTR_responseTimeout, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
+    { MP_QSTR_maxTimeout,      MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} }
   };
   mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
   mp_arg_parse_all(n_args - 1U, pos_args + 1U, kw_args,
@@ -825,15 +835,15 @@ STATIC mp_obj_t connection_setTimeouts(size_t n_args, const mp_obj_t *pos_args,
 
   // Save parameters
   self->atr_timeout_ms =
-    mp_obj_is_type(args[ARG_atrTimeout].u_obj, &mp_type_NoneType) ?
+    args[ARG_atrTimeout].u_obj == mp_const_none ?
       proto_prm_unchanged : mp_obj_get_int(args[ARG_atrTimeout].u_obj);
 
   self->rsp_timeout_ms =
-    mp_obj_is_type(args[ARG_responseTimeout].u_obj, &mp_type_NoneType) ?
+    args[ARG_responseTimeout].u_obj == mp_const_none ?
       proto_prm_unchanged : mp_obj_get_int(args[ARG_responseTimeout].u_obj);
 
   self->max_timeout_ms =
-    mp_obj_is_type(args[ARG_maxTimeout].u_obj, &mp_type_NoneType) ?
+    args[ARG_maxTimeout].u_obj == mp_const_none ?
       proto_prm_unchanged : mp_obj_get_int(args[ARG_maxTimeout].u_obj);
 
   // Configure protocol if it is initialized
@@ -914,8 +924,8 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
   // Parse and check arguments
   enum { ARG_bytes = 0, ARG_protocol };
   static const mp_arg_t allowed_args[] = {
-    { MP_QSTR_bytes,    MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = mp_const_none}},
-    { MP_QSTR_protocol, MP_ARG_OBJ,                   {.u_obj = mp_const_none}}
+    { MP_QSTR_bytes,    MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE}},
+    { MP_QSTR_protocol, MP_ARG_OBJ,                   {.u_rom_obj = MP_ROM_NONE}}
   };
   mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
   mp_arg_parse_all(n_args - 1U, pos_args + 1U, kw_args,
@@ -929,7 +939,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
   // Change smart card protocol if requested
   mp_int_t new_protocol = self->next_protocol;
   self->next_protocol = protocol_na;
-  if(!mp_obj_is_type(args[ARG_protocol].u_obj, &mp_type_NoneType)) {
+  if(args[ARG_protocol].u_obj != mp_const_none) {
     new_protocol = mp_obj_get_int(args[ARG_protocol].u_obj);
   }
   if(new_protocol != protocol_na) {
@@ -960,7 +970,7 @@ STATIC mp_obj_t connection_transmit(size_t n_args, const mp_obj_t *pos_args,
     }
     // Convert list to a buffer of bytes
     if(!objects_to_buf(bufinfo.buf, items, bufinfo.len)) {
-      mp_raise_ValueError("incorrect data format");
+      mp_raise_ValueError(MP_ERROR_TEXT("incorrect data format"));
     }
   } else { // 'bytes' is bytes array or anything supporting buffer protocol
     mp_get_buffer_raise(args[ARG_bytes].u_obj, &bufinfo, MP_BUFFER_READ);
@@ -1124,7 +1134,7 @@ STATIC mp_obj_t connection_addObserver(mp_obj_t self_in, mp_obj_t observer) {
   connection_obj_t* self = (connection_obj_t*)self_in;
 
   if(!mp_obj_is_callable(observer)) {
-    mp_raise_TypeError("observer must be callable");
+    mp_raise_TypeError(MP_ERROR_TEXT("observer must be callable"));
   }
   (void)mp_obj_list_append(self->observers, observer);
 
@@ -1146,7 +1156,7 @@ STATIC mp_obj_t connection_deleteObserver(mp_obj_t self_in, mp_obj_t observer) {
   connection_obj_t* self = (connection_obj_t*)self_in;
 
   if(!mp_obj_is_callable(observer)) {
-    mp_raise_TypeError("observer must be callable");
+    mp_raise_TypeError(MP_ERROR_TEXT("observer must be callable"));
   }
   (void)mp_obj_list_remove(self->observers, observer);
 
@@ -1289,12 +1299,15 @@ STATIC void connection_print(const mp_print_t *print, mp_obj_t self_in,
 
   mp_print_str(print, "<CardConnection at '");
   scard_interface_print(print, self->sc_handle);
-  printf( "' inserted=%b, state='%q', protocol='%s', blocking=%b, observers=%u>",
-          card_present(self),
-          (qstr)self->state,
-          self->protocol ? self->protocol->name : "None",
-          self->blocking,
-          list_get_len(self->observers) );
+  mp_printf(
+    print,
+    "' inserted=%b, state='%q\', protocol='%s', blocking=%b, observers=%u>",
+    card_present(self),
+    (qstr)self->state,
+    self->protocol ? self->protocol->name : "None",
+    self->blocking,
+    list_get_len(self->observers)
+  );
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(connection_connect_obj, 1, connection_connect);
@@ -1347,15 +1360,19 @@ STATIC const mp_rom_map_elem_t connection_locals_dict_table[] = {
 };
 STATIC MP_DEFINE_CONST_DICT(connection_locals_dict, connection_locals_dict_table);
 
-const mp_obj_type_t scard_CardConnection_type = {
-  { &mp_type_type },
-  .name = MP_QSTR_CardConnection,
-  .print = connection_print,
-  .make_new = connection_make_new,
-  .call = connection_call,
-  .locals_dict = (void*)&connection_locals_dict,
-};
+MP_DEFINE_CONST_OBJ_TYPE(
+  scard_CardConnection_type,
+  MP_QSTR_CardConnection,
+  MP_TYPE_FLAG_NONE,
+  make_new, connection_make_new,
+  print, connection_print,
+  call, connection_call,
+  locals_dict, &connection_locals_dict
+);
 
-const mp_obj_type_t scard_conn_params_type = {
-  { &mp_type_type }
-};
+MP_DEFINE_CONST_OBJ_TYPE(
+  scard_conn_params_type,
+  MP_QSTR_conn_params,
+  MP_TYPE_FLAG_NONE
+);
+

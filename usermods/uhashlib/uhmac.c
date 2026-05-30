@@ -6,6 +6,8 @@
 #include "crypto/sha2.h"
 #include "crypto/hmac.h"
 
+#if MODULE_HASHLIB_ENABLED
+
 #define DIGEST_HMAC_SHA256 sizeof(HMAC_SHA256_CTX)
 #define DIGEST_HMAC_SHA512 sizeof(HMAC_SHA512_CTX)
 
@@ -41,11 +43,11 @@ STATIC mp_obj_t hmac_HMAC_make_new_helper(const mp_obj_type_t *type, size_t n_ar
     }else if(strcmp(digestmodbuf.buf, "sha512") == 0){
         digestmod = DIGEST_HMAC_SHA512;
     }else{
-        mp_raise_ValueError("Unsupported hash type");
+        mp_raise_ValueError(MP_ERROR_TEXT("Unsupported hash type"));
         return mp_const_none;
     }
 
-    mp_obj_hmac_t *o = m_new_obj_var(mp_obj_hmac_t, char, digestmod+sizeof(size_t));
+    mp_obj_hmac_t *o = m_new_obj_var(mp_obj_hmac_t, state, char, digestmod+sizeof(size_t));
     o->digestmod = digestmod;
     o->base.type = type;
 
@@ -56,7 +58,7 @@ STATIC mp_obj_t hmac_HMAC_make_new_helper(const mp_obj_type_t *type, size_t n_ar
     }else if(digestmod == DIGEST_HMAC_SHA512){
         hmac_sha512_Init((HMAC_SHA512_CTX*)o->state, key.buf, key.len);
     }
-    if (args[ARG_message].u_obj != MP_ROM_NONE) {
+    if (args[ARG_message].u_obj != mp_const_none) {
         hmac_HMAC_update(MP_OBJ_FROM_PTR(o), args[ARG_message].u_obj);
     }
     return MP_OBJ_FROM_PTR(o);
@@ -72,7 +74,7 @@ STATIC mp_obj_t hmac_HMAC_make_new(const mp_obj_type_t *type, size_t n_args, siz
 
 STATIC mp_obj_t hmac_HMAC_copy(mp_obj_t self_in) {
     mp_obj_hmac_t *self = MP_OBJ_TO_PTR(self_in);
-    mp_obj_hmac_t *o = m_new_obj_var(mp_obj_hmac_t, char, self->digestmod+sizeof(size_t));
+    mp_obj_hmac_t *o = m_new_obj_var(mp_obj_hmac_t, state, char, self->digestmod+sizeof(size_t));
     o->base.type = self->base.type;
     o->digestmod = self->digestmod;
     memcpy(o->state, self->state, self->digestmod);
@@ -101,7 +103,7 @@ STATIC mp_obj_t hmac_HMAC_digest(mp_obj_t self_in) {
         vstr_init_len(&vstr, SHA512_DIGEST_LENGTH);
         hmac_sha512_Final((HMAC_SHA512_CTX*)self->state, (byte*)vstr.buf);
     }
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
+    return mp_obj_new_bytes_from_vstr(&vstr);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(hmac_HMAC_update_obj, hmac_HMAC_update);
@@ -116,12 +118,13 @@ STATIC const mp_rom_map_elem_t hmac_HMAC_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hmac_HMAC_locals_dict, hmac_HMAC_locals_dict_table);
 
-STATIC const mp_obj_type_t hmac_HMAC_type = {
-    { &mp_type_type },
-    .name = MP_QSTR_HMAC,
-    .make_new = hmac_HMAC_make_new,
-    .locals_dict = (void*)&hmac_HMAC_locals_dict,
-};
+STATIC const MP_DEFINE_CONST_OBJ_TYPE(
+    hmac_HMAC_type,
+    MP_QSTR_HMAC,
+    MP_TYPE_FLAG_NONE,
+    make_new, hmac_HMAC_make_new,
+    locals_dict, &hmac_HMAC_locals_dict
+);
 
 // key, msg=None, digestmod
 STATIC mp_obj_t hmac_new(size_t n_args, const mp_obj_t *args, mp_map_t *kwargs) {
@@ -145,4 +148,6 @@ const mp_obj_module_t hmac_user_cmodule = {
     .globals = (mp_obj_dict_t*)&hmac_module_globals,
 };
 
-MP_REGISTER_MODULE(MP_QSTR_hmac, hmac_user_cmodule, MODULE_HASHLIB_ENABLED);
+MP_REGISTER_MODULE(MP_QSTR_hmac, hmac_user_cmodule);
+
+#endif // MODULE_HASHLIB_ENABLED

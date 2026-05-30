@@ -138,6 +138,8 @@ typedef struct {
 
 /// Empty event
 static const event_t event_none = { .code = t1_ev_none };
+/// Event with internal error code
+static const event_t event_err_internal = { .code = t1_ev_err_internal };
 
 /// CRC table
 static const uint16_t crc_tbl[256] = {
@@ -1011,6 +1013,7 @@ static event_t send_block_if_available(t1_inst_t* inst) {
       return event_none;
     }
   }
+  return event_err_internal;
 }
 
 /**
@@ -1025,7 +1028,7 @@ static bool check_pps_response(t1_inst_t* inst, const uint8_t* buf,
   if( pps_size == size &&
       PPSS == buf[pps_ppss] &&
       atr_prot_t1 == buf[pps_pps0] &&
-      0U == buf[pps_ppss] ^ buf[pps_pps0] ^ buf[pps_pck ] ) {
+      0U == (buf[pps_ppss] ^ buf[pps_pps0] ^ buf[pps_pck ]) ) {
     return true;
   }
   return false;

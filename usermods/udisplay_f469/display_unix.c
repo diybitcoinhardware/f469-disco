@@ -4,6 +4,8 @@
 #include "py/builtin.h"
 #include "lvgl.h"
 
+#if MODULE_DISPLAY_ENABLED
+
 STATIC mp_obj_t display_update(mp_obj_t dt_obj){
     uint32_t dt = mp_obj_get_int(dt_obj);
     lv_tick_inc(dt);
@@ -45,9 +47,10 @@ const mp_obj_module_t display_user_cmodule = {
     .globals = (mp_obj_dict_t*)&display_module_globals,
 };
 
-// #include "lvgl_mpy.c"
-#include "lv_mpy_example.c"
+#include "lv_mpy.c"
 // Register the module to make it available in Python
-MP_REGISTER_MODULE(MP_QSTR_udisplay, display_user_cmodule, MODULE_DISPLAY_ENABLED);
-MP_REGISTER_MODULE(MP_QSTR_lvgl, mp_module_lvgl, MODULE_DISPLAY_ENABLED);
+MP_REGISTER_MODULE(MP_QSTR_udisplay, display_user_cmodule);
+MP_REGISTER_MODULE(MP_QSTR_lvgl, mp_module_lvgl);
+
+#endif // MODULE_DISPLAY_ENABLED
 

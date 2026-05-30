@@ -201,7 +201,7 @@ extern scard_pin_state_t scard_pin_read_debounce(scard_pin_dsc_t* p_pin,
  * @param message  message associated with exception
  */
 static inline void raise_SmartcardException(const char* message) {
-  mp_raise_msg(&mp_type_SmartcardException, message);
+  mp_raise_msg_varg(&mp_type_SmartcardException, MP_ERROR_TEXT("%s"), message);
 }
 
 /**
@@ -209,7 +209,7 @@ static inline void raise_SmartcardException(const char* message) {
  * @param message  message associated with exception
  */
 static inline void raise_CardConnectionException(const char* message) {
-  mp_raise_msg(&mp_type_CardConnectionException, message);
+  mp_raise_msg_varg(&mp_type_CardConnectionException, MP_ERROR_TEXT("%s"), message);
 }
 
 /**
@@ -217,7 +217,7 @@ static inline void raise_CardConnectionException(const char* message) {
  * @param message  message associated with exception
  */
 static inline void raise_NoCardException(const char* message) {
-  mp_raise_msg(&mp_type_NoCardException, message);
+  mp_raise_msg_varg(&mp_type_NoCardException, MP_ERROR_TEXT("%s"), message);
 }
 
 /**
@@ -231,9 +231,9 @@ static inline void raise_NoCardException(const char* message) {
 static inline mp_uint_t scard_ticks_diff(mp_uint_t end, mp_uint_t start) {
   // Optimized formula avoiding if conditions. We adjust difference "forward",
   // wrap it around and adjust back.
-  mp_uint_t diff = ( (end - start + MICROPY_PY_UTIME_TICKS_PERIOD / 2) &
-                     (MICROPY_PY_UTIME_TICKS_PERIOD - 1) ) -
-                   MICROPY_PY_UTIME_TICKS_PERIOD / 2;
+  mp_uint_t diff = ( (end - start + MICROPY_PY_TIME_TICKS_PERIOD / 2) &
+                     (MICROPY_PY_TIME_TICKS_PERIOD - 1) ) -
+                   MICROPY_PY_TIME_TICKS_PERIOD / 2;
   return diff;
 }
 

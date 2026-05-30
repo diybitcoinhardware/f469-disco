@@ -11,6 +11,8 @@
 #include "connection.h"
 #include "reader.h"
 
+#if MODULE_SCARD_ENABLED
+
 #if !defined(NDEBUG)
   bool scard_module_debug = false;
   bool scard_module_debug_ansi = true;
@@ -77,4 +79,6 @@ const mp_obj_module_t scard_user_cmodule = {
 };
 
 // Register the module to make it available in Python
-MP_REGISTER_MODULE(MP_QSTR_uscard, scard_user_cmodule, MODULE_SCARD_ENABLED);
+MP_REGISTER_MODULE(MP_QSTR_uscard, scard_user_cmodule);
+
+#endif // MODULE_SCARD_ENABLED

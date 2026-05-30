@@ -76,7 +76,8 @@ static bool t1_cb_serial_out(const uint8_t* buf, size_t len, void* p_user_prm) {
   if(scard_module_debug) {
     scard_ansi_color(SCARD_ANSI_RED);
     for(size_t i = 0; i < len; ++i) {
-      printf(scard_module_debug_ansi ? " %02X" : " t%02X", buf[i]);
+      mp_printf( MICROPY_DEBUG_PRINTER,
+                 scard_module_debug_ansi ? " %02X" : " t%02X", buf[i] );
     }
     scard_ansi_reset();
   }
@@ -225,7 +226,8 @@ static void serial_in_t1(proto_handle_t handle, const uint8_t* buf,
   if(scard_module_debug) {
     scard_ansi_color(SCARD_ANSI_GREEN);
     for(size_t i = 0; i < len; ++i) {
-      printf(scard_module_debug_ansi ? " %02X" : " r%02X", buf[i]);
+      mp_printf( MICROPY_DEBUG_PRINTER,
+                 scard_module_debug_ansi ? " %02X" : " r%02X", buf[i] );
     }
     scard_ansi_reset();
   }

@@ -19,7 +19,7 @@ mpy-cross: $(TARGET_DIR) $(MPY_DIR)/mpy-cross/Makefile
 	@echo Building cross-compiler
 	make -C $(MPY_DIR)/mpy-cross \
 	DEBUG=$(DEBUG) && \
-	cp $(MPY_DIR)/mpy-cross/mpy-cross $(TARGET_DIR)
+	cp $(MPY_DIR)/mpy-cross/build/mpy-cross $(TARGET_DIR)
 
 # disco board without bitcoin frozen library
 empty: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
@@ -64,6 +64,7 @@ all: mpy-cross empty disco unix
 clean:
 	rm -rf $(TARGET_DIR)
 	make -C $(MPY_DIR)/mpy-cross clean
+	rm $(MPY_DIR)/mpy-cross/mpy-cross
 	make -C $(MPY_DIR)/ports/unix \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_UNIX) clean
