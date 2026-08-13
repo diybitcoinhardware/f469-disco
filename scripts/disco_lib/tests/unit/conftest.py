@@ -1,0 +1,108 @@
+"""Shared fixtures for disco_lib tests."""
+
+import pytest
+from unittest.mock import patch
+
+from disco_lib.ocd_provider import set_ocd, reset_ocd
+from disco_lib.ykush_provider import set_ykush, reset_ykush
+from disco_lib.tests.mocks import OCDMock, YkushMock
+
+
+@pytest.fixture
+def ocd_mock():
+    """OCD mock with auto resume check at teardown.
+
+    Use this for commands that should resume CPU after halting.
+    Test fails if CPU is left halted when fixture tears down.
+    """
+    mock = OCDMock()
+    set_ocd(mock)
+    yield mock
+    reset_ocd()
+    mock.assert_resumed()
+
+
+@pytest.fixture
+def ocd_mock_halted_ok():
+    """OCD mock for commands that intentionally leave CPU halted.
+
+    Use this for commands like `cpu halt` that are supposed to
+    leave the CPU in halted state.
+    """
+    mock = OCDMock()
+    set_ocd(mock)
+    yield mock
+    reset_ocd()
+    # No assert_resumed() - halted state is expected
+
+
+@pytest.fixture
+def ocd_mock_raw():
+    """OCD mock without any automatic assertions.
+
+    Use when you need full control over assertions.
+    """
+    mock = OCDMock()
+    set_ocd(mock)
+    yield mock
+    reset_ocd()
+
+
+@pytest.fixture
+def mock_glob():
+    """Mock glob.glob for device listing tests."""
+    with patch("disco_lib.serial.glob.glob") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_socket():
+    """Mock socket for OpenOCD tests."""
+    with patch("disco_lib.openocd.socket.create_connection") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_serial():
+    """Mock pyserial for serial tests."""
+    with patch("disco_lib.serial.serial.Serial") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_subprocess():
+    """Mock subprocess for OpenOCD start/stop."""
+    with patch("disco_lib.openocd.subprocess.Popen") as popen_mock, \
+         patch("disco_lib.openocd.subprocess.run") as run_mock:
+        # Mock subprocess.run to return a result-like object
+        run_mock.return_value.returncode = 0
+        # Create a namespace-like object that has both mocks
+        class SubprocessMocks:
+            Popen = popen_mock
+            run = run_mock
+        yield SubprocessMocks
+
+
+@pytest.fixture
+def ykush_mock():
+    """YKUSH mock with auto cleanup at teardown.
+
+    Use this for commands that use YKUSH power control.
+    """
+    mock = YkushMock()
+    mock.add_device("YK12345")  # Add default device
+    set_ykush(mock)
+    yield mock
+    reset_ykush()
+
+
+@pytest.fixture
+def ykush_mock_raw():
+    """YKUSH mock without any default devices.
+
+    Use when you need full control over device configuration.
+    """
+    mock = YkushMock()
+    set_ykush(mock)
+    yield mock
+    reset_ykush()

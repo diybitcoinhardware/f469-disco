@@ -1,0 +1,3 @@
+# Binary firmware files (download with gh release download)
+*.bin
+*.hex

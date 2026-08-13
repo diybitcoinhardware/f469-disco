@@ -6,6 +6,19 @@
 
 Requires Nix >=2.7 with flakes enabled and direnv.
 
+To install `direnv` and `nix` on Linux use:
+
+```bash
+sudo apt install direnv nix-bin
+```
+
+Than add permission to your user:
+```bash
+sudo usermod -aG nix-users $USER
+```
+
+Then logout and login again...
+
 ```bash
 cd f469-disco
 direnv allow
@@ -16,9 +29,9 @@ Environment activates automatically on entering the directory.
 ### nix-shell
 
 ```bash
-nix develop
+nix develop --extra-experimental-features "nix-command flakes"
 # or for legacy nix:
-nix-shell
+nix-shell -I nixpkgs=channel:nixos-24.05
 ```
 
 ### Manual Setup

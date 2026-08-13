@@ -1,0 +1,32 @@
+# Firmware fingerprint - auto-generated
+name: debug
+filename: debug.bin
+static:
+  size_bytes: 1484352
+  sha256: 9df66b62e72a0001e0cb1b113d55a57af53e52204f1b82ae8f0fb2408517bcef
+  regions:
+  - start: '0x00000000'
+    end: '0x00004000'
+    size: 16384
+    type: code
+    label: bootloader
+  - start: '0x00004000'
+    end: '0x00020000'
+    size: 114688
+    type: blank
+    label: flash_storage
+  - start: '0x00020000'
+    end: '0x0016a640'
+    size: 1353280
+    type: code
+    label: main
+  version_tag: 0100900001
+  build_type: debug
+  filesystem_preservation: true
+  flash_address: '0x08000000'
+runtime:
+  jtag_works: true
+  cpu_runs: true
+  usb_cdc: true
+  repl_responsive: true
+notes: ''

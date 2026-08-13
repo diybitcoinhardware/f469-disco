@@ -1,6 +1,13 @@
 .DS_Store
 .vscode
 bin
+build
 .ipynb_checkpoints
 *.egg-info
 __pycache__
+.direnv
+.pytest_cache
+
+.claude
+.history
+.beads

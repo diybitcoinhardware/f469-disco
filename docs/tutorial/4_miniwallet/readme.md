@@ -444,6 +444,6 @@ class Wallet:
         QRScreen("Transaction is signed", "Scan it with your wallet", signed_tx)
 ```
 
-Great, we are done. We wrote a lot, but now we have something very close to actual hardware wallet. Try it online [in the sumulator](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/4_miniwallet/main.py).
+Great, we are done. We wrote a lot, but now we have something very close to actual hardware wallet. Try it online [in the sumulator](https://diybitcoinhardware.github.io/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/4_miniwallet/main.py).
 
 From here it's time to refactor, split the code to modules and finalize some things. Have fun!
