@@ -53,5 +53,12 @@ static inline scard_pin_state_t scard_pin_read(scard_pin_dsc_t* p_pin) {
   uint32_t state = mp_hal_pin_read(p_pin->pin) ? 1U : 0U;
   return (scard_pin_state_t)(state ^ p_pin->invert);
 }
+/**
+ * Reconfigures USART for T=1 protocol after ATR reception.
+ * Switches stop bits from 1.5 to 1 and reduces guard time to 1 ETU.
+ * Must be called after ATR is received and before first T=1 block is sent.
+ * @param handle  smart card interface handle
+ */
+void scard_configure_t1(scard_handle_t handle);
 
 #endif // SCARD_IO_H_INCLUDED

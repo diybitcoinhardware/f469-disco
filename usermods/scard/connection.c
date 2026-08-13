@@ -85,6 +85,7 @@ typedef struct connection_obj_ {
   int32_t rsp_timeout_ms;        ///< Response timeout in ms
   int32_t max_timeout_ms;        ///< Maximal response timeout in ms
   bool raise_on_error;           ///< Forces exception for non-blocking mode
+  bool t1_usart_configured;      ///< Flag: USART reconfigured for T=1 protocol
   event_t event_buf[MAX_EVENTS]; ///< Event buffer
   size_t event_idx;              ///< Event index within event_buf[]
   mp_obj_t atr;                  ///< ATR as bytes object
@@ -280,6 +281,13 @@ static mp_obj_t make_response_list(const uint8_t* data, size_t len) {
 static bool proto_cb_serial_out(mp_obj_t self_in, const uint8_t* buf,
                                 size_t len) {
   connection_obj_t* self = (connection_obj_t*)self_in;
+  // One-shot: reconfigure USART for T=1 before first T=1 block is sent
+  // (which is the IFSD request). This must happen after ATR reception
+  // (which needs 1.5 stop bits) but before IFSD send.
+  if(!self->t1_usart_configured && self->sc_handle) {
+    scard_configure_t1(self->sc_handle);
+    self->t1_usart_configured = true;
+  }
   return scard_tx_write(self->sc_handle, buf, len);
 }
 
@@ -520,6 +528,7 @@ static void connection_init(connection_obj_t* self,
 
   // Make connection alive
   self->state = state_disconnected;
+  self->t1_usart_configured = false;
 }
 
 /**
