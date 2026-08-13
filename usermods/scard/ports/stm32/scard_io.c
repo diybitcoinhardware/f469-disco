@@ -17,14 +17,26 @@
 #include "t1_protocol.h"
 #include "scard.h"
 
+/// Debug flag for half-duplex tracing
+#define SCARD_HD_DEBUG 0
+
+#if SCARD_HD_DEBUG
+#define HD_DEBUG_PRINTF(...) printf(__VA_ARGS__)
+#else
+#define HD_DEBUG_PRINTF(...) ((void)0)
+#endif
+
 /// Length of receive buffer
 #define RX_BUF_LEN                      (270)
 
-/// USART transmission/reception mode
-typedef enum usart_mode_ {
-  usart_mode_tx_rx = 0,  ///< TX and RX
-  usart_mode_tx          ///< TX only
-} usart_mode_t;
+/// Half-duplex direction
+/// In smart card mode, TX and RX are internally connected (DM00031020 section 30.3.10)
+/// so we must enable only one at a time to prevent echo
+typedef enum hd_dir_ {
+  hd_dir_none = 0,  ///< Neither TX nor RX active
+  hd_dir_tx,        ///< TX active (RX disabled)
+  hd_dir_rx         ///< RX active (TX disabled)
+} hd_dir_t;
 
 /// Type information for smart card interface instance
 const mp_obj_type_t scard_inst_type;
@@ -129,19 +141,42 @@ static inline uint32_t get_usart_clock(uint8_t usart_id) {
 }
 
 /**
- * Sets USART transmission/reception mode
+ * Sets half-duplex direction for USART
+ *
+ * In smart card mode, TX and RX are internally connected (DM00031020 section 30.3.10)
+ * so we must enable only one at a time to prevent echo.
  *
  * @param handle  smart card interface handle
- * @param mode    mode
+ * @param dir     half-duplex direction (tx, rx, or none)
  */
-static void set_usart_mode(scard_handle_t handle, usart_mode_t mode) {
+static void set_half_duplex(scard_handle_t handle, hd_dir_t dir) {
 #if defined(STM32F4)
+  USART_TypeDef* usart = handle->sc_handle.Instance;
   uint32_t irq_state = disable_irq();
-  if(mode == usart_mode_tx) {
-    handle->sc_handle.Instance->CR1 &= ~USART_CR1_RE;
+
+  if(dir == hd_dir_tx) {
+    // TX mode: disable RX, enable TX
+    usart->CR1 &= ~USART_CR1_RE;
+    usart->CR1 |= USART_CR1_TE;
+    HD_DEBUG_PRINTF("\r\n[set_half_duplex] TX mode (RE=0, TE=1)");
+  } else if(dir == hd_dir_rx) {
+    // RX mode: wait for TX complete, disable TX, clear ORE, enable RX
+    if(usart->CR1 & USART_CR1_TE) { while(!(usart->SR & USART_SR_TC)) { } }
+    usart->CR1 &= ~USART_CR1_TE;
+    // Clear overrun error if present (parasites before reception)
+    if(usart->SR & USART_SR_ORE) {
+      volatile uint32_t dummy = usart->DR;
+      (void)dummy;
+    }
+    usart->CR1 |= USART_CR1_RE;
+    HD_DEBUG_PRINTF("\r\n[set_half_duplex] RX mode (TE=0, RE=1)");
   } else {
-    handle->sc_handle.Instance->CR1 |= USART_CR1_RE;
+    // Neither: wait for TX complete, disable both
+    if(usart->CR1 & USART_CR1_TE) { while(!(usart->SR & USART_SR_TC)) { } }
+    usart->CR1 &= ~(USART_CR1_TE | USART_CR1_RE);
+    HD_DEBUG_PRINTF("\r\n[set_half_duplex] NONE mode (TE=0, RE=0)");
   }
+
   enable_irq(irq_state);
 #else // STM32F4
   #error MCU series is not supported by smart card interface yet
@@ -289,8 +324,8 @@ scard_handle_t scard_interface_init(mp_const_obj_t iface_id, mp_obj_t io_pin,
       self = m_new0(scard_inst_t, 1);
       self->base.type = &scard_inst_type;
       self->p_usart_dsc = p_usart_dsc;
-      self->suppress_loopback = true; // Should be conditional for other MCUs
-      self->skip_bytes = 0;
+      self->suppress_loopback = true;
+      // Hardware half-duplex prevents echo
 
       // Create machine.UART and set callback
       mp_obj_t uart_cb = mp_load_attr(self, MP_QSTR_uart_callback);
@@ -334,15 +369,17 @@ size_t scard_rx_readinto(scard_handle_t handle, uint8_t* buf, size_t nbytes) {
   size_t bytes_read = 0;
   uint8_t* p_data = buf;
 
+  // Set half-duplex to RX mode before reading
+  set_half_duplex(handle, hd_dir_rx);
+
+  HD_DEBUG_PRINTF("\r\n[scard_rx_readinto] uart_rx_any=%d", uart_rx_any(handle->uart_obj));
+
   while(bytes_read <= nbytes && uart_rx_any(handle->uart_obj)) {
-    if(handle->skip_bytes) {
-      volatile int dummy = uart_rx_char(handle->uart_obj);
-      (void)dummy;
-      --handle->skip_bytes;
-    } else {
-      *p_data++ = uart_rx_char(handle->uart_obj);
-      ++bytes_read;
-    }
+    // All bytes received are from the card - no echo to skip!
+    uint8_t byte = uart_rx_char(handle->uart_obj);
+    *p_data++ = byte;
+    HD_DEBUG_PRINTF("\r\n[scard_rx_readinto] READ byte: 0x%02X", byte);
+    ++bytes_read;
   }
   return bytes_read;
 }
@@ -355,13 +392,25 @@ bool scard_tx_write(scard_handle_t handle, const uint8_t* buf, size_t nbytes) {
 
   int errcode = 0;
 
-  // If transmitted bytes are returned as received data we need to suppress
-  // loopback. Using set_usart_mode() instead causes missing of quick responses
-  // like PPS exchange responses.
-  if(handle->suppress_loopback && handle->skip_bytes <= (SIZE_MAX - nbytes)) {
-    handle->skip_bytes += nbytes;
+  HD_DEBUG_PRINTF("\r\n[scard_tx_write] TX %zu bytes: ", nbytes);
+  for(size_t i = 0; i < nbytes && i < 10; i++) {
+    HD_DEBUG_PRINTF("%02X ", buf[i]);
   }
+
+  // Set half-duplex to TX mode: disable RX to prevent echo
+  set_half_duplex(handle, hd_dir_tx);
+
   size_t bytes_written = uart_tx_data(handle->uart_obj, buf, nbytes, &errcode);
+
+  // Set half-duplex back to RX mode: wait for TC, disable TX, enable RX
+  // This prevents echo and prepares for card response
+  set_half_duplex(handle, hd_dir_rx);
+
+  // Wait for guard time (12 ETU) to ensure last byte is fully transmitted
+  // before card responds. This prevents receiving echo bytes.
+  mp_hal_delay_ms(2);
+
+  HD_DEBUG_PRINTF("\r\n[scard_tx_write] TX complete, bytes_written=%zu", bytes_written);
 
   return (errcode == 0 && bytes_written == nbytes);
 }
@@ -446,23 +495,26 @@ STATIC mp_obj_t uart_callback(mp_obj_t self_in, mp_obj_t unused) {
   uint8_t buf[32];
   uint8_t* p_buf = buf;
 
+  int rx_available = uart_rx_any(self->uart_obj);
+  HD_DEBUG_PRINTF("\r\n[uart_callback] ENTER: rx_available=%d", rx_available);
+
+  // All received bytes are from the card - no echo to skip!
   while(uart_rx_any(self->uart_obj)) {
-    if(self->skip_bytes) {
-      volatile int dummy = uart_rx_char(self->uart_obj);
-      (void)dummy;
-      --self->skip_bytes;
-    } else {
-      *p_buf++ = uart_rx_char(self->uart_obj);
-      if(p_buf >= buf + sizeof(buf)) {
-        self->cb_data_rx(self->cb_self, buf, sizeof(buf));
-        p_buf = buf;
-      }
+    uint8_t byte = uart_rx_char(self->uart_obj);
+    *p_buf++ = byte;
+    HD_DEBUG_PRINTF("\r\n[uart_callback] RECV: 0x%02X", byte);
+    if(p_buf >= buf + sizeof(buf)) {
+      HD_DEBUG_PRINTF("\r\n[uart_callback] CALLBACK: %zu bytes", sizeof(buf));
+      self->cb_data_rx(self->cb_self, buf, sizeof(buf));
+      p_buf = buf;
     }
   }
 
   if(p_buf > buf) {
+    HD_DEBUG_PRINTF("\r\n[uart_callback] CALLBACK: %zu bytes", (size_t)(p_buf - buf));
     self->cb_data_rx(self->cb_self, buf, p_buf - buf);
   }
+  HD_DEBUG_PRINTF("\r\n[uart_callback] EXIT");
   return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(uart_callback_obj, uart_callback);

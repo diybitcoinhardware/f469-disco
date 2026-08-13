@@ -26,8 +26,8 @@ typedef struct scard_inst_ {
   pyb_uart_obj_t* uart_obj;              ///< Underlying UART object
   scard_cb_data_rx_t cb_data_rx;         ///< Callback for received data
   mp_obj_t cb_self;                      ///< Self parameter for callback(s)
-  bool suppress_loopback;                ///< If true suppresses loopback echo
-  size_t skip_bytes;                     ///< Counter of skipped bytes
+  bool suppress_loopback;                ///< If true, hardware half-duplex prevents echo
+
 } scard_inst_t, *scard_handle_t;
 
 /// Pin descriptor
