@@ -10,16 +10,21 @@ static bool _qrcode_encode(uint8_t * qrcode, mp_obj_t text_obj){
     mp_get_buffer_raise(text_obj, &bufinfo, MP_BUFFER_READ);
 
     enum qrcodegen_Ecc errCorLvl = qrcodegen_Ecc_LOW;  // Error correction level
-    
+
+    if(bufinfo.len > qrcodegen_BUFFER_LEN_MAX){
+        mp_raise_ValueError("Data is too long to encode");
+    }
+
     uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
     memcpy(tempBuffer, bufinfo.buf, bufinfo.len);
     bool ok = false;
-    bool is_bytes = false;
-    for(int i = 0; i < bufinfo.len; i++){
-        if(tempBuffer[i] == 0){ // \x00 will cut the byte array
-            is_bytes = true;
-        }
-    }
+    // Binary mode is required for arbitrary bytes payloads (e.g. Compact SeedQR
+    // raw entropy): a bytes object may legitimately contain no 0x00 byte at all,
+    // so sniffing for an embedded NUL to detect "binary" data is unreliable and
+    // can make qrcodegen_encodeText() (which expects a NUL-terminated C string)
+    // read past the intended payload into uninitialized stack memory. The
+    // object's actual Python type tells us unambiguously what the caller meant.
+    bool is_bytes = mp_obj_is_type(text_obj, &mp_type_bytes);
     if(is_bytes){
         ok = qrcodegen_encodeBinary(tempBuffer, bufinfo.len, qrcode, errCorLvl,
             qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
