@@ -1,2 +1,2 @@
 include('empty.py')
-freeze('../libs/common')
+include('common.py')

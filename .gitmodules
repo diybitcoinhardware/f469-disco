@@ -7,3 +7,6 @@
 [submodule "usermods/secp256k1"]
 	path = usermods/secp256k1
 	url = ../../diybitcoinhardware/secp256k1-embedded
+[submodule "libs/common/embit"]
+	path = libs/common/embit
+	url = https://github.com/diybitcoinhardware/embit.git
