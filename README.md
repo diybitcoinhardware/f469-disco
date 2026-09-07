@@ -1,8 +1,8 @@
 # MicroPython Bitcoin bundle for microcontrollers
 
-Focusing on F469-Discovery board from STMicroelectronics, planning to add other boards later as well.
+Focusing on F469-Discovery board from STMicroelectronics (STM32F469I-DISCO), planning to add other boards later as well.
 
-Build includes: [secp256k1](https://github.com/bitcoin-core/secp256k1) bindings, `embit` bitcoin python library, [LittlevGL](https://lvgl.io/) GUI library
+Build includes: [secp256k1](https://github.com/bitcoin-core/secp256k1) bindings, `embit` Bitcoin Python library, [LVGL](https://lvgl.io/) GUI library
 
 ## Quick start
 
@@ -10,7 +10,7 @@ Check out the [documentation](./docs) folder for a tutorial and API of crypto mo
 
 Some examples are located in the [examples](./examples) folder.
 
-To get micropython running on the board:
+To get MicroPython running on the board:
 - Download the latest `upy-f469disco.bin` file from [releases](https://github.com/diybitcoinhardware/f469-disco/releases)
 - Make sure your power jumper on the board is set to STLK position
 - Connect the board to your computer with miniUSB cable
@@ -22,9 +22,9 @@ To get micropython running on the board:
 
 ## Build
 
-Clone this repo recursively - we have many submodules. If you forgot - makefile will do it for you, but be patient, submodules are pretty large.
+Clone this repo recursively - we have many submodules. If you forgot - Makefile will do it for you, but be patient, submodules are pretty large.
 
-### Prerequisities: Board
+### Prerequisites: Board
 
 To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler.
 
@@ -39,9 +39,9 @@ On **Linux**:
 sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch openocd
 ```
 
-On **Windows**: Install linux subsystem and follow Linux instructions.
+On **Windows**: Install Windows Subsystem for Linux (WSL) and follow Linux instructions.
 
-### Prerequisities: Simulator
+### Prerequisites: Simulator
 
 You may need to install SDL2 library to simulate the screen of the device.
 
@@ -58,7 +58,7 @@ brew install sdl2
 **Windows**: 
 - `sudo apt install libsdl2-dev` on Linux side 
 - install and launch [Xming](https://sourceforge.net/projects/xming/) on Windows side
-- set `export DISPLAY=:0` on linux part
+- set `export DISPLAY=:0` on Linux part
 
 ### Compilation
 
@@ -68,13 +68,13 @@ We use makefiles. All resulting binaries will end up in the `bin` folder.
 - `make empty` - firmware for the board without frozen library - `bin/upy-f469disco-empty.bin`
 - `make unix` - compiles a simulator for mac/unix - `bin/micropython_unix`
 
-To launch a simulator either run `bin/micropython_unix` or simly run `make simulate`.
+To launch a simulator either run `bin/micropython_unix` or simply run `make simulate`.
 
-If something is not working you can clean up with `make clean`
+If something is not working you can clean up with `make clean`.
 
-## Run Unittests
+## Run Unit Tests
 
-Currently unittests work only on linuxport, and there are... not many... Contributions are very welcome!
+Currently unit tests run against the MicroPython Unix port, and there are... not many... Contributions are very welcome!
 
 ```
 make test
