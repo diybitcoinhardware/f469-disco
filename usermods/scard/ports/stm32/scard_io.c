@@ -334,7 +334,7 @@ size_t scard_rx_readinto(scard_handle_t handle, uint8_t* buf, size_t nbytes) {
   size_t bytes_read = 0;
   uint8_t* p_data = buf;
 
-  while(bytes_read <= nbytes && uart_rx_any(handle->uart_obj)) {
+  while(bytes_read < nbytes && uart_rx_any(handle->uart_obj)) {
     if(handle->skip_bytes) {
       volatile int dummy = uart_rx_char(handle->uart_obj);
       (void)dummy;
